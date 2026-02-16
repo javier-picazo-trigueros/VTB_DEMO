@@ -1,0 +1,123 @@
+/**
+ * VTB - index.css
+ * ===============
+ * Estilos globales de la aplicación.
+ * Incluye Tailwind CSS y personalizaciones.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  @apply transition-colors duration-200;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-gradient-vtb text-slate-100 font-sans;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  @apply w-2 h-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-emerald-500 rounded-full hover:bg-emerald-400;
+}
+
+/* Animaciones personalizadas */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Clases de componentes reutilizables */
+.btn-primary {
+  @apply px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold rounded-lg transition;
+}
+
+.card-vtb {
+  @apply bg-slate-800 border border-emerald-500/20 rounded-lg p-6 hover:border-emerald-500/50 transition;
+}
+
+.input-vtb {
+  @apply px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none transition;
+}
+
+.badge-active {
+  @apply px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400;
+}
+
+.badge-inactive {
+  @apply px-3 py-1 rounded-full text-xs font-semibold bg-slate-700/50 text-slate-400;
+}
+
+/* Gradientes personalizados */
+.gradient-text {
+  @apply bg-gradient-to-r from-emerald-400 to-emerald-500 bg-clip-text text-transparent;
+}
+
+.gradient-border {
+  @apply bg-gradient-to-r from-emerald-500 to-emerald-600 p-px rounded-lg;
+}
+
+/* Efectos de hover mejorados */
+.hover-lift {
+  @apply transition-transform hover:-translate-y-1;
+}
+
+.hover-glow {
+  @apply transition-all hover:shadow-lg hover:shadow-emerald-500/20;
+}

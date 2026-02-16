@@ -1,65 +1,67 @@
 #!/bin/bash
-# VTB - Script de Inicio Rápido
-# Este script levanta simultáneamente el backend y frontend
+
+# VTB - Script de Inicio de los 3 Servicios
+# Levanta Backend, Frontend y Blockchain simultáneamente
+
+set -e
 
 echo "🚀 Iniciando VTB (Vote Through Blockchain)..."
 echo ""
+echo "Levantando:"
+echo "  1️⃣  Backend (Express) en puerto 3001"
+echo "  2️⃣  Frontend (React Vite) en puerto 3000"
+echo "  3️⃣  Blockchain (Hardhat) en puerto 8545"
+echo ""
 
-# Colores para output
+# Colores
 GREEN='\033[0;32m'
+BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Verificar Python
-if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
-    echo "${YELLOW}⚠️  Python no encontrado. Por favor instálapo.${NC}"
-    exit 1
-fi
+# Función para limpiar procesos al salir
+cleanup() {
+  echo ""
+  echo "${YELLOW}⏹️  Deteniendo todos los servicios...${NC}"
+  kill $BACKEND_PID $FRONTEND_PID $BLOCKCHAIN_PID 2>/dev/null || true
+  echo "✓ Servicios detenidos"
+}
 
-# Verificar Node.js
-if ! command -v node &> /dev/null; then
-    echo "${YELLOW}⚠️  Node.js no encontrado. Por favor instálalo.${NC}"
-    exit 1
-fi
+trap cleanup EXIT
 
-# Crear directorios si no existen
-echo "📁 Preparando estructura..."
-mkdir -p backend/instance
-mkdir -p frontend/node_modules
-
-# Terminal 1: Backend
-echo ""
-echo "${GREEN}Terminal 1: Iniciando Backend Flask...${NC}"
+# 1. Backend
+echo "${BLUE}[1/3] Iniciando Backend en backend/...${NC}"
 cd backend
-python -m pip install -r requirements.txt > /dev/null 2>&1
-echo "✓ Dependencias Python instaladas"
-python app.py &
+npm run dev &
 BACKEND_PID=$!
+echo "${GREEN}✓ Backend iniciado (PID: $BACKEND_PID)${NC}"
+sleep 2
 
-sleep 3
-
-# Terminal 2: Frontend
-echo ""
-echo "${GREEN}Terminal 2: Iniciando Frontend React...${NC}"
+# 2. Frontend  
+echo "${BLUE}[2/3] Iniciando Frontend en frontend/...${NC}"
 cd ../frontend
-npm install > /dev/null 2>&1
-echo "✓ Dependencias Node instaladas"
 npm run dev &
 FRONTEND_PID=$!
+echo "${GREEN}✓ Frontend iniciado (PID: $FRONTEND_PID)${NC}"
+sleep 2
+
+# 3. Blockchain
+echo "${BLUE}[3/3] Iniciando Blockchain en blockchain/...${NC}"
+cd ../blockchain
+npx hardhat node &
+BLOCKCHAIN_PID=$!
+echo "${GREEN}✓ Blockchain iniciado (PID: $BLOCKCHAIN_PID)${NC}"
 
 echo ""
-echo "${GREEN}✅ VTB Iniciado Correctamente${NC}"
+echo "${GREEN}================================================================${NC}"
+echo "${GREEN}✨ Todos los servicios están corriendo:${NC}"
+echo "${GREEN}   • Backend:    http://localhost:3001${NC}"
+echo "${GREEN}   • Frontend:   http://localhost:3000${NC}"
+echo "${GREEN}   • Blockchain: http://localhost:8545${NC}"
+echo "${GREEN}================================================================${NC}"
 echo ""
-echo "📍 Accesos:"
-echo "   Frontend:  http://localhost:3000"
-echo "   Backend:   http://localhost:5000"
-echo ""
-echo "🔐 Credenciales (auto-rellenadas en login):"
-echo "   Votante: alumno@ufv.es / alumno123"
-echo "   Admin:   admin@ufv.es / admin123"
-echo ""
-echo "Presiona Ctrl+C para detener ambos servidores..."
+echo "Presiona Ctrl+C para detener todos los servicios"
 echo ""
 
-# Esperar a ambos procesos
-wait $BACKEND_PID $FRONTEND_PID
+# Mantener el script corriendo
+wait

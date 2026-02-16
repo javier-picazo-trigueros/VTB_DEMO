@@ -1,0 +1,35 @@
+{
+  "name": "vtb-blockchain",
+  "version": "1.0.0",
+  "description": "VTB - Vote Through Blockchain | Smart Contract & Hardhat Setup",
+  "main": "index.js",
+  "scripts": {
+    "node": "hardhat node",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:test": "hardhat run scripts/deploy.ts --network hardhat",
+    "test": "hardhat test",
+    "test:watch": "hardhat test --watch",
+    "clean": "hardhat clean",
+    "typechain": "typechain --target ethers-v6 './artifacts/contracts/**/*.json' --out-dir ./typechain"
+  },
+  "keywords": [
+    "blockchain",
+    "voting",
+    "election",
+    "ethereum",
+    "solidity",
+    "web3",
+    "hardhat"
+  ],
+  "author": "Senior Web3 Architect - Universidad (3º Ingeniería Informática)",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.0.5",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@typechain/ethers-v6": "^0.5.0",
+    "ethers": "^6.11.1",
+    "hardhat": "^2.22.2",
+    "typescript": "^5.3.3"
+  }
+}
