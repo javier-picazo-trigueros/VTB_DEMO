@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Navbar } from "../components/Navbar";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -107,7 +108,7 @@ export const AdminPanel = () => {
           break;
 
         case "inbox":
-          const regRes = await axios.get(`${API_URL}/registration/requests`, {
+          const regRes = await axios.get(`${API_URL}/admin/registration-requests`, {
             headers: getAuthHeader(),
           });
           setRegistrationRequests(regRes.data.requests);
@@ -192,22 +193,17 @@ export const AdminPanel = () => {
   };
 
   const handleApproveRequest = async (requestId, email) => {
-    if (!approvalPassword.trim()) {
-      setError("Por favor ingresa una contraseña temporal");
-      return;
-    }
-
     setLoading(true);
     try {
-      await axios.post(
-        `${API_URL}/registration/approve/${requestId}`,
-        { password: approvalPassword },
+      const response = await axios.patch(
+        `${API_URL}/admin/registration-requests/${requestId}`,
+        { action: 'approve' },
         { headers: getAuthHeader() }
       );
-      setSuccess("✅ Solicitud aprobada y usuario creado");
+      setSuccess(`✅ Usuario aprobado - Contraseña temporal: ${response.data.tempPassword}`);
       setApprovalPassword("");
       loadTabData();
-      setTimeout(() => setSuccess(""), 3000);
+      setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       setError(err.response?.data?.error || "Error aprobando solicitud");
     } finally {
@@ -216,13 +212,14 @@ export const AdminPanel = () => {
   };
 
   const handleRejectRequest = async (requestId) => {
-    if (!window.confirm("¿Rechazar esta solicitud de registro?")) return;
+    const reason = prompt("Ingresa el motivo del rechazo:");
+    if (!reason?.trim()) return;
 
     setLoading(true);
     try {
-      await axios.post(
-        `${API_URL}/registration/reject/${requestId}`,
-        {},
+      await axios.patch(
+        `${API_URL}/admin/registration-requests/${requestId}`,
+        { action: 'reject', reason },
         { headers: getAuthHeader() }
       );
       setSuccess("✅ Solicitud rechazada");
@@ -303,10 +300,8 @@ export const AdminPanel = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="text-center py-12"
             >
-              <div className="inline-block animate-spin text-4xl">⏳</div>
-              <p className="text-slate-600 dark:text-slate-400 mt-2">Cargando...</p>
+              <LoadingSpinner message={`Cargando ${activeTab}...`} />
             </motion.div>
           ) : (
             <motion.div
@@ -664,8 +659,8 @@ export const AdminPanel = () => {
                               <p className="font-mono text-slate-900 dark:text-white">{request.email}</p>
                             </div>
                             <div>
-                              <p className="text-sm text-slate-600 dark:text-slate-400">Nombre</p>
-                              <p className="font-semibold text-slate-900 dark:text-white">{request.name}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">Nombre Completo</p>
+                              <p className="font-semibold text-slate-900 dark:text-white">{request.full_name}</p>
                             </div>
                             <div>
                               <p className="text-sm text-slate-600 dark:text-slate-400">ID Estudiante</p>
@@ -674,24 +669,16 @@ export const AdminPanel = () => {
                             <div>
                               <p className="text-sm text-slate-600 dark:text-slate-400">Fecha Solicitada</p>
                               <p className="text-sm text-slate-900 dark:text-white">
-                                {new Date(request.requested_at).toLocaleString()}
+                                {new Date(request.created_at).toLocaleString()}
                               </p>
                             </div>
                           </div>
 
                           {/* Approval Section */}
                           <div className="bg-slate-100 dark:bg-slate-700 p-4 rounded-lg space-y-3">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                              🔐 Contraseña Temporal para Crear Usuario
-                            </label>
-                            <input
-                              type="password"
-                              placeholder="Ingresa contraseña"
-                              value={approvalPassword}
-                              onChange={(e) => setApprovalPassword(e.target.value)}
-                              disabled={loading}
-                              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                            />
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                              ℹ️ Se generará una contraseña temporal automáticamente
+                            </p>
                             <div className="flex gap-3 pt-2">
                               <motion.button
                                 whileHover={{ scale: 1.05 }}
@@ -734,7 +721,7 @@ export const AdminPanel = () => {
                               <div>
                                 <p className="font-medium text-slate-900 dark:text-white">{request.email}</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                  {new Date(request.processed_at).toLocaleString()}
+                                  {request.reviewed_at && new Date(request.reviewed_at).toLocaleString()}
                                 </p>
                               </div>
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${

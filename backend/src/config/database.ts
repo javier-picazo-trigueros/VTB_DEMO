@@ -78,17 +78,42 @@ export class Database {
           )
         `);
 
-        // Tabla de Solicitudes de Registro
+        // Tabla de Candidatos para cada Elección
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS candidates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            election_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            position INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (election_id) REFERENCES elections (id)
+          )
+        `);
+
+        // Tabla de Electores Permitidos por Elección (FIX D - BLOQUE 2.x)
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS election_voters (
+            election_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (election_id, user_id),
+            FOREIGN KEY (election_id) REFERENCES elections (id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+          )
+        `);
+
+        // Tabla de Solicitudes de Registro (3.1 - Registration Request Flow)
         this.db.run(`
           CREATE TABLE IF NOT EXISTS registration_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
             student_id TEXT NOT NULL,
-            status TEXT DEFAULT 'pending',
-            reason TEXT,
-            requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            processed_at DATETIME
+            status TEXT NOT NULL DEFAULT 'pending',
+            rejection_reason TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at DATETIME
           )
         `);
 

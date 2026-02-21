@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { Navbar } from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
@@ -11,9 +11,11 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 export const Login = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setAuthUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [step, setStep] = useState("login"); // login | request-registration
   const [userDomain, setUserDomain] = useState("");
   
@@ -28,6 +30,16 @@ export const Login = () => {
     student_id: "",
   });
 
+  // Detectar si session ha expirado (BLOQUE 5.4)
+  useEffect(() => {
+    const reason = searchParams.get('reason');
+    if (reason === 'expired') {
+      setSessionExpired(true);
+      // Auto-hide despuÃƒÂ©s de 8 segundos
+      setTimeout(() => setSessionExpired(false), 8000);
+    }
+  }, [searchParams]);
+
   // Cargar elecciones cuando el email cambia
   useEffect(() => {
     if (formData.email && formData.email.includes("@")) {
@@ -40,7 +52,7 @@ export const Login = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "electionId" ? parseInt(value) : value,
+      [name]: value,
     }));
     setError("");
   };
@@ -60,22 +72,16 @@ export const Login = () => {
     setError("");
 
     try {
-      if (!formData.electionId) {
-        throw new Error("Por favor selecciona una elección");
-      }
-
+      // CAMBIO ARQUITECTÃƒâ€œNICO (1.3): Ya no requiere electionId
       const response = await axios.post(`${API_URL}/auth/login`, {
         email: formData.email,
         password: formData.password,
-        electionId: formData.electionId,
       });
 
-      const { token, voting, user } = response.data;
+      const { token, user } = response.data;
 
-      // Almacenar datos
+      // Almacenar datos (sin nullifier ni election-id)
       localStorage.setItem("vtb-token", token);
-      localStorage.setItem("vtb-nullifier", voting.nullifier);
-      localStorage.setItem("vtb-election-id", voting.electionId);
       localStorage.setItem("vtb-role", user.role);
       localStorage.setItem("vtb-user-id", user.id);
       localStorage.setItem("vtb-email", user.email);
@@ -88,34 +94,23 @@ export const Login = () => {
         role: user.role
       });
 
-      console.log("🔑 Login exitoso");
+      console.log("Ã°Å¸â€â€˜ Login exitoso");
 
-      // Redirigir según rol
-      setTimeout(() => {
-        if (user.role === "admin") {
-          navigate("/admin");
-        } else {
-          navigate("/dashboard");
-        }
-      }, 500);
-    } catch (err) {
-      console.error("❌ Error en login:", err);
-      
-      // Si el usuario no existe, mostrar opción de solicitar registro
-      if (err.response?.status === 401 && err.response?.data?.error?.includes("Email")) {
-        setError("Usuario no registrado. Puedes solicitar tu registro al administrador.");
-        setStep("request-registration");
-        setRequestData({
-          email: formData.email,
-          name: "",
-          student_id: "",
-        });
+
+      // Redirigir segun rol
+      if (user.role === "admin") {
+        navigate("/admin");
       } else {
-        setError(
-          err.response?.data?.error ||
-          "Error al iniciar sesión"
-        );
+        navigate("/dashboard");
       }
+
+    } catch (err) {
+      console.error("Ã¢ÂÅ’ Error en login:", err);
+      
+      setError(
+        err.response?.data?.error ||
+        "Error al iniciar sesiÃƒÂ³n"
+      );
     } finally {
       setLoading(false);
     }
@@ -134,7 +129,7 @@ export const Login = () => {
       });
 
       setError("");
-      alert("✅ Solicitud enviada correctamente. El administrador la revisará pronto.");
+      alert("Ã¢Å“â€¦ Solicitud enviada correctamente. El administrador la revisarÃƒÂ¡ pronto.");
       setStep("login");
       setRequestData({ email: "", name: "", student_id: "" });
     } catch (err) {
@@ -165,6 +160,18 @@ export const Login = () => {
               <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
                 {t("login.subtitle") || "Accede con tus credenciales"}
               </p>
+
+              {/* Session Expired Banner (BLOQUE 5.4) */}
+              {sessionExpired && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="mb-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm"
+                >
+                  Ã¢ÂÂ±Ã¯Â¸Â Tu sesiÃƒÂ³n ha expirado. Vuelve a iniciar sesiÃƒÂ³n para continuar.
+                </motion.div>
+              )}
 
               {error && (
                 <motion.div
@@ -210,7 +217,7 @@ export const Login = () => {
                     onChange={handleChange}
                     disabled={loading}
                     className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blockchain-500 disabled:opacity-50"
-                    placeholder="••••••••"
+                    placeholder="Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
                   />
                 </div>
 
@@ -239,24 +246,36 @@ export const Login = () => {
               {/* Demo Credentials */}
               <div className="mt-6 p-3 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-400 space-y-1">
                 <p className="font-semibold text-slate-700 dark:text-slate-300">
-                  📝 Cuenta de Prueba:
+                  Ã°Å¸â€œÂ Cuenta de Prueba:
                 </p>
-                <p>👤 Email: juan@universidad.edu</p>
-                <p>🔑 Contraseña: password123</p>
+                <p>Ã°Å¸â€˜Â¤ Email: juan@universidad.edu</p>
+                <p>Ã°Å¸â€â€˜ ContraseÃƒÂ±a: password123</p>
                 <p className="mt-2 font-semibold text-slate-700 dark:text-slate-300">
-                  👨‍💼 Admin:
+                  Ã°Å¸â€˜Â¨Ã¢â‚¬ÂÃ°Å¸â€™Â¼ Admin:
                 </p>
                 <p>admin@universidad.edu / admin123</p>
+              </div>
+
+              {/* Request Access Link (BLOQUE 3.1) */}
+              <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+                Ã‚Â¿No tienes cuenta?{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/register-request')}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                >
+                  Solicitar acceso
+                </button>
               </div>
             </>
           ) : (
             <>
               {/* PASO 2: SOLICITAR REGISTRO */}
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                📝 Solicitar Registro
+                Ã°Å¸â€œÂ Solicitar Registro
               </h2>
               <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
-                Un administrador revisará tu solicitud
+                Un administrador revisarÃƒÂ¡ tu solicitud
               </p>
 
               {error && (
@@ -272,7 +291,7 @@ export const Login = () => {
               <form onSubmit={handleRequestSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    📧 Email
+                    Ã°Å¸â€œÂ§ Email
                   </label>
                   <input
                     type="email"
@@ -286,7 +305,7 @@ export const Login = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    👤 Nombre Completo
+                    Ã°Å¸â€˜Â¤ Nombre Completo
                   </label>
                   <input
                     type="text"
@@ -301,7 +320,7 @@ export const Login = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    🎓 ID de Estudiante
+                    Ã°Å¸Å½â€œ ID de Estudiante
                   </label>
                   <input
                     type="text"
@@ -321,7 +340,7 @@ export const Login = () => {
                   disabled={loading || !requestData.name || !requestData.student_id}
                   className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold text-sm hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ✉️ Enviar Solicitud
+                  Ã¢Å“â€°Ã¯Â¸Â Enviar Solicitud
                 </motion.button>
 
                 <button
@@ -329,7 +348,7 @@ export const Login = () => {
                   onClick={() => setStep("login")}
                   className="w-full py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
                 >
-                  ← Volver
+                  Ã¢â€ Â Volver
                 </button>
               </form>
             </>

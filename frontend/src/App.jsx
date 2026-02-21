@@ -1,28 +1,30 @@
 /**
  * VTB - App.jsx
  * ==============
- * Componente raíz de la aplicación.
- * Configura las rutas y el contexto de autenticación.
+ * Componente raÃƒÂ­z de la aplicaciÃƒÂ³n.
+ * Configura las rutas y el contexto de autenticaciÃƒÂ³n.
  */
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import ErrorBoundary from './components/ErrorBoundary'
 
-// Páginas
+// PÃƒÂ¡ginas
 import { Landing } from './pages/Landing'
 import { Login } from './pages/Login'
+import { RegisterRequest } from './pages/RegisterRequest'
 import { Dashboard } from './pages/Dashboard'
-import { Results } from './pages/Results'
+import ElectionResults from './pages/ElectionResults'
 import { AdminPanel } from './pages/AdminPanel'
 import { VotingBooth } from './pages/VotingBooth'
 
 /**
  * Componente ProtectedRoute:
- * Protege rutas que requieren autenticación.
+ * Protege rutas que requieren autenticaciÃƒÂ³n.
  */
 const ProtectedRoute = ({ element, requiredRole = null }) => {
-  const { isAuthenticated, hasRole } = useAuth()
-  
+  const { isAuthenticated, hasRole, loading } = useAuth()
+  if (loading) return null
   if (!isAuthenticated) {
     return <Navigate to="/login" />
   }
@@ -35,15 +37,16 @@ const ProtectedRoute = ({ element, requiredRole = null }) => {
 }
 
 /**
- * AppContent: Rutas principales de la aplicación.
+ * AppContent: Rutas principales de la aplicaciÃƒÂ³n.
  */
 const AppContent = () => {
   return (
     <Routes>
-      {/* Rutas públicas */}
+      {/* Rutas pÃƒÂºblicas */}
       <Route path="/" element={<Navigate to="/landing" />} />
       <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register-request" element={<RegisterRequest />} />
       
       {/* Rutas protegidas (votante) */}
       <Route
@@ -51,8 +54,12 @@ const AppContent = () => {
         element={<ProtectedRoute element={<Dashboard />} />}
       />
       <Route
-        path="/results/:electionId"
-        element={<ProtectedRoute element={<Results />} />}
+        path="/voting/:id"
+        element={<ProtectedRoute element={<VotingBooth />} />}
+      />
+      <Route
+        path="/results/:id"
+        element={<ProtectedRoute element={<ElectionResults />} />}
       />
       <Route
         path="/voting-booth"
@@ -72,15 +79,17 @@ const AppContent = () => {
 }
 
 /**
- * App: Raíz de la aplicación.
- * Envuelve todo en el AuthProvider.
+ * App: RaÃƒÂ­z de la aplicaciÃƒÂ³n.
+ * Envuelve todo en ErrorBoundary y AuthProvider.
  */
 export default function App() {
   return (
     <Router>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ErrorBoundary>
     </Router>
   )
 }

@@ -13,6 +13,8 @@
 import { useState } from 'react'
 import { Spinner } from './Spinner'
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
 export const VoteModal = ({ election, user, onClose, onSuccess }) => {
   const [selectedCandidate, setSelectedCandidate] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -33,15 +35,15 @@ export const VoteModal = ({ election, user, onClose, onSuccess }) => {
 
     try {
       // Enviar voto al backend
-      const response = await fetch('http://localhost:5000/api/vote', {
+      const response = await fetch(`${API_URL}/elections/register-vote`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          election_id: election.id,
-          candidate: selectedCandidate,
-          user_id: user.id,
+          electionId: election.id,
+          candidateId: selectedCandidate,
+          voteHash: user.id,
         }),
       })
 

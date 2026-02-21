@@ -1,6 +1,6 @@
 import express from "express";
 import { getDatabase } from "../config/database.js";
-import { hashPassword, verifyPassword, generateToken, verifyToken, generateNullifier, } from "../utils/auth.js";
+import { hashPassword, verifyPassword, generateToken, verifyToken, } from "../utils/auth.js";
 const router = express.Router();
 const db = getDatabase();
 /**
@@ -26,7 +26,7 @@ router.post("/register", async (req, res) => {
             return;
         }
         // Crear usuario
-        const passwordHash = hashPassword(password);
+        const passwordHash = await hashPassword(password);
         const result = await db.exec(`
       INSERT INTO users (email, password_hash, name, student_id, is_eligible)
       VALUES (?, ?, ?, ?, 1)
@@ -44,22 +44,22 @@ router.post("/register", async (req, res) => {
 });
 /**
  * @route POST /auth/login
- * @desc Login de usuario, genera JWT con nullifier
- * @body { email, password, electionId }
+ * @desc Login de usuario, genera JWT puro (sin nullifier)
+ * @body { email, password }
  *
- * ARQUITECTURA CRUCIAL:
- * 1. Autentica usuario contra SQLite
- * 2. Genera nullifier = HMAC(userId, electionId)
- * 3. Retorna JWT que contiene el nullifier
- * 4. Frontend usa JWT para extraer nullifier
+ * CAMBIO ARQUITECTÓNICO (1.3):
+ * - Ya NO requiere electionId
+ * - Ya NO devuelve nullifier
+ * - El nullifier se genera en tiempo de votación
+ * - Separación clara: JWT = autenticación, nullifier = votación
  */
 router.post("/login", async (req, res) => {
     try {
-        const { email, password, electionId } = req.body;
-        if (!email || !password || !electionId) {
+        const { email, password } = req.body;
+        if (!email || !password) {
             res.status(400).json({
                 error: "Faltan campos requeridos",
-                required: ["email", "password", "electionId"],
+                required: ["email", "password"],
             });
             return;
         }
@@ -77,26 +77,14 @@ router.post("/login", async (req, res) => {
             return;
         }
         // Verificar contraseña
-        if (!verifyPassword(password, user.password_hash)) {
+        const passwordMatch = await verifyPassword(password, user.password_hash);
+        if (!passwordMatch) {
             res.status(401).json({ error: "Email o contraseña incorrectos" });
             return;
         }
-        // GENERAR TOKEN CON NULLIFIER
-        // Esto es crítico: el nullifier se incluye en el JWT
-        const token = generateToken(user.id, user.email, electionId);
-        const nullifier = generateNullifier(user.id, electionId);
-        // Registrar en auditoría (para tracking)
-        // Usar INSERT OR REPLACE para evitar errores si ya existe
-        try {
-            await db.exec(`
-        INSERT OR REPLACE INTO nullifier_audit (user_id, election_id, nullifier_hash, generated_at)
-        VALUES (?, ?, ?, datetime('now'))
-      `, [user.id, electionId, nullifier]);
-        }
-        catch (auditError) {
-            console.warn("⚠️  Warning al registrar auditoría:", auditError);
-            // No es un error crítico, continuar con el login
-        }
+        // GENERAR TOKEN SIN NULLIFIER
+        // El nullifier se genera en tiempo de votación
+        const token = generateToken(user.id, user.email, user.role);
         res.json({
             success: true,
             token,
@@ -106,11 +94,6 @@ router.post("/login", async (req, res) => {
                 name: user.name,
                 student_id: user.student_id,
                 role: user.role,
-            },
-            voting: {
-                electionId,
-                nullifier, // Se devuelve el nullifier al frontend
-                message: "Nullifier generado. Úsalo para registrar tu voto en blockchain.",
             },
         });
     }
@@ -142,10 +125,6 @@ router.get("/verify", async (req, res) => {
             user: {
                 userId: decoded.userId,
                 email: decoded.email,
-            },
-            voting: {
-                electionId: decoded.electionId,
-                nullifier: decoded.nullifier,
             },
         });
     }
@@ -196,7 +175,7 @@ router.post("/admin/register", async (req, res) => {
             return;
         }
         // Crear usuario
-        const passwordHash = hashPassword(password);
+        const passwordHash = await hashPassword(password);
         const result = await db.exec(`
       INSERT INTO users (email, password_hash, name, student_id, role, is_eligible)
       VALUES (?, ?, ?, ?, 'student', 1)

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 /**
  * @title Auth Utilities - VTB Backend
  * @author Senior Web3 Architect
@@ -43,24 +44,22 @@ import jwt from "jsonwebtoken";
  *    - Auditoría: Blockchain prueba "X persona votó" sin revelar quién es X
  */
 // CONSTANTE CRÍTICA: Secret key para HMAC (debe estar en .env en producción)
-const HMAC_SECRET = process.env.HMAC_SECRET || "super-secret-key-change-in-production";
+const HMAC_SECRET = process.env.NULLIFIER_SECRET || "super-secret-key-change-in-production";
 // JWT Secret (debe estar en .env en producción)
 const JWT_SECRET = process.env.JWT_SECRET || "jwt-secret-key-change-in-production";
 /**
- * @dev Hash de contraseña usando SHA-512
- * Mejor opción: usar bcrypt en producción
+ * @dev Hash de contraseña usando bcrypt (más seguro que SHA-512)
+ * bcrypt incluye salt y factor de costo automáticamente
  */
-export function hashPassword(password) {
-    return crypto
-        .createHash("sha512")
-        .update(password + "vtb-salt")
-        .digest("hex");
+export async function hashPassword(password) {
+    const saltRounds = 12;
+    return bcrypt.hash(password, saltRounds);
 }
 /**
- * @dev Verificar contraseña
+ * @dev Verificar contraseña contra hash bcrypt
  */
-export function verifyPassword(password, hash) {
-    return hashPassword(password) === hash;
+export async function verifyPassword(password, hash) {
+    return bcrypt.compare(password, hash);
 }
 /**
  * @dev FUNCIÓN CRÍTICA: Generar Nullifier para una elección
@@ -69,14 +68,15 @@ export function verifyPassword(password, hash) {
  * - Mismo userId + electionId = mismo nullifier
  * - Previene double voting
  * - No se puede invertir para obtener userId
+ * - SE GENERA EN TIEMPO DE VOTACIÓN, NO EN LOGIN
  *
  * @param userId ID del usuario (de SQLite)
- * @param electionId ID de la elección (de blockchain)
- * @returns Nullifier hash (32 bytes hex)
+ * @param electionId ID de la elección
+ * @returns Nullifier hash (32 bytes hex) para enviar al contrato
  */
 export function generateNullifier(userId, electionId) {
     const message = `${userId}:${electionId}:vtb-voter`;
-    // HMAC-SHA256
+    // HMAC-SHA256 con secret del servidor
     const nullifier = crypto
         .createHmac("sha256", HMAC_SECRET)
         .update(message)
@@ -85,21 +85,26 @@ export function generateNullifier(userId, electionId) {
     return "0x" + nullifier;
 }
 /**
- * @dev Generar JWT con nullifier incluido
- * Token contiene: userId, nullifier, email (sin contraseña)
+ * @dev Generar JWT SIN nullifier ni electionId
+ *
+ * CAMBIO ARQUITECTÓNICO (1.3):
+ * El JWT ahora contiene SOLO datos de autenticación.
+ * El nullifier se genera en tiempo de votación con electionId y voteHash.
+ *
+ * Token contiene: userId, email, rol (sin nullifier, sin electionId)
  */
-export function generateToken(userId, email, electionId) {
-    const nullifier = generateNullifier(userId, electionId);
+export function generateToken(userId, email, role = "student") {
     const token = jwt.sign({
         userId,
         email,
-        electionId,
-        nullifier,
+        role,
     }, JWT_SECRET, { expiresIn: "24h" });
     return token;
 }
 /**
  * @dev Verificar JWT y extraer datos
+ *
+ * Nota: Ya no contiene nullifier ni electionId
  */
 export function verifyToken(token) {
     try {
@@ -107,8 +112,7 @@ export function verifyToken(token) {
         return {
             userId: decoded.userId,
             email: decoded.email,
-            electionId: decoded.electionId,
-            nullifier: decoded.nullifier,
+            role: decoded.role || "student",
         };
     }
     catch (error) {

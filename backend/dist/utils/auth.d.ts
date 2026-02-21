@@ -1,12 +1,12 @@
 /**
- * @dev Hash de contraseña usando SHA-512
- * Mejor opción: usar bcrypt en producción
+ * @dev Hash de contraseña usando bcrypt (más seguro que SHA-512)
+ * bcrypt incluye salt y factor de costo automáticamente
  */
-export declare function hashPassword(password: string): string;
+export declare function hashPassword(password: string): Promise<string>;
 /**
- * @dev Verificar contraseña
+ * @dev Verificar contraseña contra hash bcrypt
  */
-export declare function verifyPassword(password: string, hash: string): boolean;
+export declare function verifyPassword(password: string, hash: string): Promise<boolean>;
 /**
  * @dev FUNCIÓN CRÍTICA: Generar Nullifier para una elección
  *
@@ -14,25 +14,32 @@ export declare function verifyPassword(password: string, hash: string): boolean;
  * - Mismo userId + electionId = mismo nullifier
  * - Previene double voting
  * - No se puede invertir para obtener userId
+ * - SE GENERA EN TIEMPO DE VOTACIÓN, NO EN LOGIN
  *
  * @param userId ID del usuario (de SQLite)
- * @param electionId ID de la elección (de blockchain)
- * @returns Nullifier hash (32 bytes hex)
+ * @param electionId ID de la elección
+ * @returns Nullifier hash (32 bytes hex) para enviar al contrato
  */
 export declare function generateNullifier(userId: number, electionId: number): string;
 /**
- * @dev Generar JWT con nullifier incluido
- * Token contiene: userId, nullifier, email (sin contraseña)
+ * @dev Generar JWT SIN nullifier ni electionId
+ *
+ * CAMBIO ARQUITECTÓNICO (1.3):
+ * El JWT ahora contiene SOLO datos de autenticación.
+ * El nullifier se genera en tiempo de votación con electionId y voteHash.
+ *
+ * Token contiene: userId, email, rol (sin nullifier, sin electionId)
  */
-export declare function generateToken(userId: number, email: string, electionId: number): string;
+export declare function generateToken(userId: number, email: string, role?: string): string;
 /**
  * @dev Verificar JWT y extraer datos
+ *
+ * Nota: Ya no contiene nullifier ni electionId
  */
 export declare function verifyToken(token: string): {
     userId: number;
     email: string;
-    electionId: number;
-    nullifier: string;
+    role?: string;
 } | null;
 /**
  * @dev Generar voteHash en el BACKEND para testing

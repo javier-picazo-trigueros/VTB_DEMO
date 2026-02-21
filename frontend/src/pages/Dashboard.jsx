@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import { Navbar } from '../components/Navbar'
+import LoadingSpinner from '../components/LoadingSpinner'
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -41,7 +42,7 @@ export const Dashboard = () => {
         return
       }
 
-      const response = await fetch(`${API_URL}/elections`, {
+      const response = await fetch(`${API_URL}/api/elections`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -85,7 +86,7 @@ export const Dashboard = () => {
             className="mb-12"
           >
             <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">
-              🗳️ Panel de Votación
+              📋 Panel de Votación
             </h1>
             <p className="text-slate-600 dark:text-slate-400">
               Bienvenido, <span className="font-semibold text-blue-600 dark:text-blue-400">{user?.name || user?.email}</span>
@@ -99,18 +100,13 @@ export const Dashboard = () => {
               animate={{ opacity: 1, y: 0 }}
               className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
             >
-              ❌ {error}
+              ⚠️ {error}
             </motion.div>
           )}
 
           {/* Loading State */}
           {isLoading && (
-            <div className="flex justify-center items-center py-12">
-              <div className="inline-flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-4 border-slate-300 dark:border-slate-600 border-t-blue-600 rounded-full animate-spin"></div>
-                <p className="text-slate-600 dark:text-slate-400">Cargando elecciones...</p>
-              </div>
-            </div>
+            <LoadingSpinner message="Cargando tus elecciones..." />
           )}
 
           {/* Empty State */}
@@ -127,7 +123,7 @@ export const Dashboard = () => {
                 onClick={loadElections}
                 className="px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
               >
-                ↻ Recargar
+                🔄 Recargar
               </button>
             </motion.div>
           )}
@@ -165,13 +161,13 @@ export const Dashboard = () => {
                       <div className="flex-1">
                         <p className="text-slate-500 dark:text-slate-400 text-xs">Inicia</p>
                         <p className="font-semibold text-slate-700 dark:text-slate-300">
-                          {new Date(election.start_time * 1000).toLocaleDateString()}
+                          {new Date(election.startTime * 1000).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="flex-1">
                         <p className="text-slate-500 dark:text-slate-400 text-xs">Termina</p>
                         <p className="font-semibold text-slate-700 dark:text-slate-300">
-                          {new Date(election.end_time * 1000).toLocaleDateString()}
+                          {new Date(election.endTime * 1000).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="flex-1">
@@ -181,7 +177,7 @@ export const Dashboard = () => {
                             ? 'text-yellow-600 dark:text-yellow-400'
                             : 'text-emerald-600 dark:text-emerald-400'
                         }`}>
-                          {election.is_active ? '🟡 Activa' : '✅ Cerrada'}
+                          {election.isActive ? 'Activa' : 'Cerrada'}
                         </p>
                       </div>
                     </div>
@@ -193,18 +189,18 @@ export const Dashboard = () => {
                       whileTap={{ scale: 0.95 }}
                       onClick={() => navigate(`/voting/${election.id}`)}
                       className="flex-1 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!election.is_active}
+                      disabled={!election.isActive}
                     >
-                      {election.is_active ? '🗳️ Votar' : 'Cerrada'}
+                      {election.isActive ? 'Votar' : 'Cerrada'}
                     </motion.button>
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => navigate(`/results/${election.id}`)}
                       className="flex-1 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
-                      title="Ver hashes de votos registrados"
+                      title={election.is_active ? 'Ver resultados parciales' : 'Ver resultados definitivos'}
                     >
-                      📊 Hashes
+                      {election.is_active ? 'ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…Â  Parcial' : 'ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…Â  Resultados'}
                     </motion.button>
                   </div>
                 </motion.div>

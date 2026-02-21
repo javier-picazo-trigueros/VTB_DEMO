@@ -136,7 +136,7 @@ router.post("/users", authAdminMiddleware, async (req: Request, res: Response) =
     }
 
     // Crear usuario
-    const passwordHash = hashPassword(password);
+    const passwordHash = await hashPassword(password);
     const result = await db.exec(
       `
       INSERT INTO users (email, password_hash, name, student_id, role, is_eligible)
@@ -319,6 +319,128 @@ router.get("/stats/voters", authAdminMiddleware, async (req: Request, res: Respo
   } catch (error) {
     console.error("Error en estadísticas:", error);
     res.status(500).json({ error: "Error al obtener estadísticas" });
+  }
+});
+
+/**
+ * @route GET /admin/registration-requests (BLOQUE 3.1)
+ * @desc Obtener solicitudes de registro filtradas por status
+ * @query status - 'pending' (default), 'approved', 'rejected', 'all'
+ * @protected Admin only
+ */
+router.get("/registration-requests", authAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const status = (req.query.status as string) || 'pending';
+    
+    let query = "SELECT * FROM registration_requests";
+    const params: any[] = [];
+    
+    if (status !== 'all') {
+      query += " WHERE status = ?";
+      params.push(status);
+    }
+    
+    query += " ORDER BY created_at DESC";
+    
+    const requests = await db.run<any>(query, params);
+    const total = requests?.length || 0;
+    const page = parseInt(req.query.page as string) || 1;
+    
+    // Paginación simple
+    const pageSize = 20;
+    const startIdx = (page - 1) * pageSize;
+    const paginatedRequests = requests?.slice(startIdx, startIdx + pageSize) || [];
+
+    res.json({
+      requests: paginatedRequests,
+      total,
+      page,
+      pageSize,
+    });
+  } catch (error) {
+    console.error("Error obteniendo solicitudes:", error);
+    res.status(500).json({ error: "Error al obtener solicitudes" });
+  }
+});
+
+/**
+ * @route PATCH /admin/registration-requests/:id (BLOQUE 3.1)
+ * @desc Aprobar o rechazar una solicitud de registro
+ * @body { action: 'approve' | 'reject', reason?: string }
+ * @protected Admin only
+ */
+router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { action, reason } = req.body;
+
+    // Validar parámetros
+    if (!action || !['approve', 'reject'].includes(action)) {
+      res.status(400).json({ error: "Acción inválida. Use 'approve' o 'reject'" });
+      return;
+    }
+
+    // Obtener solicitud
+    const request = await db.get<{
+      id: number;
+      full_name: string;
+      email: string;
+      student_id: string;
+      status: string;
+    }>(
+      "SELECT * FROM registration_requests WHERE id = ?",
+      [id]
+    );
+
+    if (!request) {
+      res.status(404).json({ error: "Solicitud no encontrada" });
+      return;
+    }
+
+    if (action === 'approve') {
+      // Crear usuario con contraseña temporal: VTB_${studentId}_temp
+      const tempPassword = `VTB_${request.student_id}_temp`;
+      const passwordHash = await hashPassword(tempPassword);
+
+      // Insertar usuario
+      await db.exec(
+        `INSERT INTO users (email, password_hash, name, student_id, role, is_eligible, created_at)
+         VALUES (?, ?, ?, ?, 'voter', 1, CURRENT_TIMESTAMP)`,
+        [request.email, passwordHash, request.full_name, request.student_id]
+      );
+
+      // Actualizar solicitud como aprobada
+      await db.exec(
+        "UPDATE registration_requests SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [id]
+      );
+
+      res.json({
+        message: "Usuario aprobado",
+        tempPassword, // Para que el admin pueda comunicársela
+      });
+
+    } else if (action === 'reject') {
+      // Motivo es obligatorio si action es reject
+      if (!reason?.trim()) {
+        res.status(400).json({ error: "El motivo de rechazo es obligatorio" });
+        return;
+      }
+
+      // Actualizar solicitud como rechazada
+      await db.exec(
+        "UPDATE registration_requests SET status = 'rejected', rejection_reason = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [reason, id]
+      );
+
+      res.json({
+        message: "Solicitud rechazada",
+      });
+    }
+
+  } catch (error) {
+    console.error("Error procesando solicitud:", error);
+    res.status(500).json({ error: "Error al procesar solicitud" });
   }
 });
 

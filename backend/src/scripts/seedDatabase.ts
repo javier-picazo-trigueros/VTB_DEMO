@@ -69,7 +69,7 @@ async function seed() {
 
     for (const user of testUsers) {
       try {
-        const passwordHash = hashPassword(user.password);
+        const passwordHash = await hashPassword(user.password);
         await db.exec(
           `
           INSERT INTO users (email, password_hash, name, student_id, role, is_eligible)
