@@ -200,7 +200,7 @@ export const Dashboard = () => {
                       className="flex-1 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
                       title={election.is_active ? 'Ver resultados parciales' : 'Ver resultados definitivos'}
                     >
-                      {election.is_active ? 'ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…Â  Parcial' : 'ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…Â  Resultados'}
+                      {election.is_active ? 'íƒ°í…¸í¢â‚¬Å“í…  Parcial' : 'íƒ°í…¸í¢â‚¬Å“í…  Resultados'}
                     </motion.button>
                   </div>
                 </motion.div>

@@ -35,7 +35,7 @@ export const Login = () => {
     const reason = searchParams.get('reason');
     if (reason === 'expired') {
       setSessionExpired(true);
-      // Auto-hide despuÃƒÂ©s de 8 segundos
+      // Auto-hide despuíƒ©s de 8 segundos
       setTimeout(() => setSessionExpired(false), 8000);
     }
   }, [searchParams]);
@@ -72,7 +72,7 @@ export const Login = () => {
     setError("");
 
     try {
-      // CAMBIO ARQUITECTÃƒâ€œNICO (1.3): Ya no requiere electionId
+      // CAMBIO ARQUITECTíƒâ€œNICO (1.3): Ya no requiere electionId
       const response = await axios.post(`${API_URL}/auth/login`, {
         email: formData.email,
         password: formData.password,
@@ -94,7 +94,7 @@ export const Login = () => {
         role: user.role
       });
 
-      console.log("Ã°Å¸â€â€˜ Login exitoso");
+      console.log("í°Å¸â€' Login exitoso");
 
 
       // Redirigir segun rol
@@ -105,11 +105,11 @@ export const Login = () => {
       }
 
     } catch (err) {
-      console.error("Ã¢ÂÅ’ Error en login:", err);
+      console.error("í¢Å’ Error en login:", err);
       
       setError(
         err.response?.data?.error ||
-        "Error al iniciar sesiÃƒÂ³n"
+        "Error al iniciar sesión"
       );
     } finally {
       setLoading(false);
@@ -129,7 +129,7 @@ export const Login = () => {
       });
 
       setError("");
-      alert("Ã¢Å“â€¦ Solicitud enviada correctamente. El administrador la revisarÃƒÂ¡ pronto.");
+      alert("í¢Å“â€¦ Solicitud enviada correctamente. El administrador la revisará pronto.");
       setStep("login");
       setRequestData({ email: "", name: "", student_id: "" });
     } catch (err) {
@@ -169,7 +169,7 @@ export const Login = () => {
                   exit={{ opacity: 0, y: -10 }}
                   className="mb-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm"
                 >
-                  Ã¢ÂÂ±Ã¯Â¸Â Tu sesiÃƒÂ³n ha expirado. Vuelve a iniciar sesiÃƒÂ³n para continuar.
+                  í¢±í¯¸ Tu sesión ha expirado. Vuelve a iniciar sesión para continuar.
                 </motion.div>
               )}
 
@@ -217,7 +217,7 @@ export const Login = () => {
                     onChange={handleChange}
                     disabled={loading}
                     className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blockchain-500 disabled:opacity-50"
-                    placeholder="Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
+                    placeholder="í¢â‚¬¢í¢â‚¬¢í¢â‚¬¢í¢â‚¬¢í¢â‚¬¢í¢â‚¬¢í¢â‚¬¢í¢â‚¬¢"
                   />
                 </div>
 
@@ -246,19 +246,19 @@ export const Login = () => {
               {/* Demo Credentials */}
               <div className="mt-6 p-3 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-400 space-y-1">
                 <p className="font-semibold text-slate-700 dark:text-slate-300">
-                  Ã°Å¸â€œÂ Cuenta de Prueba:
+                  í°Å¸â€œ Cuenta de Prueba:
                 </p>
-                <p>Ã°Å¸â€˜Â¤ Email: juan@universidad.edu</p>
-                <p>Ã°Å¸â€â€˜ ContraseÃƒÂ±a: password123</p>
+                <p>í°Å¸'¤ Email: juan@universidad.edu</p>
+                <p>í°Å¸â€' Contraseíƒ±a: password123</p>
                 <p className="mt-2 font-semibold text-slate-700 dark:text-slate-300">
-                  Ã°Å¸â€˜Â¨Ã¢â‚¬ÂÃ°Å¸â€™Â¼ Admin:
+                  í°Å¸'¨í¢â‚¬í°Å¸'¼ Admin:
                 </p>
                 <p>admin@universidad.edu / admin123</p>
               </div>
 
               {/* Request Access Link (BLOQUE 3.1) */}
               <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
-                Ã‚Â¿No tienes cuenta?{' '}
+                í‚¿No tienes cuenta?{' '}
                 <button
                   type="button"
                   onClick={() => navigate('/register-request')}
@@ -272,10 +272,10 @@ export const Login = () => {
             <>
               {/* PASO 2: SOLICITAR REGISTRO */}
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                Ã°Å¸â€œÂ Solicitar Registro
+                í°Å¸â€œ Solicitar Registro
               </h2>
               <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
-                Un administrador revisarÃƒÂ¡ tu solicitud
+                Un administrador revisará tu solicitud
               </p>
 
               {error && (
@@ -291,7 +291,7 @@ export const Login = () => {
               <form onSubmit={handleRequestSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Ã°Å¸â€œÂ§ Email
+                    í°Å¸â€œ§ Email
                   </label>
                   <input
                     type="email"
@@ -305,7 +305,7 @@ export const Login = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Ã°Å¸â€˜Â¤ Nombre Completo
+                    í°Å¸'¤ Nombre Completo
                   </label>
                   <input
                     type="text"
@@ -320,7 +320,7 @@ export const Login = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Ã°Å¸Å½â€œ ID de Estudiante
+                    í°Å¸Å½â€œ ID de Estudiante
                   </label>
                   <input
                     type="text"
@@ -340,7 +340,7 @@ export const Login = () => {
                   disabled={loading || !requestData.name || !requestData.student_id}
                   className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold text-sm hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Ã¢Å“â€°Ã¯Â¸Â Enviar Solicitud
+                  í¢Å“â€°í¯¸ Enviar Solicitud
                 </motion.button>
 
                 <button
@@ -348,7 +348,7 @@ export const Login = () => {
                   onClick={() => setStep("login")}
                   className="w-full py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
                 >
-                  Ã¢â€ Â Volver
+                  í¢â€  Volver
                 </button>
               </form>
             </>

@@ -135,7 +135,7 @@ export const VotingBooth = () => {
           setError(errorMsg);
           setLoading(false);
           
-          // Redirigir al dashboard con mensaje despuÃ©s de 2 segundos
+          // Redirigir al dashboard con mensaje después de 2 segundos
           setTimeout(() => {
             navigate('/dashboard', { state: { message: errorMsg } });
           }, 2000);
@@ -158,15 +158,15 @@ export const VotingBooth = () => {
 
       const data = response.data;
 
-      // Validar que la elecciÃ³n existe
+      // Validar que la elección existe
       if (!data || !data.election) {
-        setError("Esta elecciÃ³n no existe");
+        setError("Esta elección no existe");
         setLoading(false);
         return;
       }
 
       const election = data.election;
-      setElectionTitle(election.name || election.title || "ElecciÃ³n");
+      setElectionTitle(election.name || election.title || "Elección");
       
       // Asegurar que candidates es un array
       const candidatesList = Array.isArray(election.candidates)
@@ -175,22 +175,22 @@ export const VotingBooth = () => {
       setCandidates(candidatesList);
 
       if (candidatesList.length === 0) {
-        console.warn("âš ï¸  No hay candidatos cargados para esta elecciÃ³n");
+        console.warn("⚠️  No hay candidatos cargados para esta elección");
       }
 
       setLoading(false);
     } catch (err) {
-      console.error("Error cargando elecciÃ³n:", err);
+      console.error("Error cargando elección:", err);
 
       if (err.response?.status === 404) {
-        setError("ElecciÃ³n no encontrada");
+        setError("Elección no encontrada");
       } else if (err.response?.status === 401) {
         navigate("/login");
         return;
       } else {
         setError(
           err.response?.data?.error ||
-            "Error al cargar la elecciÃ³n. Intenta de nuevo."
+            "Error al cargar la elección. Intenta de nuevo."
         );
       }
 
@@ -201,7 +201,7 @@ export const VotingBooth = () => {
   // Iniciar escucha de eventos blockchain (BLOQUE 3.3 - Mejorado)
   useEffect(() => {
     if (!CONTRACT_ADDRESS || !RPC_URL) {
-      console.warn("âš ï¸ Blockchain no configurado");
+      console.warn("⚠️ Blockchain no configurado");
       return;
     }
 
@@ -212,7 +212,7 @@ export const VotingBooth = () => {
 
     const setupListener = async () => {
       try {
-        console.log("ðŸ”— Conectando a Hardhat RPC...");
+        console.log("🔗 Conectando a Hardhat RPC...");
         const provider = new ethers.JsonRpcProvider(RPC_URL);
 
         // ABI del contrato (solo eventos que nos interesan)
@@ -226,13 +226,13 @@ export const VotingBooth = () => {
           provider
         );
 
-        console.log("âœ… Conectado. Escuchando eventos VoteCast...");
+        console.log("✅ Conectado. Escuchando eventos VoteCast...");
         setIsListening(true);
 
         // ESCUCHAR EVENTOS EN TIEMPO REAL (BLOQUE 3.3)
-        // Filtra solo votos de la elecciÃ³n actual
+        // Filtra solo votos de la elección actual
         contract.on("VoteCast", (eId, nullifier, voteHash, timestamp) => {
-          // Filter por elecciÃ³n actual (MEJORA 1: Filtrado)
+          // Filter por elección actual (MEJORA 1: Filtrado)
           if (eId.toString() !== electionId?.toString()) {
             return;
           }
@@ -252,31 +252,31 @@ export const VotingBooth = () => {
             timeText: calculateTimeAgo(voteTimestamp), // inicial
           };
 
-          // MEJORA 2: Mantener mÃ¡ximo 8 eventos
+          // MEJORA 2: Mantener máximo 8 eventos
           setVotes((prev) => {
             const updated = [newVote, ...prev];
-            return updated.slice(0, 8); // MÃ¡ximo 8 eventos
+            return updated.slice(0, 8); // Máximo 8 eventos
           });
           
           setVoteCount((prev) => prev + 1);
         });
 
-        // Limpiar intentos de reconexiÃ³n
+        // Limpiar intentos de reconexión
         reconnectAttempts = 0;
       } catch (err) {
         console.error("âŒ Error conectando a blockchain:", err);
         
         if (reconnectAttempts < MAX_RECONNECT) {
           reconnectAttempts++;
-          // Mostrar badge de reconexiÃ³n
+          // Mostrar badge de reconexión
           setIsListening(false);
-          console.log(`âš¡ Reintentando... (${reconnectAttempts}/${MAX_RECONNECT})`);
+          console.log(`⚡ Reintentando... (${reconnectAttempts}/${MAX_RECONNECT})`);
           
           // Reintentar en 5 segundos
           setTimeout(setupListener, 5000);
         } else {
           setError(
-            "No se pudo conectar al blockchain despuÃ©s de varios intentos."
+            "No se pudo conectar al blockchain después de varios intentos."
           );
         }
       }
@@ -322,8 +322,8 @@ export const VotingBooth = () => {
   };
 
   /**
-   * BLOQUE 3.4: FunciÃ³n mejorada para registrar voto con feedback 3 pasos
-   * Flujo: proof (calcular) â†’ sending (enviando al backend) â†’ confirming (esperando confirmaciÃ³n) â†’ success|error
+   * BLOQUE 3.4: Función mejorada para registrar voto con feedback 3 pasos
+   * Flujo: proof (calcular) â†’ sending (enviando al backend) â†’ confirming (esperando confirmación) â†’ success|error
    */
   const handleVote = async (candidateId) => {
     if (!selectedCandidate || !electionId) return;
@@ -336,16 +336,16 @@ export const VotingBooth = () => {
         return;
       }
 
-      // PASO 1: Generar proof (simula cÃ¡lculo del nullifier)
+      // PASO 1: Generar proof (simula cálculo del nullifier)
       setVoteStatus('proof');
-      await new Promise(resolve => setTimeout(resolve, 800)); // Simular cÃ¡lculo
+      await new Promise(resolve => setTimeout(resolve, 800)); // Simular cálculo
 
       // Generar voteHash localmente
       const randomSalt = Math.random().toString(36);
       const votePayload = `vote:${selectedCandidate}:${randomSalt}`;
       const voteHash = await hashMessage(votePayload);
 
-      console.log("ðŸ—³ï¸ Preparando voto:");
+      console.log("🗳️ Preparando voto:");
       console.log("  - Candidato:", selectedCandidate);
       console.log("  - Vote Hash:", voteHash);
       console.log("  - Election ID:", electionId);
@@ -368,13 +368,13 @@ export const VotingBooth = () => {
         }
       );
 
-      // PASO 3: ConfirmaciÃ³n
+      // PASO 3: Confirmación
       setVoteStatus('confirming');
-      await new Promise(resolve => setTimeout(resolve, 600)); // Simular confirmaciÃ³n
+      await new Promise(resolve => setTimeout(resolve, 600)); // Simular confirmación
 
-      // TransacciÃ³n exitosa
-      console.log("âœ… Voto registrado en blockchain");
-      console.log("ðŸ“Š TX Hash:", response.data.txHash);
+      // Transacción exitosa
+      console.log("✅ Voto registrado en blockchain");
+      console.log("📊 TX Hash:", response.data.txHash);
 
       setTxData({
         txHash: response.data.txHash,
@@ -425,7 +425,7 @@ export const VotingBooth = () => {
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      alert("âœ… Copiado al portapapeles");
+      alert("✅ Copiado al portapapeles");
     } catch (err) {
       console.error("Error copiando:", err);
     }
@@ -436,13 +436,13 @@ export const VotingBooth = () => {
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
         <Navbar />
         <div className="flex items-center justify-center min-h-[calc(100vh-70px)]">
-          <LoadingSpinner message="Cargando cabina de votaciÃ³n..." />
+          <LoadingSpinner message="Cargando cabina de votación..." />
         </div>
       </div>
     );
   }
 
-  // BLOQUE 3.4: Renderizar modales de feedback de transacciÃ³n
+  // BLOQUE 3.4: Renderizar modales de feedback de transacción
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <Navbar />
@@ -467,20 +467,20 @@ export const VotingBooth = () => {
             {/* Mensaje del paso actual */}
             <h3 className="text-center text-lg font-semibold text-slate-900 dark:text-white mb-2">
               {voteStatus === 'proof' && 'ðŸ” Calculando prueba...'}
-              {voteStatus === 'sending' && 'ðŸ“¤ Enviando voto...'}
-              {voteStatus === 'confirming' && 'â³ Confirmando transacciÃ³n...'}
+              {voteStatus === 'sending' && '📤 Enviando voto...'}
+              {voteStatus === 'confirming' && 'â³ Confirmando transacción...'}
             </h3>
 
             <p className="text-center text-sm text-slate-600 dark:text-slate-400">
               {voteStatus === 'proof' && 'Preparando datos...'}
               {voteStatus === 'sending' && 'Conectando con blockchain...'}
-              {voteStatus === 'confirming' && 'Esperando confirmaciÃ³n de la red...'}
+              {voteStatus === 'confirming' && 'Esperando confirmación de la red...'}
             </p>
           </motion.div>
         </div>
       )}
 
-      {/* MODAL DE Ã‰XITO */}
+      {/* MODAL DE í‰XITO */}
       {voteStatus === 'success' && txData && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <motion.div
@@ -488,7 +488,7 @@ export const VotingBooth = () => {
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white dark:bg-slate-800 rounded-lg p-8 max-w-sm mx-4 shadow-xl"
           >
-            {/* Icono Ã©xito */}
+            {/* Icono éxito */}
             <div className="flex justify-center mb-6">
               <motion.div
                 initial={{ scale: 0 }}
@@ -496,12 +496,12 @@ export const VotingBooth = () => {
                 transition={{ type: "spring", stiffness: 200 }}
                 className="text-5xl"
               >
-                âœ…
+                ✅
               </motion.div>
             </div>
 
             <h2 className="text-center text-2xl font-bold text-slate-900 dark:text-white mb-4">
-              Â¡Voto registrado en blockchain!
+              ¡Voto registrado en blockchain!
             </h2>
 
             {/* TxHash Box */}
@@ -509,12 +509,12 @@ export const VotingBooth = () => {
               {txData.txHash}
             </div>
 
-            {/* BotÃ³n Copiar */}
+            {/* Botón Copiar */}
             <button
               onClick={() => copyToClipboard(txData.txHash)}
               className="w-full mb-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium"
             >
-              ðŸ“‹ Copiar TxHash
+              📋 Copiar TxHash
             </button>
 
             {/* Enlace al explorador */}
@@ -527,7 +527,7 @@ export const VotingBooth = () => {
               ðŸ” Ver en el explorador â†’
             </a>
 
-            {/* BotÃ³n Volver */}
+            {/* Botón Volver */}
             <button
               onClick={() => navigate("/dashboard")}
               className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium"
@@ -560,7 +560,7 @@ export const VotingBooth = () => {
               {voteError || "Error desconocido"}
             </p>
 
-            {/* Botones de acciÃ³n */}
+            {/* Botones de acción */}
             <div className="flex gap-3">
               <button
                 onClick={() => {
@@ -569,7 +569,7 @@ export const VotingBooth = () => {
                 }}
                 className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium"
               >
-                ðŸ”„ Reintentar
+                🔄 Reintentar
               </button>
               <button
                 onClick={() => {
@@ -591,17 +591,17 @@ export const VotingBooth = () => {
         <div className="flex justify-between items-center mb-12">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              {electionTitle || "Cabina de VotaciÃ³n"}
+              {electionTitle || "Cabina de Votación"}
             </h1>
             <p className="text-slate-600 dark:text-slate-400 mt-2">
-              Selecciona tu opciÃ³n y vota de forma segura y anÃ³nima
+              Selecciona tu opción y vota de forma segura y anónima
             </p>
           </div>
           <button
             onClick={handleLogout}
             className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           >
-            Cerrar sesiÃ³n
+            Cerrar sesión
           </button>
         </div>
 
@@ -628,7 +628,7 @@ export const VotingBooth = () => {
 
         {candidates.length === 0 && !error && (
           <div className="mb-6 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-600 dark:text-yellow-400">
-            No hay candidatos disponibles para esta elecciÃ³n
+            No hay candidatos disponibles para esta elección
           </div>
         )}
 
@@ -637,7 +637,7 @@ export const VotingBooth = () => {
           <div className="lg:col-span-2">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">
-                Selecciona tu opciÃ³n
+                Selecciona tu opción
               </h2>
 
               <div className="space-y-4">
@@ -688,7 +688,7 @@ export const VotingBooth = () => {
                 disabled={!selectedCandidate || voteStatus !== null}
                 className="w-full mt-8 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {voteStatus === null ? 'ðŸ—³ï¸ Emitir voto' : 'Procesando...'}
+                {voteStatus === null ? '🗳️ Emitir voto' : 'Procesando...'}
               </motion.button>
             </div>
           </div>
@@ -697,7 +697,7 @@ export const VotingBooth = () => {
           <div className="lg:col-span-1">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 border border-slate-200 dark:border-slate-700 h-full max-h-[600px] flex flex-col">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                ðŸ“¡ Live Feed
+                📡 Live Feed
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
                 Votos registrados en tiempo real
@@ -715,7 +715,7 @@ export const VotingBooth = () => {
               <div className="flex-1 overflow-y-auto space-y-2">
                 {votes.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-slate-500 dark:text-slate-400 text-sm">
-                    {isListening ? "Esperando votos..." : "âš¡ Reconectando..."}
+                    {isListening ? "Esperando votos..." : "⚡ Reconectando..."}
                   </div>
                 ) : (
                   votes.map((vote) => (
@@ -727,7 +727,7 @@ export const VotingBooth = () => {
                     >
                       {/* Nullifier truncado: 0x1a2b...ef34 */}
                       <p className="font-mono text-blue-600 dark:text-blue-400 truncate">
-                        ðŸ”— {vote.nullifier.slice(0, 6)}...{vote.nullifier.slice(-4)}
+                        🔗 {vote.nullifier.slice(0, 6)}...{vote.nullifier.slice(-4)}
                       </p>
                       {/* Tiempo relativo que se actualiza cada segundo */}
                       <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">
@@ -753,8 +753,8 @@ export const VotingBooth = () => {
           <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
             <li>âœ“ Tu voto se cifra localmente antes de enviarse</li>
             <li>âœ“ Tu identidad nunca se vincula al voto</li>
-            <li>âœ“ Solo se registra un hash anÃ³nimo en blockchain</li>
-            <li>âœ“ Los resultados son pÃºblicamente auditables</li>
+            <li>âœ“ Solo se registra un hash anónimo en blockchain</li>
+            <li>âœ“ Los resultados son públicamente auditables</li>
           </ul>
         </motion.div>
       </div>

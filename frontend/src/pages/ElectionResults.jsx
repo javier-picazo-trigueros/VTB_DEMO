@@ -31,7 +31,7 @@ const ElectionResults = () => {
 
         setResults(response.data);
         
-        // Si la elecciÃ³n estÃ¡ activa, cargar auditorÃ­a en segundo plano
+        // Si la elección está activa, cargar auditoría en segundo plano
         if (response.data.election.status === 'active') {
           fetchAudit();
         }
@@ -47,7 +47,7 @@ const ElectionResults = () => {
 
     fetchResults();
 
-    // Si elecciÃ³n estÃ¡ activa, refrescar cada 30 segundos
+    // Si elección está activa, refrescar cada 30 segundos
     let refreshInterval = null;
     if (results?.election.status === 'active') {
       refreshInterval = setInterval(() => {
@@ -62,7 +62,7 @@ const ElectionResults = () => {
     };
   }, [id, token]);
 
-  // Cargar auditorÃ­a
+  // Cargar auditoría
   const fetchAudit = async () => {
     try {
       const response = await axios.get(
@@ -71,7 +71,7 @@ const ElectionResults = () => {
       );
       setAuditData(response.data || []);
     } catch (err) {
-      console.error('Error al cargar auditorÃ­a:', err);
+      console.error('Error al cargar auditoría:', err);
     }
   };
 
@@ -140,9 +140,9 @@ const ElectionResults = () => {
 
         <h1 className="text-4xl font-bold mb-2">{election.name}</h1>
         <p className="text-slate-400 mb-6">
-          {election.status === 'active' && 'â³ ElecciÃ³n en curso â€” resultados parciales, se actualizan cada 30s'}
-          {election.status === 'closed' && 'âœ… ElecciÃ³n cerrada â€” resultado definitivo'}
-          {election.status === 'pending' && 'â° ElecciÃ³n aÃºn no ha comenzado'}
+          {election.status === 'active' && 'â³ Elección en curso — resultados parciales, se actualizan cada 30s'}
+          {election.status === 'closed' && '✅ Elección cerrada — resultado definitivo'}
+          {election.status === 'pending' && 'â° Elección aún no ha comenzado'}
           {refreshing && ' (actualizando...)'}
         </p>
 
@@ -156,7 +156,7 @@ const ElectionResults = () => {
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            ðŸ“Š Resultados
+            📊 Resultados
           </button>
           <button
             onClick={() => {
@@ -171,17 +171,17 @@ const ElectionResults = () => {
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            ðŸ”— AuditorÃ­a Blockchain
+            🔗 Auditoría Blockchain
           </button>
         </div>
 
         {/* RESULTADOS TAB */}
         {activeTab === 'results' && (
           <div className="space-y-6">
-            {/* Tarjeta de ParticipaciÃ³n */}
+            {/* Tarjeta de Participación */}
             <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-6">
               <div className="text-center">
-                <p className="text-slate-300 mb-2">ParticipaciÃ³n</p>
+                <p className="text-slate-300 mb-2">Participación</p>
                 <p className="text-5xl font-bold text-blue-400 mb-2">
                   {totalVotes} de {election.totalVoters}
                 </p>
@@ -195,7 +195,7 @@ const ElectionResults = () => {
               </div>
             </div>
 
-            {/* GrÃ¡fico de Resultados */}
+            {/* Gráfico de Resultados */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
               <h2 className="text-2xl font-bold mb-6">Votos por Candidato</h2>
               {candidates && candidates.length > 0 ? (
@@ -231,7 +231,7 @@ const ElectionResults = () => {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="text-slate-400">No hay candidatos en esta elecciÃ³n</p>
+                <p className="text-slate-400">No hay candidatos en esta elección</p>
               )}
             </div>
 
@@ -271,17 +271,17 @@ const ElectionResults = () => {
           </div>
         )}
 
-        {/* AUDITORÃA TAB */}
+        {/* AUDITORíA TAB */}
         {activeTab === 'audit' && (
           <div className="space-y-6">
             {/* Banner de Privacidad */}
             <div className="bg-green-900/20 border border-green-600 rounded-lg p-4">
               <p className="text-green-300">
-                ðŸ”’ Privacidad garantizada â€” los hashes no revelan la identidad del votante ni el sentido del voto
+                ðŸ”’ Privacidad garantizada — los hashes no revelan la identidad del votante ni el sentido del voto
               </p>
             </div>
 
-            {/* BotÃ³n Exportar */}
+            {/* Botón Exportar */}
             <button
               onClick={exportCSV}
               className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium"
@@ -289,9 +289,9 @@ const ElectionResults = () => {
               ðŸ“¥ Exportar CSV
             </button>
 
-            {/* Tabla de AuditorÃ­a */}
+            {/* Tabla de Auditoría */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
-              <h2 className="text-2xl font-bold mb-6">Registro de AuditorÃ­a Blockchain</h2>
+              <h2 className="text-2xl font-bold mb-6">Registro de Auditoría Blockchain</h2>
               {auditData && auditData.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -332,7 +332,7 @@ const ElectionResults = () => {
                   )}
                 </div>
               ) : (
-                <p className="text-slate-400">No se han registrado votos todavÃ­a</p>
+                <p className="text-slate-400">No se han registrado votos todavía</p>
               )}
             </div>
           </div>

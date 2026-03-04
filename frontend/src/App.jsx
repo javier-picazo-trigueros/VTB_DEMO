@@ -1,15 +1,15 @@
 /**
  * VTB - App.jsx
  * ==============
- * Componente raÃƒÂ­z de la aplicaciÃƒÂ³n.
- * Configura las rutas y el contexto de autenticaciÃƒÂ³n.
+ * Componente raíƒ­z de la aplicación.
+ * Configura las rutas y el contexto de autenticación.
  */
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
 
-// PÃƒÂ¡ginas
+// Páginas
 import { Landing } from './pages/Landing'
 import { Login } from './pages/Login'
 import { RegisterRequest } from './pages/RegisterRequest'
@@ -20,7 +20,7 @@ import { VotingBooth } from './pages/VotingBooth'
 
 /**
  * Componente ProtectedRoute:
- * Protege rutas que requieren autenticaciÃƒÂ³n.
+ * Protege rutas que requieren autenticación.
  */
 const ProtectedRoute = ({ element, requiredRole = null }) => {
   const { isAuthenticated, hasRole, loading } = useAuth()
@@ -37,12 +37,12 @@ const ProtectedRoute = ({ element, requiredRole = null }) => {
 }
 
 /**
- * AppContent: Rutas principales de la aplicaciÃƒÂ³n.
+ * AppContent: Rutas principales de la aplicación.
  */
 const AppContent = () => {
   return (
     <Routes>
-      {/* Rutas pÃƒÂºblicas */}
+      {/* Rutas píƒºblicas */}
       <Route path="/" element={<Navigate to="/landing" />} />
       <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
@@ -79,7 +79,7 @@ const AppContent = () => {
 }
 
 /**
- * App: RaÃƒÂ­z de la aplicaciÃƒÂ³n.
+ * App: Raíƒ­z de la aplicación.
  * Envuelve todo en ErrorBoundary y AuthProvider.
  */
 export default function App() {
