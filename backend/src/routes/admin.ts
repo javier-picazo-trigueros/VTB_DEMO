@@ -331,21 +331,21 @@ router.get("/stats/voters", authAdminMiddleware, async (req: Request, res: Respo
 router.get("/registration-requests", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
     const status = (req.query.status as string) || 'pending';
-    
+
     let query = "SELECT * FROM registration_requests";
     const params: any[] = [];
-    
+
     if (status !== 'all') {
       query += " WHERE status = ?";
       params.push(status);
     }
-    
+
     query += " ORDER BY created_at DESC";
-    
+
     const requests = await db.run<any>(query, params);
     const total = requests?.length || 0;
     const page = parseInt(req.query.page as string) || 1;
-    
+
     // Paginación simple
     const pageSize = 20;
     const startIdx = (page - 1) * pageSize;
@@ -403,11 +403,13 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
       const passwordHash = await hashPassword(tempPassword);
 
       // Insertar usuario
-      await db.exec(
+      const insertResult = await db.exec(
         `INSERT INTO users (email, password_hash, name, student_id, role, is_eligible, created_at)
-         VALUES (?, ?, ?, ?, 'voter', 1, CURRENT_TIMESTAMP)`,
+         VALUES (?, ?, ?, ?, 'student', 1, CURRENT_TIMESTAMP)`,
         [request.email, passwordHash, request.full_name, request.student_id]
       );
+
+      const newUserId = insertResult.lastID;
 
       // Actualizar solicitud como aprobada
       await db.exec(
@@ -415,8 +417,31 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
         [id]
       );
 
+      // --- ASIGNACIÓN AUTOMÁTICA POR DOMINIO ---
+      const domain = request.email.split('@')[1];
+      if (domain) {
+        const elections = await db.run<{ election_id: number }>(
+          'SELECT election_id FROM election_access WHERE email_domain = ? OR email_domain = "*"',
+          [domain]
+        );
+
+        for (const election of elections) {
+          try {
+            await db.exec(
+              'INSERT INTO election_voters (election_id, user_id) VALUES (?, ?)',
+              [election.election_id, newUserId]
+            );
+          } catch (e: any) {
+            // Ignorar error de UNIQUE constraint si ya estaba asignado
+            if (!e.message?.includes('UNIQUE')) {
+              console.error(`Error auto-asignando usuario ${newUserId} a elección ${election.election_id}:`, e);
+            }
+          }
+        }
+      }
+
       res.json({
-        message: "Usuario aprobado",
+        message: "Usuario aprobado y asignado a elecciones correspondientes",
         tempPassword, // Para que el admin pueda comunicársela
       });
 
@@ -441,6 +466,126 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
   } catch (error) {
     console.error("Error procesando solicitud:", error);
     res.status(500).json({ error: "Error al procesar solicitud" });
+  }
+});
+
+/**
+ * @route POST /admin/elections/:id/domains
+ * @desc Añadir un dominio permitido a una elección
+ * @body { domain: string }
+ * @protected Admin only
+ */
+router.post("/elections/:id/domains", authAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { domain } = req.body;
+
+    if (!domain?.trim()) {
+      res.status(400).json({ error: "El dominio es obligatorio" });
+      return;
+    }
+
+    const election = await db.get("SELECT id FROM elections WHERE id = ?", [id]);
+    if (!election) {
+      res.status(404).json({ error: "Elección no encontrada" });
+      return;
+    }
+
+    try {
+      await db.exec(
+        "INSERT INTO election_access (election_id, email_domain) VALUES (?, ?)",
+        [id, domain.trim()]
+      );
+      res.json({ success: true, message: `Dominio ${domain} añadido correctamente` });
+    } catch (e: any) {
+      if (e.message?.includes("UNIQUE")) {
+        res.status(409).json({ error: "Este dominio ya está permitido para esta elección" });
+      } else {
+        throw e;
+      }
+    }
+  } catch (error) {
+    console.error("Error añadiendo dominio:", error);
+    res.status(500).json({ error: "Error al añadir el dominio a la elección" });
+  }
+});
+
+/**
+ * @route POST /admin/elections/:id/voters
+ * @desc Añadir individualmente un usuario a una elección (por email)
+ * @body { email: string }
+ * @protected Admin only
+ */
+router.post("/elections/:id/voters", authAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    if (!email?.trim()) {
+      res.status(400).json({ error: "El email del usuario es obligatorio" });
+      return;
+    }
+
+    const election = await db.get("SELECT id FROM elections WHERE id = ?", [id]);
+    if (!election) {
+      res.status(404).json({ error: "Elección no encontrada" });
+      return;
+    }
+
+    const user = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email.trim()]);
+    if (!user) {
+      res.status(404).json({ error: "Usuario no encontrado" });
+      return;
+    }
+
+    try {
+      await db.exec(
+        "INSERT INTO election_voters (election_id, user_id) VALUES (?, ?)",
+        [id, user.id]
+      );
+      res.json({ success: true, message: `Usuario ${email} añadido a la elección` });
+    } catch (e: any) {
+      if (e.message?.includes("UNIQUE")) {
+        res.status(409).json({ error: "El usuario ya está asignado a esta elección" });
+      } else {
+        throw e;
+      }
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Error al asignar el usuario a la elección" });
+  }
+});
+
+/**
+ * @route POST /admin/elections/:id/candidates
+ * @desc Añadir un candidato a una elección
+ * @body { name: string, description: string }
+ * @protected Admin only
+ */
+router.post("/elections/:id/candidates", authAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    if (!name?.trim()) {
+      res.status(400).json({ error: "El nombre del candidato es obligatorio" });
+      return;
+    }
+
+    const election = await db.get("SELECT id FROM elections WHERE id = ?", [id]);
+    if (!election) {
+      res.status(404).json({ error: "Elección no encontrada" });
+      return;
+    }
+
+    const result = await db.exec(
+      "INSERT INTO candidates (election_id, name, description) VALUES (?, ?, ?)",
+      [id, name.trim(), description?.trim() || ""]
+    );
+    res.json({ success: true, candidateId: result.lastID, message: `Candidato ${name} añadido` });
+  } catch (error) {
+    console.error("Error añadiendo candidato:", error);
+    res.status(500).json({ error: "Error al añadir candidato a la elección" });
   }
 });
 

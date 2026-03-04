@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
@@ -9,52 +11,52 @@ import registrationRoutes from "./routes/registration.js";
 /**
  * @title VTB Backend - Express Server
  * @author Senior Web3 Architect
- * @dev Servidor Express que actúa como relayer entre Frontend y Blockchain
+ * @dev Servidor Express que actíƒºa como relayer entre Frontend y Blockchain
  *
  * ARQUITECTURA COMPLETA:
  * =====================
  *
- *  ┌─────────────────────────────────────────────────────────────┐
- *  │           Frontend React (Vite + ethers.js)                │
- *  └────────────────────┬────────────────────────────────────────┘
- *                       │
+ *  í¢â€Å’í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€
+ *  í¢â€â€š           Frontend React (Vite + ethers.js)                í¢â€â€š
+ *  í¢â€â€í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€Ëœ
+ *                       í¢â€â€š
  *           HTTP/REST API (Express)
  *           - POST /auth/login (genera nullifier)
  *           - POST /elections/register-vote (registra en blockchain)
  *           - WebSocket /ws (escucha eventos blockchain)
- *                       │
- *       ┌───────────────┼───────────────┐
- *       │               │               │
- *   ┌───▼───────────┐ ┌─▼──────────┐ ┌─▼──────────────┐
- *   │  SQLite DB    │ │  Provider  │ │  Smart Contract│
- *   │               │ │  Hardhat   │ │  ElectionReg. │
- *   │ Users         │ │  RPC       │ │  (Solidity)   │
- *   │ Elections     │ │ :8545      │ │               │
- *   │ Audit Logs    │ │            │ │  On-chain:    │
- *   │               │ │            │ │  - Votes      │
- *   │ Off-chain:    │ │  Off-chain │ │  - Events     │
- *   │ PII Storage   │ │  Connection│ │  - Auditoría  │
- *   └───────────────┘ └────────────┘ └────────────────┘
+ *                       í¢â€â€š
+ *       í¢â€Å’í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€¼í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€
+ *       í¢â€â€š               í¢â€â€š               í¢â€â€š
+ *   í¢â€Å’í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€“¼í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€ í¢â€Å’í¢â€â‚¬í¢â€“¼í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€ í¢â€Å’í¢â€â‚¬í¢â€“¼í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€
+ *   í¢â€â€š  SQLite DB    í¢â€â€š í¢â€â€š  Provider  í¢â€â€š í¢â€â€š  Smart Contractí¢â€â€š
+ *   í¢â€â€š               í¢â€â€š í¢â€â€š  Hardhat   í¢â€â€š í¢â€â€š  ElectionReg. í¢â€â€š
+ *   í¢â€â€š Users         í¢â€â€š í¢â€â€š  RPC       í¢â€â€š í¢â€â€š  (Solidity)   í¢â€â€š
+ *   í¢â€â€š Elections     í¢â€â€š í¢â€â€š :8545      í¢â€â€š í¢â€â€š               í¢â€â€š
+ *   í¢â€â€š Audit Logs    í¢â€â€š í¢â€â€š            í¢â€â€š í¢â€â€š  On-chain:    í¢â€â€š
+ *   í¢â€â€š               í¢â€â€š í¢â€â€š            í¢â€â€š í¢â€â€š  - Votes      í¢â€â€š
+ *   í¢â€â€š Off-chain:    í¢â€â€š í¢â€â€š  Off-chain í¢â€â€š í¢â€â€š  - Events     í¢â€â€š
+ *   í¢â€â€š PII Storage   í¢â€â€š í¢â€â€š  Connectioní¢â€â€š í¢â€â€š  - Auditoríƒ­a  í¢â€â€š
+ *   í¢â€â€í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€Ëœ í¢â€â€í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€Ëœ í¢â€â€í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€â‚¬í¢â€Ëœ
  *
- * FLOW DE VOTACIÓN PASO A PASO:
+ * FLOW DE VOTACIíƒâ€œN PASO A PASO:
  * =============================
  *
  * 1. REGISTRO & LOGIN (Web2):
  *    POST /auth/register { email, password, name, student_id }
- *        → Registra usuario en SQLite
- *        → Valida eligibilidad de votación
+ *        í¢â€ ' Registra usuario en SQLite
+ *        í¢â€ ' Valida eligibilidad de votación
  *
  *    POST /auth/login { email, password, electionId }
- *        → Valida credenciales contra SQLite
- *        → Genera nullifier = HMAC(user_id, election_id, secret)
- *        → Retorna JWT con nullifier incluido
+ *        í¢â€ ' Valida credenciales contra SQLite
+ *        í¢â€ ' Genera nullifier = HMAC(user_id, election_id, secret)
+ *        í¢â€ ' Retorna JWT con nullifier incluido
  *
- * 2. PREPARACIÓN DE VOTO:
+ * 2. PREPARACIíƒâ€œN DE VOTO:
  *    - Frontend recibe JWT con nullifier
  *    - Frontend genera voto en local: voteHash = SHA256(opción + salt)
- *    - Frontend NUNCA envía opción de voto (solo hash cifrado)
+ *    - Frontend NUNCA envíƒ­a opción de voto (solo hash cifrado)
  *
- * 3. REGISTRO DE VOTO (Web2 → Web3):
+ * 3. REGISTRO DE VOTO (Web2 í¢â€ ' Web3):
  *    POST /elections/register-vote {
  *      token: "JWT con nullifier",
  *      electionId: 1,
@@ -67,27 +69,27 @@ import registrationRoutes from "./routes/registration.js";
  *    c) Valida que elección existe y está activa
  *    d) Prepara transacción: castVote(electionId, nullifier, voteHash)
  *    e) FIRMA transacción con private key del servidor (relayer)
- *    f) ENVÍA a blockchain (Hardhat RPC)
+ *    f) ENVíƒA a blockchain (Hardhat RPC)
  *    g) Retorna txHash para que frontend escuche evento
  *
- * 4. AUDITORÍA EN BLOCKCHAIN (Web3):
+ * 4. AUDITORíƒA EN BLOCKCHAIN (Web3):
  *    Smart Contract emite: VoteCast(electionId, nullifier, voteHash, timestamp)
  *
- *    Frontend escucha evento → muestra en Live Feed
+ *    Frontend escucha evento í¢â€ ' muestra en Live Feed
  *    Información mostrada:
  *    - Nullifier (hash anónimo, no identifica a nadie)
- *    - VoteHash (hash cifrado, no se conoce qué se votó)
- *    - Transacción Hash (auditoría pública)
+ *    - VoteHash (hash cifrado, no se conoce quíƒ© se votó)
+ *    - Transacción Hash (auditoríƒ­a píƒºblica)
  *
  * SEGURIDAD & PRIVACIDAD:
  * =======================
- * ✅ PII nunca va a blockchain (email, nombre, ID estudiante)
- * ✅ Voto nunca se conoce en claro (solo voteHash)
- * ✅ Identidad de votante protegida (solo nullifier, que es hash)
- * ✅ Double-voting prevenido (nullifier único por usuario)
- * ✅ Blockchain es auditable públicamente (eventos transparentes)
- * ✅ Backend no custodia privadas de usuario (frontend usa ethers.js)
- * ✅ Deterministic nullifier (mismo user = mismo nullifier para elección)
+ * í¢Å“â€¦ PII nunca va a blockchain (email, nombre, ID estudiante)
+ * í¢Å“â€¦ Voto nunca se conoce en claro (solo voteHash)
+ * í¢Å“â€¦ Identidad de votante protegida (solo nullifier, que es hash)
+ * í¢Å“â€¦ Double-voting prevenido (nullifier íƒºnico por usuario)
+ * í¢Å“â€¦ Blockchain es auditable píƒºblicamente (eventos transparentes)
+ * í¢Å“â€¦ Backend no custodia privadas de usuario (frontend usa ethers.js)
+ * í¢Å“â€¦ Deterministic nullifier (mismo user = mismo nullifier para elección)
  */
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -129,13 +131,13 @@ app.use((req, res, next) => {
 // ============================================================
 // RATE LIMITING (BLOQUE 2.3)
 // ============================================================
-// Rate limit específico para login: 5 intentos en 15 minutos (producción)
+// Rate limit especíƒ­fico para login: 5 intentos en 15 minutos (producción)
 // En desarrollo: permitir más intentos para testing
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: process.env.NODE_ENV === 'production' ? 5 : 100, // 5 en prod, 100 en dev
     message: {
-        error: 'Demasiados intentos de login. Inténtalo en 15 minutos.'
+        error: 'Demasiados intentos de login. Intíƒ©ntalo en 15 minutos.'
     },
     standardHeaders: true, // Retorna rate limit info en el header `RateLimit-*`
     legacyHeaders: false, // Deshabilita los headers `X-RateLimit-*`
@@ -145,22 +147,22 @@ const loginLimiter = rateLimit({
     },
     handler: (req, res) => {
         res.status(429).json({
-            error: 'Demasiados intentos de login. Inténtalo más tarde.',
+            error: 'Demasiados intentos de login. Intíƒ©ntalo más tarde.',
             retryAfter: req.rateLimit?.resetTime,
         });
     },
 });
 // ============================================================
-// INICIALIZACIÓN DE BASE DE DATOS
+// INICIALIZACIíƒâ€œN DE BASE DE DATOS
 // ============================================================
 async function initializeDatabase() {
     try {
         const db = getDatabase();
         await db.initialize();
-        console.log("✅ Base de datos SQLite inicializada");
+        console.log("í¢Å“â€¦ Base de datos SQLite inicializada");
     }
     catch (error) {
-        console.error("❌ Error al inicializar BD:", error);
+        console.error("í¢Å’ Error al inicializar BD:", error);
         process.exit(1);
     }
 }
@@ -189,17 +191,17 @@ app.get("/api/health", (req, res) => {
 app.post("/auth/login", loginLimiter);
 app.use("/auth", authRoutes);
 // Rutas de elecciones
-app.use("/elections", electionRoutes);
+app.use("/api/elections", electionRoutes);
 // Rutas de administración
 app.use("/admin", adminRoutes);
 // Rutas de registro
 app.use("/registration", registrationRoutes);
-// Ruta raíz con documentación
+// Ruta raíƒ­z con documentación
 app.get("/", (req, res) => {
     res.json({
         name: "VTB Backend API",
         version: "1.0.0",
-        description: "Express backend que actúa como relayer hacia blockchain",
+        description: "Express backend que actíƒºa como relayer hacia blockchain",
         endpoints: {
             auth: {
                 register: "POST /auth/register",
@@ -239,26 +241,26 @@ async function start() {
         await initializeDatabase();
         // Revisar configuración de blockchain
         if (!process.env.CONTRACT_ADDRESS || !process.env.PRIVATE_KEY) {
-            console.warn("⚠️  ADVERTENCIA: CONTRACT_ADDRESS o PRIVATE_KEY no configurados");
+            console.warn("í¢Å¡ í¯¸  ADVERTENCIA: CONTRACT_ADDRESS o PRIVATE_KEY no configurados");
             console.warn("   Las transacciones a blockchain no funcionarán");
             console.warn("   Configura en .env file o variables de entorno");
         }
         else {
-            console.log(`✅ Blockchain configurado: ${process.env.CONTRACT_ADDRESS}`);
+            console.log(`í¢Å“â€¦ Blockchain configurado: ${process.env.CONTRACT_ADDRESS}`);
         }
         // Iniciar servidor
         app.listen(PORT, () => {
             console.log("\n" + "=".repeat(60));
-            console.log("🚀 VTB Backend iniciado");
+            console.log("í°Å¸Å¡â‚¬ VTB Backend iniciado");
             console.log("=".repeat(60));
-            console.log(`📍 Servidor: http://localhost:${PORT}`);
-            console.log(`📊 Documentación: http://localhost:${PORT}/`);
-            console.log(`💚 Health check: http://localhost:${PORT}/health`);
+            console.log(`í°Å¸â€œ Servidor: http://localhost:${PORT}`);
+            console.log(`í°Å¸â€œÅ  Documentación: http://localhost:${PORT}/`);
+            console.log(`í°Å¸'Å¡ Health check: http://localhost:${PORT}/health`);
             console.log("=".repeat(60) + "\n");
         });
     }
     catch (error) {
-        console.error("❌ Error al iniciar servidor:", error);
+        console.error("í¢Å’ Error al iniciar servidor:", error);
         process.exit(1);
     }
 }
