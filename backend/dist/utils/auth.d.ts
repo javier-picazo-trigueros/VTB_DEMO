@@ -30,7 +30,7 @@ export declare function generateNullifier(userId: number, electionId: number): s
  *
  * Token contiene: userId, email, rol (sin nullifier, sin electionId)
  */
-export declare function generateToken(userId: number, email: string, role?: string): string;
+export declare function generateToken(userId: number, email: string, role?: string, adminDomain?: string | null): string;
 /**
  * @dev Verificar JWT y extraer datos
  *
@@ -40,6 +40,7 @@ export declare function verifyToken(token: string): {
     userId: number;
     email: string;
     role?: string;
+    adminDomain?: string | null;
 } | null;
 /**
  * @dev Generar voteHash en el BACKEND para testing

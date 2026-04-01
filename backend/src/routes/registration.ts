@@ -12,12 +12,15 @@ const db = getDatabase();
  */
 router.post("/request", async (req: Request, res: Response) => {
   try {
-    const { fullName, email, studentId } = req.body;
+    // Aceptar tanto camelCase (fullName, studentId) como snake_case (name, student_id)
+    const fullName = req.body.fullName || req.body.name;
+    const email = req.body.email;
+    const studentId = req.body.studentId || req.body.student_id;
 
     // Validación: campos presentes y no vacíos
     if (!fullName?.trim() || !email?.trim() || !studentId?.trim()) {
       res.status(400).json({
-        error: "Faltan campos requeridos: fullName, email, studentId",
+        error: "Faltan campos requeridos: fullName (o name), email, studentId (o student_id)",
       });
       return;
     }

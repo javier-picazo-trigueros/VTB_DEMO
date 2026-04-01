@@ -106,18 +106,14 @@ export function generateNullifier(userId: number, electionId: number): string {
 export function generateToken(
   userId: number,
   email: string,
-  role: string = "student"
+  role: string = "student",
+  adminDomain: string | null = null
 ): string {
-  const token = jwt.sign(
-    {
-      userId,
-      email,
-      role,
-    },
-    JWT_SECRET,
-    { expiresIn: "24h" }
-  );
-
+  const payload: any = { userId, email, role };
+  if (adminDomain) {
+    payload.adminDomain = adminDomain;
+  }
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
   return token;
 }
 
@@ -132,6 +128,7 @@ export function verifyToken(
   userId: number;
   email: string;
   role?: string;
+  adminDomain?: string | null;
 } | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
@@ -139,6 +136,7 @@ export function verifyToken(
       userId: decoded.userId,
       email: decoded.email,
       role: decoded.role || "student",
+      adminDomain: decoded.adminDomain || null,
     };
   } catch (error) {
     return null;

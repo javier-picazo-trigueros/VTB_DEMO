@@ -35,23 +35,27 @@ const authAdminMiddleware = async (req: Request, res: Response, next: any) => {
       return;
     }
 
-    // Verificar que sea admin
-    const admin = await db.get<{ role: string }>(
-      "SELECT role FROM users WHERE id = ?",
+    // Verificar que sea admin o superadmin
+    const admin = await db.get<{ role: string; admin_domain: string | null }>(
+      "SELECT role, admin_domain FROM users WHERE id = ?",
       [decoded.userId]
     );
 
-    if (!admin || admin.role !== "admin") {
+    if (!admin || (admin.role !== 'admin' && admin.role !== 'superadmin')) {
       res.status(403).json({ error: "Acceso denegado. Se requieren permisos de administrador" });
       return;
     }
 
-    req.user = decoded;
+    req.user = { ...decoded, adminDomain: admin.admin_domain, role: admin.role };
     next();
   } catch (error) {
     res.status(500).json({ error: "Error de autenticación" });
   }
 };
+
+// Helper functions for domain scoping
+const isSuperAdmin = (req: Request) => req.user?.role === 'superadmin';
+const getAdminDomain = (req: Request): string | null => req.user?.adminDomain || null;
 
 /**
  * @route GET /admin/dashboard
@@ -59,25 +63,24 @@ const authAdminMiddleware = async (req: Request, res: Response, next: any) => {
  */
 router.get("/dashboard", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
-    const totalUsers = await db.get<{ count: number }>(
-      "SELECT COUNT(*) as count FROM users"
-    );
+    const adminDomain = getAdminDomain(req);
+    const isSuper = isSuperAdmin(req);
 
-    const adminCount = await db.get<{ count: number }>(
-      "SELECT COUNT(*) as count FROM users WHERE role = 'admin'"
-    );
+    let totalUsers, adminCount, studentCount, totalElections, nullifierAudit;
 
-    const studentCount = await db.get<{ count: number }>(
-      "SELECT COUNT(*) as count FROM users WHERE role = 'student'"
-    );
-
-    const totalElections = await db.get<{ count: number }>(
-      "SELECT COUNT(*) as count FROM elections"
-    );
-
-    const nullifierAudit = await db.get<{ count: number }>(
-      "SELECT COUNT(*) as count FROM nullifier_audit"
-    );
+    if (isSuper) {
+      totalUsers = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users");
+      adminCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role IN ('admin','superadmin')");
+      studentCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role IN ('student','voter')");
+      totalElections = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM elections");
+      nullifierAudit = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM nullifier_audit");
+    } else {
+      totalUsers = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE email LIKE '%@' || ?", [adminDomain]);
+      adminCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND admin_domain = ?", [adminDomain]);
+      studentCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role IN ('student','voter') AND email LIKE '%@' || ?", [adminDomain]);
+      totalElections = await db.get<{ count: number }>("SELECT COUNT(DISTINCT e.id) as count FROM elections e JOIN election_access ea ON e.id = ea.election_id WHERE ea.email_domain = ?", [adminDomain]);
+      nullifierAudit = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM nullifier_audit");
+    }
 
     res.json({
       stats: {
@@ -100,9 +103,18 @@ router.get("/dashboard", authAdminMiddleware, async (req: Request, res: Response
  */
 router.get("/users", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
-    const users = await db.run<any>(
-      "SELECT id, email, name, student_id, role, is_eligible, created_at FROM users ORDER BY created_at DESC"
-    );
+    let users;
+    if (isSuperAdmin(req)) {
+      users = await db.run<any>(
+        "SELECT id, email, name, student_id, role, admin_domain, is_eligible, created_at FROM users ORDER BY created_at DESC"
+      );
+    } else {
+      const adminDomain = getAdminDomain(req);
+      users = await db.run<any>(
+        "SELECT id, email, name, student_id, role, admin_domain, is_eligible, created_at FROM users WHERE email LIKE '%@' || ? ORDER BY created_at DESC",
+        [adminDomain]
+      );
+    }
 
     res.json({ users: users || [] });
   } catch (error) {
@@ -188,9 +200,18 @@ router.delete("/users/:id", authAdminMiddleware, async (req: Request, res: Respo
  */
 router.get("/elections", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
-    const elections = await db.run<any>(
-      "SELECT * FROM elections ORDER BY created_at DESC"
-    );
+    let elections;
+    if (isSuperAdmin(req)) {
+      elections = await db.run<any>(
+        "SELECT * FROM elections ORDER BY created_at DESC"
+      );
+    } else {
+      const adminDomain = getAdminDomain(req);
+      elections = await db.run<any>(
+        "SELECT DISTINCT e.* FROM elections e JOIN election_access ea ON e.id = ea.election_id WHERE ea.email_domain = ? ORDER BY e.created_at DESC",
+        [adminDomain]
+      );
+    }
 
     res.json({ elections: elections || [] });
   } catch (error) {
@@ -228,6 +249,19 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
     `,
       [election_id_blockchain, name, description, start_time, end_time]
     );
+
+    // If domain admin, automatically add their domain to election_access
+    const adminDomain = getAdminDomain(req);
+    if (adminDomain) {
+      try {
+        await db.exec(
+          "INSERT INTO election_access (election_id, email_domain) VALUES (?, ?)",
+          [result.lastID, adminDomain]
+        );
+      } catch (e: any) {
+        // Ignore UNIQUE constraint
+      }
+    }
 
     res.json({
       success: true,
@@ -331,13 +365,25 @@ router.get("/stats/voters", authAdminMiddleware, async (req: Request, res: Respo
 router.get("/registration-requests", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
     const status = (req.query.status as string) || 'pending';
+    const adminDomain = getAdminDomain(req);
+    const isSuper = isSuperAdmin(req);
 
     let query = "SELECT * FROM registration_requests";
     const params: any[] = [];
+    const conditions: string[] = [];
 
     if (status !== 'all') {
-      query += " WHERE status = ?";
+      conditions.push("status = ?");
       params.push(status);
+    }
+
+    if (!isSuper && adminDomain) {
+      conditions.push("email LIKE '%@' || ?");
+      params.push(adminDomain);
+    }
+
+    if (conditions.length > 0) {
+      query += " WHERE " + conditions.join(" AND ");
     }
 
     query += " ORDER BY created_at DESC";
@@ -398,6 +444,16 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
     }
 
     if (action === 'approve') {
+      // Domain admin: verify request email matches admin domain
+      if (!isSuperAdmin(req)) {
+        const adminDomain = getAdminDomain(req);
+        const requestDomain = request.email.split('@')[1];
+        if (adminDomain && requestDomain !== adminDomain) {
+          res.status(403).json({ error: "You can only manage requests from your domain" });
+          return;
+        }
+      }
+
       // Crear usuario con contraseña temporal: VTB_${studentId}_temp
       const tempPassword = `VTB_${request.student_id}_temp`;
       const passwordHash = await hashPassword(tempPassword);

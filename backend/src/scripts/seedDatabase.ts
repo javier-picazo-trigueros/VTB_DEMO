@@ -24,11 +24,36 @@ async function seed() {
 
     const testUsers = [
       {
+        email: "superadmin@vtb.system",
+        name: "Super Admin",
+        student_id: "SUPERADMIN-001",
+        password: "superadmin123",
+        role: "superadmin",
+        admin_domain: null,
+      },
+      {
+        email: "admin@ufv.es",
+        name: "Admin UFV",
+        student_id: "ADMIN-UFV-001",
+        password: "admin123",
+        role: "admin",
+        admin_domain: "ufv.es",
+      },
+      {
+        email: "admin@universidad.edu",
+        name: "Admin Universidad",
+        student_id: "ADMIN-001",
+        password: "admin123",
+        role: "admin",
+        admin_domain: "universidad.edu",
+      },
+      {
         email: "juan@universidad.edu",
         name: "Juan García",
         student_id: "EST-2024-001",
         password: "password123",
         role: "student",
+        admin_domain: null,
       },
       {
         email: "maria@universidad.edu",
@@ -36,6 +61,7 @@ async function seed() {
         student_id: "EST-2024-002",
         password: "password123",
         role: "student",
+        admin_domain: null,
       },
       {
         email: "carlos@alumnos.ufv.es",
@@ -43,6 +69,7 @@ async function seed() {
         student_id: "EST-UFV-001",
         password: "password123",
         role: "student",
+        admin_domain: null,
       },
       {
         email: "isabella@alumnos.ufv.es",
@@ -50,20 +77,7 @@ async function seed() {
         student_id: "EST-UFV-002",
         password: "password123",
         role: "student",
-      },
-      {
-        email: "admin@universidad.edu",
-        name: "Administrador",
-        student_id: "ADMIN-001",
-        password: "admin123",
-        role: "admin",
-      },
-      {
-        email: "admin@ufv.es",
-        name: "Administrador UFV",
-        student_id: "ADMIN-UFV-001",
-        password: "admin123",
-        role: "admin",
+        admin_domain: null,
       },
     ];
 
@@ -72,10 +86,10 @@ async function seed() {
         const passwordHash = await hashPassword(user.password);
         await db.exec(
           `
-          INSERT INTO users (email, password_hash, name, student_id, role, is_eligible)
-          VALUES (?, ?, ?, ?, ?, 1)
+          INSERT INTO users (email, password_hash, name, student_id, role, admin_domain, is_eligible)
+          VALUES (?, ?, ?, ?, ?, ?, 1)
         `,
-          [user.email, passwordHash, user.name, user.student_id, user.role]
+          [user.email, passwordHash, user.name, user.student_id, user.role, user.admin_domain]
         );
         console.log(`  ✅ Usuario creado: ${user.email}`);
       } catch (error: any) {
@@ -217,8 +231,9 @@ async function seed() {
     });
 
     console.log("\nAdministradores:");
-    testUsers.filter(u => u.role === "admin").forEach((user) => {
-      console.log(`  - ${user.email} (contraseña: admin123)`);
+    testUsers.filter(u => u.role === "admin" || u.role === "superadmin").forEach((user) => {
+      const domainInfo = user.admin_domain ? ` (domain: ${user.admin_domain})` : ' (superadmin)';
+      console.log(`  - ${user.email} / ${user.password}${domainInfo}`);
     });
 
     console.log("\nElecciones:");

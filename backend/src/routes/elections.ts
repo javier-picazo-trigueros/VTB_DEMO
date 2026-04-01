@@ -181,10 +181,10 @@ router.get("/:id", async (req: Request, res: Response) => {
  * @returns { eligible, reason?, status? }
  * 
  * Comprueba en orden:
- * 1. íƒâ€ší‚¦íƒâ€ší‚¿Existe la elección? ' not_found
- * 2. íƒâ€ší‚¦íƒâ€ší‚¿Está activa? ' not_active + status
- * 3. íƒâ€ší‚¦íƒâ€ší‚¿Usuario está en censo? ' not_eligible
- * 4. íƒâ€ší‚¦íƒâ€ší‚¿Ya votó? ' already_voted
+ * 1. ✓✓¿Existe la elección? ' not_found
+ * 2. ✓✓¿Está activa? ' not_active + status
+ * 3. ✓✓¿Usuario está en censo? ' not_eligible
+ * 4. ✓✓¿Ya votó? ' already_voted
  * 5. OK ' eligible: true
  */
 router.get("/:id/eligibility", async (req: Request, res: Response) => {
@@ -421,9 +421,9 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
 
 /**
  * @route POST /elections/register-vote
- * @desc FUNCIíƒâ€ší‚¦íƒâ€¦í¢â‚¬Å“N CRíƒâ€ší‚TICA: Registra un voto en el Smart Contract
+ * @desc FUNCI✓íƒâ€¦í¢â‚¬Å“N CR✓TICA: Registra un voto en el Smart Contract
  *
- * CAMBIO ARQUITECTíƒâ€ší‚¦íƒâ€¦í¢â‚¬Å“NICO (BLOQUE 1.3):
+ * CAMBIO ARQUITECT✓íƒâ€¦í¢â‚¬Å“NICO (BLOQUE 1.3):
  * 1. Frontend envía: JWT + electionId + voteHash
  * 2. Backend valida JWT (extrae userId)
  * 3. Backend genera nullifier = HMAC(userId + electionId) en este momento
@@ -478,7 +478,7 @@ router.post("/register-vote", async (req: Request, res: Response) => {
       return;
     }
 
-    // VERIFICACIíƒâ€ší‚¦íƒâ€¦í¢â‚¬Å“N DE TIEMPO (para elecciones con horarios)
+    // VERIFICACI✓íƒâ€¦í¢â‚¬Å“N DE TIEMPO (para elecciones con horarios)
     const now = Math.floor(Date.now() / 1000);
     const electionFull = await db.get<{ start_time: number; end_time: number }>(
       "SELECT start_time, end_time FROM elections WHERE id = ?",
@@ -493,7 +493,7 @@ router.post("/register-vote", async (req: Request, res: Response) => {
       return;
     }
 
-    // GENERAR NULLIFIER EN ESTE MOMENTO (CAMBIO CRíƒâ€ší‚TICO)
+    // GENERAR NULLIFIER EN ESTE MOMENTO (CAMBIO CR✓TICO)
     // Nullifier = HMAC(userId + electionId)
     const nullifier = generateNullifier(decoded.userId, electionId);
 
@@ -520,7 +520,7 @@ router.post("/register-vote", async (req: Request, res: Response) => {
 
 
 
-    // PREPARAR TRANSACCIíƒâ€ší‚¦íƒâ€¦í¢â‚¬Å“N EN BLOCKCHAIN
+    // PREPARAR TRANSACCI✓íƒâ€¦í¢â‚¬Å“N EN BLOCKCHAIN
     const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
     try {
       const provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -537,7 +537,7 @@ router.post("/register-vote", async (req: Request, res: Response) => {
       );
 
       // Enviar transacción
-      console.log(`íƒâ€ší‚°íƒâ€ší‚¦íƒâ€ší‚¸íƒâ€ší‚¦íƒâ€¦í¢â‚¬Å“íƒâ€ší‚ Registrando voto en blockchain...`);
+      console.log(`✓°✓✓¸✓íƒâ€¦í¢â‚¬Å“✓ Registrando voto en blockchain...`);
       console.log(`   - Election ID: ${election.election_id_blockchain}`);
       console.log(`   - Nullifier: ${nullifier.substring(0, 20)}...`);
       console.log(`   - Vote Hash: ${voteHash.substring(0, 20)}...`);
@@ -551,7 +551,7 @@ router.post("/register-vote", async (req: Request, res: Response) => {
       // Esperar confirmación
       const receipt = await tx.wait();
 
-      console.log(`íƒâ€ší‚¦íƒâ€ší‚¦íƒ¢í¢â€š¬í…â€œíƒâ€ší‚¦ Voto registrado en transacción: ${tx.hash}`);
+      console.log(`✓✓íƒ¢í¢â€š¬í…â€œ✓ Voto registrado en transacción: ${tx.hash}`);
 
       // Registrar en auditoría que el usuario votó en esta elección
       try {
@@ -563,7 +563,7 @@ router.post("/register-vote", async (req: Request, res: Response) => {
           [decoded.userId, electionId, nullifier]
         );
       } catch (auditError) {
-        console.warn("íƒâ€ší‚¦íƒâ€ší‚¯íƒâ€ší‚¸íƒâ€ší‚  Warning al registrar auditoría:", auditError);
+        console.warn("✓✓¯✓¸✓  Warning al registrar auditoría:", auditError);
       }
 
       res.json({

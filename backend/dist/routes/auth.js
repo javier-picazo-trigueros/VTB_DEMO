@@ -63,8 +63,7 @@ router.post("/login", async (req, res) => {
             });
             return;
         }
-        // Buscar usuario en SQLite
-        const user = await db.get("SELECT * FROM users WHERE email = ?", [email]);
+        const user = await db.get("SELECT id, email, password_hash, name, student_id, role, is_eligible, admin_domain FROM users WHERE email = ?", [email]);
         if (!user) {
             res.status(401).json({ error: "Email o contraseña incorrectos" });
             return;
@@ -82,9 +81,8 @@ router.post("/login", async (req, res) => {
             res.status(401).json({ error: "Email o contraseña incorrectos" });
             return;
         }
-        // GENERAR TOKEN SIN NULLIFIER
-        // El nullifier se genera en tiempo de votación
-        const token = generateToken(user.id, user.email, user.role);
+        // GENERAR TOKEN CON ADMIN DOMAIN
+        const token = generateToken(user.id, user.email, user.role, user.admin_domain);
         res.json({
             success: true,
             token,
@@ -94,6 +92,7 @@ router.post("/login", async (req, res) => {
                 name: user.name,
                 student_id: user.student_id,
                 role: user.role,
+                adminDomain: user.admin_domain,
             },
         });
     }

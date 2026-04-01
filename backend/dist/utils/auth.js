@@ -93,12 +93,12 @@ export function generateNullifier(userId, electionId) {
  *
  * Token contiene: userId, email, rol (sin nullifier, sin electionId)
  */
-export function generateToken(userId, email, role = "student") {
-    const token = jwt.sign({
-        userId,
-        email,
-        role,
-    }, JWT_SECRET, { expiresIn: "24h" });
+export function generateToken(userId, email, role = "student", adminDomain = null) {
+    const payload = { userId, email, role };
+    if (adminDomain) {
+        payload.adminDomain = adminDomain;
+    }
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
     return token;
 }
 /**
@@ -113,6 +113,7 @@ export function verifyToken(token) {
             userId: decoded.userId,
             email: decoded.email,
             role: decoded.role || "student",
+            adminDomain: decoded.adminDomain || null,
         };
     }
     catch (error) {

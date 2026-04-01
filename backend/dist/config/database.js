@@ -35,6 +35,7 @@ export class Database {
             name TEXT NOT NULL,
             student_id TEXT UNIQUE NOT NULL,
             role TEXT DEFAULT 'student',
+            admin_domain TEXT DEFAULT NULL,
             is_eligible BOOLEAN DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -121,6 +122,8 @@ export class Database {
                 });
             });
         });
+        // Migration: add admin_domain column if it doesn't exist (for existing DBs)
+        await this.exec("ALTER TABLE users ADD COLUMN admin_domain TEXT DEFAULT NULL").catch(() => { });
     }
     /**
      * Ejecuta una query SELECT y retorna todos los resultados
