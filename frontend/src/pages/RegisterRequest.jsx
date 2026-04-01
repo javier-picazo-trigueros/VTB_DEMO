@@ -79,7 +79,7 @@ export const RegisterRequest = () => {
     setError('')
 
     try {
-      const response = await axios.post(`${API_URL}/auth/register-request`, {
+      const response = await axios.post(`${API_URL}/registration/request`, {
         fullName: formData.fullName,
         email: formData.email,
         studentId: formData.studentId,
@@ -167,7 +167,7 @@ export const RegisterRequest = () => {
                 {/* Student ID */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    ID de Estudiante/Empleado
+                    Student ID/Empleado
                   </label>
                   <input
                     type="text"
@@ -190,10 +190,10 @@ export const RegisterRequest = () => {
                   {loading ? (
                     <>
                       <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                      Enviando...
+                      Submitting...
                     </>
                   ) : (
-                    '📤 Enviar Solicitud'
+                    '📤 Submit Request'
                   )}
                 </button>
               </form>
@@ -231,7 +231,7 @@ export const RegisterRequest = () => {
                   onClick={() => navigate('/login')}
                   className="w-full py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors"
                 >
-                  🔐 Volver al Login
+                  🔐 Back to Login
                 </button>
               </motion.div>
             </>

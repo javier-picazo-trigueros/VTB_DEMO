@@ -21,6 +21,10 @@ export const Dashboard = () => {
   const [elections, setElections] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [eligibilityMap, setEligibilityMap] = useState({})
+
+  const userEmail = localStorage.getItem('vtb-email') || '';
+  const domain = userEmail.split('@')[1] || '';
 
   // Verificar autenticación
   useEffect(() => {
@@ -58,7 +62,25 @@ export const Dashboard = () => {
       }
       
       const data = await response.json()
-      setElections(Array.isArray(data) ? data : data.elections || [])
+      const electionList = Array.isArray(data) ? data : data.elections || []
+      setElections(electionList)
+
+      // Fetch eligibility for each active election
+      for (const election of electionList) {
+        if (election.isActive) {
+          try {
+            const eligRes = await fetch(`${API_URL}/api/elections/${election.id}/eligibility`, {
+              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+            })
+            if (eligRes.ok) {
+              const eligData = await eligRes.json()
+              setEligibilityMap(prev => ({ ...prev, [election.id]: eligData }))
+            }
+          } catch (e) {
+            // silently skip
+          }
+        }
+      }
     } catch (err) {
       console.error('Error cargando elecciones:', err)
       setError(err.message || 'Error al cargar elecciones')
@@ -86,10 +108,10 @@ export const Dashboard = () => {
             className="mb-12"
           >
             <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">
-              📋 Panel de Votación
+              📋 Voting Dashboard
             </h1>
             <p className="text-slate-600 dark:text-slate-400">
-              Bienvenido, <span className="font-semibold text-blue-600 dark:text-blue-400">{user?.name || user?.email}</span>
+              Welcome, <span className="font-semibold text-blue-600 dark:text-blue-400">{user?.name || user?.email}</span>
             </p>
           </motion.div>
 
@@ -114,16 +136,26 @@ export const Dashboard = () => {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-center py-12"
+              className="text-center py-16"
             >
-              <p className="text-lg text-slate-600 dark:text-slate-400 mb-4">
-                Sin elecciones disponibles en este momento
+              <div className="text-6xl mb-4">🗳️</div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                No elections assigned
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-2 max-w-md mx-auto">
+                Aún no tienes ninguna elección activa asignada a tu cuenta.
+                Esto puede ocurrir porque:
               </p>
+              <ul className="text-sm text-slate-500 dark:text-slate-400 mb-6 space-y-1">
+                <li>• Tu solicitud fue aprobada recientemente y el admin aún no ha creado elecciones</li>
+                <li>• Las elecciones disponibles no incluyen tu dominio de email</li>
+                <li>• Las elecciones han finalizado o no han comenzado aún</li>
+              </ul>
               <button
                 onClick={loadElections}
                 className="px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
               >
-                🔄 Recargar
+                🔄 Reload
               </button>
             </motion.div>
           )}
@@ -147,10 +179,22 @@ export const Dashboard = () => {
                   <div className="p-6 pb-4">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                          {election.name}
-                        </h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                            {election.name}
+                          </h3>
+                          {eligibilityMap[election.id]?.reason === 'already_voted' && (
+                            <span className="text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-medium">
+                              ✓ Voted
+                            </span>
+                          )}
+                        </div>
+                        {domain && (
+                          <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full font-medium tracking-wide">
+                            @{domain}
+                          </span>
+                        )}
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-3">
                           {election.description}
                         </p>
                       </div>
@@ -161,19 +205,27 @@ export const Dashboard = () => {
                       <div className="flex-1">
                         <p className="text-slate-500 dark:text-slate-400 text-xs">Inicia</p>
                         <p className="font-semibold text-slate-700 dark:text-slate-300">
-                          {new Date(election.startTime * 1000).toLocaleDateString()}
+                          {election.startTime
+                            ? new Date(election.startTime * 1000).toLocaleDateString('es-ES', {
+                                day: '2-digit', month: 'short', year: 'numeric'
+                              })
+                            : '—'}
                         </p>
                       </div>
                       <div className="flex-1">
                         <p className="text-slate-500 dark:text-slate-400 text-xs">Termina</p>
                         <p className="font-semibold text-slate-700 dark:text-slate-300">
-                          {new Date(election.endTime * 1000).toLocaleDateString()}
+                          {election.endTime
+                            ? new Date(election.endTime * 1000).toLocaleDateString('es-ES', {
+                                day: '2-digit', month: 'short', year: 'numeric'
+                              })
+                            : '—'}
                         </p>
                       </div>
                       <div className="flex-1">
                         <p className="text-slate-500 dark:text-slate-400 text-xs">Estado</p>
                         <p className={`font-semibold text-sm ${
-                          election.is_active
+                          election.isActive
                             ? 'text-yellow-600 dark:text-yellow-400'
                             : 'text-emerald-600 dark:text-emerald-400'
                         }`}>
@@ -189,18 +241,18 @@ export const Dashboard = () => {
                       whileTap={{ scale: 0.95 }}
                       onClick={() => navigate(`/voting/${election.id}`)}
                       className="flex-1 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!election.isActive}
+                      disabled={!election.isActive || eligibilityMap[election.id]?.reason === 'already_voted'}
                     >
-                      {election.isActive ? 'Votar' : 'Cerrada'}
+                      {eligibilityMap[election.id]?.reason === 'already_voted' ? '✓ Voted' : election.isActive ? 'Vote' : 'Cerrada'}
                     </motion.button>
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => navigate(`/results/${election.id}`)}
                       className="flex-1 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
-                      title={election.is_active ? 'Ver resultados parciales' : 'Ver resultados definitivos'}
+                      title={election.isActive ? 'Ver resultados parciales' : 'Ver resultados definitivos'}
                     >
-                      {election.is_active ? 'íƒ°í…¸í¢â‚¬Å“í…  Parcial' : 'íƒ°í…¸í¢â‚¬Å“í…  Resultados'}
+                      {election.isActive ? '📊  Parcial' : '📊  Resultados'}
                     </motion.button>
                   </div>
                 </motion.div>

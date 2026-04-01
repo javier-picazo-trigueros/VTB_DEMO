@@ -1,0 +1,27 @@
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 13 modules transformed.
+[31mx[39m Build failed in 987ms
+[31merror during build:
+[31m[vite:esbuild] Transform failed with 1 error:
+C:/Users/javie/Downloads/VTB_DEMO/frontend/src/pages/ElectionResults.jsx:26:34: ERROR: Expected ";" but found "=>"[31m
+file: [36mC:/Users/javie/Downloads/VTB_DEMO/frontend/src/pages/ElectionResults.jsx:26:34[31m
+[33m
+[33mExpected ";" but found "=>"[33m
+24 |  
+25 |    // Fetch results
+26 |    const fetchResults = asandnc () => {
+   |                                    ^
+27 |      trand {
+28 |        setLoading(true);
+[31m
+    at failureErrorWithLog (C:\Users\javie\Downloads\VTB_DEMO\frontend\node_modules\esbuild\lib\main.js:1472:15)
+    at C:\Users\javie\Downloads\VTB_DEMO\frontend\node_modules\esbuild\lib\main.js:755:50
+    at responseCallbacks.<computed> (C:\Users\javie\Downloads\VTB_DEMO\frontend\node_modules\esbuild\lib\main.js:622:9)
+    at handleIncomingPacket (C:\Users\javie\Downloads\VTB_DEMO\frontend\node_modules\esbuild\lib\main.js:677:12)
+    at Socket.readFromStdout (C:\Users\javie\Downloads\VTB_DEMO\frontend\node_modules\esbuild\lib\main.js:600:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)[39m

@@ -24,7 +24,7 @@ export class Database {
      * Inicializa las tablas de la base de datos
      */
     async initialize() {
-        return new Promise((resolve, reject) => {
+        await new Promise((resolve, reject) => {
             this.db.serialize(() => {
                 // Tabla de Usuarios (Censo Electoral)
                 this.db.run(`

@@ -79,6 +79,22 @@ async function seed() {
         role: "student",
         admin_domain: null,
       },
+      {
+        email: "javier@ufv.es",
+        name: "Javier Votante",
+        student_id: "EST-UFV-003",
+        password: "password123",
+        role: "student",
+        admin_domain: null,
+      },
+      {
+        email: "ana@ufv.es",
+        name: "Ana Votante",
+        student_id: "EST-UFV-004",
+        password: "password123",
+        role: "student",
+        admin_domain: null,
+      },
     ];
 
     for (const user of testUsers) {
@@ -187,8 +203,10 @@ async function seed() {
       { election: "Delegados de Clase 2026", domain: "alumnos.ufv.es" },
       { election: "Cambios en Exámenes", domain: "alumnos.ufv.es" },
 
-      // @ufv.es solo en Rectores
+      // @ufv.es en Rectores, Delegados y Cambios
       { election: "Rectores de Universidad", domain: "ufv.es" },
+      { election: "Delegados de Clase 2026", domain: "ufv.es" },
+      { election: "Cambios en Exámenes", domain: "ufv.es" },
     ];
 
     for (const mapping of domainMappings) {
@@ -230,6 +248,11 @@ async function seed() {
       console.log(`  - ${user.email}`);
     });
 
+    console.log("\nUsuarios @ufv.es (contraseña: password123):");
+    testUsers.filter(u => u.email.includes("@ufv.es") && u.role === "student").forEach((user) => {
+      console.log(`  - ${user.email}`);
+    });
+
     console.log("\nAdministradores:");
     testUsers.filter(u => u.role === "admin" || u.role === "superadmin").forEach((user) => {
       const domainInfo = user.admin_domain ? ` (domain: ${user.admin_domain})` : ' (superadmin)';
@@ -247,6 +270,100 @@ async function seed() {
     console.log("  3. Despliega contrato: npx hardhat run scripts/deploy.ts --network localhost");
     console.log("  4. Inicia frontend: npm run dev (en frontend/)");
     console.log("");
+
+    console.log("\n============================================================");
+    console.log("🚀 CREANDO DEMO DATA ADICIONAL (Change 5)");
+    console.log("============================================================\n");
+
+    const oneYear = 365 * 24 * 3600;
+
+    const demoUsers = [
+      { email: "student1@ufv.es", password: "demo123", name: "Carlos López Fernández", student_id: "UFV-2024-001" },
+      { email: "student2@ufv.es", password: "demo123", name: "Laura Martínez García", student_id: "UFV-2024-002" },
+      { email: "student3@ufv.es", password: "demo123", name: "Miguel Torres Sánchez", student_id: "UFV-2024-003" },
+      { email: "student4@ufv.es", password: "demo123", name: "Sofia Rodríguez Pérez", student_id: "UFV-2024-004" },
+      { email: "voter1@universidad.edu", password: "demo123", name: "Elena Castro Ruiz", student_id: "UNI-2024-001" },
+    ];
+
+    const demoElections = [
+      {
+        election_id_blockchain: 101,
+        name: "UFV Student Delegate Election 2026",
+        description: "Vote for your student representative for the academic year 2026-2027",
+        start_time: now - (7 * 24 * 3600),
+        end_time: now + oneYear,
+        domain: "ufv.es",
+      },
+      {
+        election_id_blockchain: 102,
+        name: "Best Campus Improvement Proposal",
+        description: "Choose the initiative you'd like to see implemented on campus next semester",
+        start_time: now - (3 * 24 * 3600),
+        end_time: now + oneYear,
+        domain: "ufv.es",
+      },
+      {
+        election_id_blockchain: 103,
+        name: "Faculty Research Priority Vote",
+        description: "Help the academic committee decide which research areas to prioritize",
+        start_time: now - (24 * 3600),
+        end_time: now + (6 * 30 * 24 * 3600),
+        domain: "universidad.edu",
+      }
+    ];
+
+    const demoUserIds: { [email: string]: number } = {};
+    for (const u of demoUsers) {
+      let uData = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', [u.email]);
+      if (!uData) {
+        const hash = await hashPassword(u.password);
+        const resUser = await db.exec(
+          `INSERT INTO users (email, password_hash, name, student_id, role, is_eligible) VALUES (?, ?, ?, ?, 'student', 1)`,
+          [u.email, hash, u.name, u.student_id]
+        );
+        demoUserIds[u.email] = resUser.lastID;
+        console.log(`  ✅ Demo User creado: ${u.email}`);
+      } else {
+        demoUserIds[u.email] = uData.id;
+      }
+    }
+
+    const demoElectionIds: { [name: string]: number } = {};
+    for (const e of demoElections) {
+      let eData = await db.get<{ id: number }>('SELECT id FROM elections WHERE name = ?', [e.name]);
+      if (!eData) {
+        const resEl = await db.exec(
+          `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active) VALUES (?, ?, ?, ?, ?, 1)`,
+          [e.election_id_blockchain, e.name, e.description, e.start_time, e.end_time]
+        );
+        demoElectionIds[e.name] = resEl.lastID;
+        await db.exec(`INSERT INTO election_access (election_id, email_domain) VALUES (?, ?)`, [resEl.lastID, e.domain]).catch(()=>null);
+        console.log(`  ✅ Demo Election creada: ${e.name}`);
+      } else {
+        demoElectionIds[e.name] = eData.id;
+      }
+    }
+
+    // Assign voters to elections (election_voters mapping for demo)
+    // ufv students => 101, 102
+    const ufvEmails = demoUsers.filter(u => u.email.includes('ufv.es')).map(u => u.email);
+    for (const email of ufvEmails) {
+      const uid = demoUserIds[email];
+      for (const ename of ["UFV Student Delegate Election 2026", "Best Campus Improvement Proposal"]) {
+        const eid = demoElectionIds[ename];
+        if (uid && eid) {
+          await db.exec(`INSERT INTO election_voters (election_id, user_id) VALUES (?, ?)`, [eid, uid]).catch(()=>null);
+        }
+      }
+    }
+
+    // voter1 => 103
+    const voter1Id = demoUserIds["voter1@universidad.edu"];
+    const election103Id = demoElectionIds["Faculty Research Priority Vote"];
+    if (voter1Id && election103Id) {
+      await db.exec(`INSERT INTO election_voters (election_id, user_id) VALUES (?, ?)`, [election103Id, voter1Id]).catch(()=>null);
+    }
+    console.log("  ✅ Censo demo asignado");
 
     process.exit(0);
   } catch (error) {

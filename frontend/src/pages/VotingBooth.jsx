@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -49,7 +49,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://localhost:8545";
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "";
 
-export const VotingBooth = () => {
+export const VotingBoothContent = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id: electionId } = useParams(); // Get election ID from route
@@ -61,6 +61,7 @@ export const VotingBooth = () => {
   const [loading, setLoading] = useState(true);
   const [votingLoading, setVotingLoading] = useState(false);
   const [error, setError] = useState("");
+  const [eligibilityError, setEligibilityError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [voteCount, setVoteCount] = useState(0);
@@ -69,6 +70,7 @@ export const VotingBooth = () => {
   const [voteStatus, setVoteStatus] = useState(null); // null | 'proof' | 'sending' | 'confirming' | 'success' | 'error'
   const [txData, setTxData] = useState(null); // { txHash, explorerUrl }
   const [voteError, setVoteError] = useState(null);
+  const [alreadyVoted, setAlreadyVoted] = useState(false);
 
   // Verificar autenticación y cargar elección
   useEffect(() => {
@@ -112,40 +114,31 @@ export const VotingBooth = () => {
           const reason = eligRes.data.reason;
           const status = eligRes.data.status;
           
+          if (reason === 'already_voted') {
+            setAlreadyVoted(true);
+          }
+          
           let errorMsg;
           switch (reason) {
-            case 'not_found':
-              errorMsg = 'Esta elección no existe';
+            case 'already_voted':
+              errorMsg = 'You have already voted in this election';
               break;
             case 'not_active':
-              errorMsg = status === 'pending' 
-                ? 'Esta elección aún no ha comenzado'
-                : 'Esta elección ya ha finalizado. Puedes ver los resultados.';
+              errorMsg = 'Esta elección no está activa';
               break;
             case 'not_eligible':
-              errorMsg = 'No tienes permiso para votar en esta elección';
-              break;
-            case 'already_voted':
-              errorMsg = 'Ya has emitido tu voto en esta elección ✓';
+              errorMsg = 'No estás en el censo de esta elección';
               break;
             default:
               errorMsg = 'No puedes votar en esta elección';
           }
           
-          setError(errorMsg);
-          setLoading(false);
-          
-          // Redirigir al dashboard con mensaje después de 2 segundos
-          setTimeout(() => {
-            navigate('/dashboard', { state: { message: errorMsg } });
-          }, 2000);
-          return;
+          setEligibilityError(errorMsg);
+          // Do not redirect, just show the message and hide the vote button later.
         }
       } catch (eligErr) {
         console.error('Error validando elegibilidad:', eligErr);
-        setError('Error al validar tu elegibilidad');
-        setLoading(false);
-        return;
+        setEligibilityError('Error al validar tu elegibilidad');
       }
 
       // 2. GET /api/elections/:id para obtener candidatos
@@ -180,7 +173,7 @@ export const VotingBooth = () => {
 
       setLoading(false);
     } catch (err) {
-      console.error("Error cargando elección:", err);
+      console.error("Error loading election:", err);
 
       if (err.response?.status === 404) {
         setError("Elección no encontrada");
@@ -212,12 +205,12 @@ export const VotingBooth = () => {
 
     const setupListener = async () => {
       try {
-        console.log("🔗 Conectando a Hardhat RPC...");
+
         const provider = new ethers.JsonRpcProvider(RPC_URL);
 
         // ABI del contrato (solo eventos que nos interesan)
         const contractAbi = [
-          "event VoteCast(uint256 indexed electionId, bytes32 indexed nullifier, bytes32 voteHash, uint256 timestamp)",
+          "event VoteCast(uint256 indexed electionId, bytes32 nullifier, bytes32 voteHash)",
         ];
 
         contract = new ethers.Contract(
@@ -226,26 +219,21 @@ export const VotingBooth = () => {
           provider
         );
 
-        console.log("✅ Conectado. Escuchando eventos VoteCast...");
+
         setIsListening(true);
 
         // ESCUCHAR EVENTOS EN TIEMPO REAL (BLOQUE 3.3)
         // Filtra solo votos de la elección actual
-        contract.on("VoteCast", (eId, nullifier, voteHash, timestamp) => {
+        contract.on("VoteCast", (eId, nullifier, voteHash, event) => {
           // Filter por elección actual (MEJORA 1: Filtrado)
           if (eId.toString() !== electionId?.toString()) {
             return;
           }
 
-          console.log("ðŸ“ Nuevo voto recibido en Live Feed:", {
-            electionId: eId.toString(),
-            nullifier: nullifier.slice(0, 10) + "...",
-            timestamp: timestamp.toString(),
-          });
 
-          const voteTimestamp = Number(timestamp) * 1000;
+          const voteTimestamp = Date.now();
           const newVote = {
-            id: Date.now(),
+            id: Date.now() + Math.random(),
             nullifier: nullifier, // completo para truncar en render
             voteHash,
             createdAt: voteTimestamp, // timestamp para calcular tiempo relativo
@@ -270,8 +258,7 @@ export const VotingBooth = () => {
           reconnectAttempts++;
           // Mostrar badge de reconexión
           setIsListening(false);
-          console.log(`⚡ Reintentando... (${reconnectAttempts}/${MAX_RECONNECT})`);
-          
+
           // Reintentar en 5 segundos
           setTimeout(setupListener, 5000);
         } else {
@@ -323,7 +310,7 @@ export const VotingBooth = () => {
 
   /**
    * BLOQUE 3.4: Función mejorada para registrar voto con feedback 3 pasos
-   * Flujo: proof (calcular) â†’ sending (enviando al backend) â†’ confirming (esperando confirmación) â†’ success|error
+   * Flujo: proof (calcular) → sending (enviando al backend) → confirming (esperando confirmación) → success|error
    */
   const handleVote = async (candidateId) => {
     if (!selectedCandidate || !electionId) return;
@@ -341,14 +328,11 @@ export const VotingBooth = () => {
       await new Promise(resolve => setTimeout(resolve, 800)); // Simular cálculo
 
       // Generar voteHash localmente
-      const randomSalt = Math.random().toString(36);
-      const votePayload = `vote:${selectedCandidate}:${randomSalt}`;
-      const voteHash = await hashMessage(votePayload);
+      const voteHash = ethers.keccak256(ethers.toUtf8Bytes(`${selectedCandidate}-${Date.now()}-${Math.random()}`));
 
-      console.log("🗳️ Preparando voto:");
-      console.log("  - Candidato:", selectedCandidate);
-      console.log("  - Vote Hash:", voteHash);
-      console.log("  - Election ID:", electionId);
+
+
+
 
       // PASO 2: Enviar al backend
       setVoteStatus('sending');
@@ -373,8 +357,7 @@ export const VotingBooth = () => {
       await new Promise(resolve => setTimeout(resolve, 600)); // Simular confirmación
 
       // Transacción exitosa
-      console.log("✅ Voto registrado en blockchain");
-      console.log("📊 TX Hash:", response.data.txHash);
+
 
       setTxData({
         txHash: response.data.txHash,
@@ -385,13 +368,24 @@ export const VotingBooth = () => {
       setSelectedCandidate(null);
 
     } catch (err) {
-      console.error("âŒ Error al registrar voto:", err);
+      console.error("Error al registrar voto:", err);
 
-      setVoteError(
-        err.response?.data?.error ||
-        err.message ||
-        "Error al registrar voto. Intenta de nuevo."
-      );
+      // Check for blockchain unavailability
+      if (err.response?.status === 500 &&
+          (err.response?.data?.error?.includes('blockchain') ||
+           err.response?.data?.error?.includes('Blockchain'))) {
+        setVoteError({
+          type: 'blockchain_unavailable',
+          message: 'El nodo blockchain no está disponible en este momento.',
+          detail: 'Asegúrate de que Hardhat está corriendo: npx hardhat node'
+        });
+      } else {
+        setVoteError(
+          err.response?.data?.error ||
+          err.message ||
+          "Error al registrar voto. Intenta de nuevo."
+        );
+      }
       
       setVoteStatus('error');
 
@@ -401,18 +395,8 @@ export const VotingBooth = () => {
     }
   };
 
-  /**
-   * Helper: SHA256 en cliente usando Web Crypto API
-   */
-  const hashMessage = async (message) => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(message);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return (
-      "0x" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
-    );
-  };
+  // HashMessage function removed since we now use ethers.keccak256
+
 
   const handleLogout = () => {
     localStorage.removeItem("vtb-token");
@@ -447,6 +431,56 @@ export const VotingBooth = () => {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <Navbar />
 
+      {/* Already Voted Dedicated State */}
+      {alreadyVoted && (
+        <div className="max-w-2xl mx-auto px-4 py-16">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-8 text-center"
+          >
+            <div className="text-5xl mb-4">✅</div>
+            <h3 className="text-xl font-bold text-emerald-700 dark:text-emerald-300 mb-2">
+              You have already voted in this election
+            </h3>
+            <p className="text-emerald-600 dark:text-emerald-400 mb-6">
+              Tu voto ha sido registrado en la blockchain.
+            </p>
+            <button
+              onClick={() => navigate(`/results/${electionId}`)}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition"
+            >
+              📊 View Results
+            </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Blockchain Unavailable Error Card */}
+      {voteError?.type === 'blockchain_unavailable' && (
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div className="flex-1">
+                <h3 className="font-bold text-amber-800 dark:text-amber-300 mb-1">{voteError.message}</h3>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mb-4">{voteError.detail}</p>
+                <button
+                  onClick={() => { setVoteError(null); setVoteStatus(null); handleVote(selectedCandidate); }}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition text-sm"
+                >
+                  🔄 Reintentar voto
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* MODAL DE PROGRESO - Overlay no cancelable */}
       {voteStatus && voteStatus !== 'success' && voteStatus !== 'error' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -468,7 +502,7 @@ export const VotingBooth = () => {
             <h3 className="text-center text-lg font-semibold text-slate-900 dark:text-white mb-2">
               {voteStatus === 'proof' && 'ðŸ” Calculando prueba...'}
               {voteStatus === 'sending' && '📤 Enviando voto...'}
-              {voteStatus === 'confirming' && 'â³ Confirmando transacción...'}
+              {voteStatus === 'confirming' && 'â³ Confirming transacción...'}
             </h3>
 
             <p className="text-center text-sm text-slate-600 dark:text-slate-400">
@@ -480,7 +514,7 @@ export const VotingBooth = () => {
         </div>
       )}
 
-      {/* MODAL DE í‰XITO */}
+      {/* MODAL DE ÉXITO */}
       {voteStatus === 'success' && txData && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <motion.div
@@ -501,7 +535,7 @@ export const VotingBooth = () => {
             </div>
 
             <h2 className="text-center text-2xl font-bold text-slate-900 dark:text-white mb-4">
-              ¡Voto registrado en blockchain!
+              ¡Vote registered en blockchain!
             </h2>
 
             {/* TxHash Box */}
@@ -524,7 +558,7 @@ export const VotingBooth = () => {
               rel="noopener noreferrer"
               className="w-full mb-6 px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white text-center rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition font-medium block text-sm"
             >
-              ðŸ” Ver en el explorador â†’
+              ðŸ” Ver en el explorador →
             </a>
 
             {/* Botón Volver */}
@@ -532,7 +566,7 @@ export const VotingBooth = () => {
               onClick={() => navigate("/dashboard")}
               className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium"
             >
-              Volver al Dashboard
+              Back to Dashboard
             </button>
           </motion.div>
         </div>
@@ -591,7 +625,7 @@ export const VotingBooth = () => {
         <div className="flex justify-between items-center mb-12">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              {electionTitle || "Cabina de Votación"}
+              {electionTitle || "Voting Booth"}
             </h1>
             <p className="text-slate-600 dark:text-slate-400 mt-2">
               Selecciona tu opción y vota de forma segura y anónima
@@ -680,16 +714,22 @@ export const VotingBooth = () => {
                 ))}
               </div>
 
-              {/* Confirm Button */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleVote(selectedCandidate)}
-                disabled={!selectedCandidate || voteStatus !== null}
-                className="w-full mt-8 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {voteStatus === null ? '🗳️ Emitir voto' : 'Procesando...'}
-              </motion.button>
+              {/* Confirm Button & Eligibility Message */}
+              {eligibilityError ? (
+                <div className="mt-8 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-600 dark:text-yellow-400 text-center font-medium">
+                  {eligibilityError === 'You have already voted in this election' ? 'Ya has votado' : eligibilityError}
+                </div>
+              ) : (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleVote(selectedCandidate)}
+                  disabled={!selectedCandidate || voteStatus !== null}
+                  className="w-full mt-8 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {voteStatus === null ? '🗳️ Emitir voto' : 'Processing...'}
+                </motion.button>
+              )}
             </div>
           </div>
 
@@ -761,5 +801,51 @@ export const VotingBooth = () => {
     </div>
   );
 };
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary atrapó un error en VotingBooth:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-8 max-w-md w-full text-center border border-red-200 dark:border-red-900/50">
+            <div className="text-5xl mb-6">💥</div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Algo inesperado ocurrió</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 bg-slate-100 dark:bg-slate-900 p-3 rounded">
+              {this.state.error?.message || "Error desconocido en la cabina de votación"}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-6 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg font-medium hover:bg-slate-800 transition shadow"
+            >
+              🔄 Recargar página
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+export const VotingBooth = () => (
+  <ErrorBoundary>
+    <VotingBoothContent />
+  </ErrorBoundary>
+);
 
 export default VotingBooth;

@@ -32,7 +32,7 @@ export class Database {
    * Inicializa las tablas de la base de datos
    */
   async initialize(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       this.db.serialize(() => {
         // Tabla de Usuarios (Censo Electoral)
         this.db.run(`
@@ -113,6 +113,7 @@ export class Database {
             student_id TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending',
             rejection_reason TEXT,
+            approved_password TEXT DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             reviewed_at DATETIME
           )
@@ -137,6 +138,9 @@ export class Database {
 
     // Migration: add admin_domain column if it doesn't exist (for existing DBs)
     await this.exec("ALTER TABLE users ADD COLUMN admin_domain TEXT DEFAULT NULL").catch(() => {});
+    
+    // Migration: add approved_password column if it doesn't exist
+    await this.exec("ALTER TABLE registration_requests ADD COLUMN approved_password TEXT DEFAULT NULL").catch(() => {});
   }
 
   /**

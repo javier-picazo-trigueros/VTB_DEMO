@@ -73,6 +73,22 @@ async function seed() {
                 role: "student",
                 admin_domain: null,
             },
+            {
+                email: "javier@ufv.es",
+                name: "Javier Votante",
+                student_id: "EST-UFV-003",
+                password: "password123",
+                role: "student",
+                admin_domain: null,
+            },
+            {
+                email: "ana@ufv.es",
+                name: "Ana Votante",
+                student_id: "EST-UFV-004",
+                password: "password123",
+                role: "student",
+                admin_domain: null,
+            },
         ];
         for (const user of testUsers) {
             try {
@@ -166,8 +182,10 @@ async function seed() {
             // @alumnos.ufv.es solo en Delegados y Cambios
             { election: "Delegados de Clase 2026", domain: "alumnos.ufv.es" },
             { election: "Cambios en Exámenes", domain: "alumnos.ufv.es" },
-            // @ufv.es solo en Rectores
+            // @ufv.es en Rectores, Delegados y Cambios
             { election: "Rectores de Universidad", domain: "ufv.es" },
+            { election: "Delegados de Clase 2026", domain: "ufv.es" },
+            { election: "Cambios en Exámenes", domain: "ufv.es" },
         ];
         for (const mapping of domainMappings) {
             try {
@@ -196,6 +214,10 @@ async function seed() {
         });
         console.log("\nUsuarios @alumnos.ufv.es (contraseña: password123):");
         testUsers.filter(u => u.email.includes("@alumnos.ufv.es")).forEach((user) => {
+            console.log(`  - ${user.email}`);
+        });
+        console.log("\nUsuarios @ufv.es (contraseña: password123):");
+        testUsers.filter(u => u.email.includes("@ufv.es") && u.role === "student").forEach((user) => {
             console.log(`  - ${user.email}`);
         });
         console.log("\nAdministradores:");

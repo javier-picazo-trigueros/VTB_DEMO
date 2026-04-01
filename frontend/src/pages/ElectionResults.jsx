@@ -75,7 +75,7 @@ const ElectionResults = () => {
     }
   };
 
-  // Exportar CSV
+  // Export CSV
   const exportCSV = () => {
     if (!auditData || auditData.length === 0) {
       alert('No hay datos para exportar');
@@ -109,7 +109,7 @@ const ElectionResults = () => {
               onClick={() => navigate('/dashboard')}
               className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
             >
-              Volver al Dashboard
+              Back to Dashboard
             </button>
           </div>
         </div>
@@ -118,7 +118,7 @@ const ElectionResults = () => {
   }
 
   if (loading) {
-    return <LoadingSpinner message="Cargando resultados..." />;
+    return <LoadingSpinner message="Loading results..." />;
   }
 
   if (!results) {
@@ -135,7 +135,7 @@ const ElectionResults = () => {
           onClick={() => navigate('/dashboard')}
           className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition flex items-center gap-2"
         >
-          â† Volver al Dashboard
+          â† Back to Dashboard
         </button>
 
         <h1 className="text-4xl font-bold mb-2">{election.name}</h1>
@@ -178,10 +178,10 @@ const ElectionResults = () => {
         {/* RESULTADOS TAB */}
         {activeTab === 'results' && (
           <div className="space-y-6">
-            {/* Tarjeta de Participación */}
+            {/* Tarjeta de Participation */}
             <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-6">
               <div className="text-center">
-                <p className="text-slate-300 mb-2">Participación</p>
+                <p className="text-slate-300 mb-2">Participation</p>
                 <p className="text-5xl font-bold text-blue-400 mb-2">
                   {totalVotes} de {election.totalVoters}
                 </p>
@@ -286,7 +286,7 @@ const ElectionResults = () => {
               onClick={exportCSV}
               className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium"
             >
-              ðŸ“¥ Exportar CSV
+              ðŸ“¥ Export CSV
             </button>
 
             {/* Tabla de Auditoría */}

@@ -129,7 +129,7 @@ router.get("/users", authAdminMiddleware, async (req: Request, res: Response) =>
  */
 router.post("/users", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
-    const { email, password, name, student_id, role = "student" } = req.body;
+    const { email, password, name, student_id, role = "student", admin_domain = null } = req.body;
 
     if (!email || !password || !name || !student_id) {
       res.status(400).json({ error: "Faltan campos requeridos" });
@@ -151,10 +151,10 @@ router.post("/users", authAdminMiddleware, async (req: Request, res: Response) =
     const passwordHash = await hashPassword(password);
     const result = await db.exec(
       `
-      INSERT INTO users (email, password_hash, name, student_id, role, is_eligible)
-      VALUES (?, ?, ?, ?, ?, 1)
+      INSERT INTO users (email, password_hash, name, student_id, role, admin_domain, is_eligible)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
     `,
-      [email, passwordHash, name, student_id, role]
+      [email, passwordHash, name, student_id, role, admin_domain]
     );
 
     res.json({
@@ -213,7 +213,16 @@ router.get("/elections", authAdminMiddleware, async (req: Request, res: Response
       );
     }
 
-    res.json({ elections: elections || [] });
+    const electionList = elections || [];
+    for (const election of electionList) {
+      const domains = await db.run<any>(
+        "SELECT email_domain FROM election_access WHERE election_id = ?",
+        [election.id]
+      );
+      election.domains = domains.map((d: any) => d.email_domain);
+    }
+
+    res.json({ elections: electionList });
   } catch (error) {
     console.error("Error listando elecciones:", error);
     res.status(500).json({ error: "Error al listar elecciones" });
@@ -302,8 +311,7 @@ router.put("/elections/:id", authAdminMiddleware, async (req: Request, res: Resp
  */
 router.get("/audit", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
-    const audit = await db.run<any>(
-      `
+    let query = `
       SELECT 
         na.id,
         na.user_id,
@@ -316,10 +324,18 @@ router.get("/audit", authAdminMiddleware, async (req: Request, res: Response) =>
       FROM nullifier_audit na
       JOIN users u ON na.user_id = u.id
       JOIN elections e ON na.election_id = e.id
-      ORDER BY na.generated_at DESC
-      LIMIT 100
-    `
-    );
+    `;
+    const params: any[] = [];
+
+    if (!isSuperAdmin(req)) {
+      const adminDomain = getAdminDomain(req);
+      query += " WHERE u.email LIKE '%@' || ?";
+      params.push(adminDomain);
+    }
+
+    query += " ORDER BY na.generated_at DESC LIMIT 100";
+    
+    const audit = await db.run<any>(query, params);
 
     res.json({ audit: audit || [] });
   } catch (error) {
@@ -469,8 +485,8 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
 
       // Actualizar solicitud como aprobada
       await db.exec(
-        "UPDATE registration_requests SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
-        [id]
+        "UPDATE registration_requests SET status = 'approved', approved_password = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [tempPassword, id]
       );
 
       // --- ASIGNACIÓN AUTOMÁTICA POR DOMINIO ---

@@ -14,6 +14,11 @@ export const AdminPanel = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // Domain scoping
+  const adminDomain = localStorage.getItem('vtb-admin-domain') || '';
+  const userRole = localStorage.getItem('vtb-role') || '';
+  const isSuperAdmin = userRole === 'superadmin';
+
   // Dashboard
   const [stats, setStats] = useState(null);
 
@@ -24,6 +29,8 @@ export const AdminPanel = () => {
     password: "",
     name: "",
     student_id: "",
+    role: "student",
+    admin_domain: "",
   });
 
   // Elections
@@ -33,13 +40,17 @@ export const AdminPanel = () => {
     description: "",
     start_time: "",
     end_time: "",
-    domains: "", // Comma-separated list of domains
+    domains: adminDomain || '',
     candidates: [{ name: "", description: "" }],
   });
 
   // Audit
   const [audit, setAudit] = useState([]);
   const [stats2, setStats2] = useState([]);
+
+  // Advanced Election Census State
+  const [expandedElection, setExpandedElection] = useState(null);
+  const [manageCensus, setManageCensus] = useState({ email: '', domain: '' });
 
   // Student Votes
   const [studentVotes, setStudentVotes] = useState([]);
@@ -48,13 +59,14 @@ export const AdminPanel = () => {
   // Registration Requests
   const [registrationRequests, setRegistrationRequests] = useState([]);
   const [approvalPassword, setApprovalPassword] = useState("");
+  const [tempPasswordInfo, setTempPasswordInfo] = useState(null);
 
   // Verificar admin al montar
   useEffect(() => {
     const token = localStorage.getItem("vtb-token");
     const role = localStorage.getItem("vtb-role");
 
-    if (!token || role !== "admin") {
+    if (!token || (role !== "admin" && role !== "superadmin")) {
       navigate("/login");
       return;
     }
@@ -110,7 +122,7 @@ export const AdminPanel = () => {
           break;
 
         case "inbox":
-          const regRes = await axios.get(`${API_URL}/admin/registration-requests`, {
+          const regRes = await axios.get(`${API_URL}/admin/registration-requests?status=all`, {
             headers: getAuthHeader(),
           });
           setRegistrationRequests(regRes.data.requests);
@@ -130,8 +142,8 @@ export const AdminPanel = () => {
       await axios.post(`${API_URL}/admin/users`, newUser, {
         headers: getAuthHeader(),
       });
-      setSuccess("✅ Usuario creado exitosamente");
-      setNewUser({ email: "", password: "", name: "", student_id: "" });
+      setSuccess("✅ User created successfully");
+      setNewUser({ email: "", password: "", name: "", student_id: "", role: "student", admin_domain: "" });
       loadTabData();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
@@ -142,7 +154,7 @@ export const AdminPanel = () => {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm("¿Eliminar este usuario?")) return;
+    if (!window.confirm("¿Delete this user?")) return;
 
     try {
       await axios.delete(`${API_URL}/admin/users/${userId}`, {
@@ -176,7 +188,7 @@ export const AdminPanel = () => {
       });
       const newElectionId = res.data.electionId;
 
-      // 2. Añadir dominios
+      // 2. Add domains
       if (newElection.domains.trim() !== "") {
         const domainList = newElection.domains.split(',').map(d => d.trim()).filter(d => d);
         for (const domain of domainList) {
@@ -188,7 +200,7 @@ export const AdminPanel = () => {
         }
       }
 
-      // 3. Añadir candidatos
+      // 3. Añadir candidates
       const validCandidates = newElection.candidates.filter(c => c.name.trim() !== "");
       // Currently the backend might not have POST /admin/elections/:id/candidates yet as requested per instructions.
       // But we will prepare the form for it, assume it returns 404 or succeeds if implemented later.
@@ -200,7 +212,7 @@ export const AdminPanel = () => {
         }
       }
 
-      setSuccess("✅ Votación creada exitosamente");
+      setSuccess("✅ Election created successfully");
       setNewElection({
         name: "",
         description: "",
@@ -251,6 +263,39 @@ export const AdminPanel = () => {
     }
   };
 
+  const handleAddVoter = async (electionId) => {
+    try {
+      if(!manageCensus.email.trim()) return;
+      await axios.post(`${API_URL}/admin/elections/${electionId}/voters`, { email: manageCensus.email.trim() }, { headers: getAuthHeader() });
+      setSuccess("✅ Voter added to census");
+      setManageCensus({...manageCensus, email: ''});
+      setTimeout(() => setSuccess(""), 3000);
+    } catch(err) {
+      setError(err.response?.data?.error || "Error añadiendo votante");
+    }
+  };
+
+  const handleAddDomain = async (electionId) => {
+    try {
+      if(!manageCensus.domain.trim()) return;
+      await axios.post(`${API_URL}/admin/elections/${electionId}/domains`, { domain: manageCensus.domain.trim() }, { headers: getAuthHeader() });
+      setSuccess("✅ Domain added to census");
+      setManageCensus({...manageCensus, domain: ''});
+      setTimeout(() => setSuccess(""), 3000);
+    } catch(err) {
+      setError(err.response?.data?.error || "Error añadiendo dominio");
+    }
+  };
+
+  const getElectionStatus = (election) => {
+    const now = Math.floor(Date.now() / 1000);
+    const start = election.start_time || election.startTime;
+    const end = election.end_time || election.endTime;
+    if (election.is_active && now >= start && now <= end) return 'active';
+    if (now < start) return 'upcoming';
+    return 'closed';
+  };
+
   const handleApproveRequest = async (requestId, email) => {
     setLoading(true);
     try {
@@ -259,10 +304,11 @@ export const AdminPanel = () => {
         { action: 'approve' },
         { headers: getAuthHeader() }
       );
-      setSuccess(`✅ Usuario aprobado - Contraseña temporal: ${response.data.tempPassword}`);
-      setApprovalPassword("");
+      setTempPasswordInfo({
+        email: email,
+        password: response.data.tempPassword
+      });
       loadTabData();
-      setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       setError(err.response?.data?.error || "Error aprobando solicitud");
     } finally {
@@ -281,7 +327,7 @@ export const AdminPanel = () => {
         { action: 'reject', reason },
         { headers: getAuthHeader() }
       );
-      setSuccess("✅ Solicitud rechazada");
+      setSuccess("✅ Request rejected");
       loadTabData();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
@@ -311,10 +357,18 @@ export const AdminPanel = () => {
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">
-            👨‍💼 Panel de Administración
+            👨‍💼 Administration Panel
+            {!isSuperAdmin && adminDomain && (
+              <span className="ml-3 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium">
+                Domain: @{adminDomain}
+              </span>
+            )}
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
-            Gestiona usuarios, votaciones y auditoría del sistema
+            {isSuperAdmin
+              ? 'Super Administrator — Full access to all domains'
+              : 'Manage users, elections and system audit'
+            }
           </p>
         </motion.div>
 
@@ -339,15 +393,51 @@ export const AdminPanel = () => {
           </motion.div>
         )}
 
+        {tempPasswordInfo && (
+          <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-400 dark:border-yellow-600 rounded-lg">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-bold text-yellow-800 dark:text-yellow-200 mb-1">
+                  🔑 Contraseña temporal generada
+                </p>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
+                  Usuario: {tempPasswordInfo.email}
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="bg-yellow-100 dark:bg-yellow-900 px-3 py-2 rounded font-mono text-lg font-bold text-yellow-900 dark:text-yellow-100">
+                    {tempPasswordInfo.password}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(tempPasswordInfo.password);
+                    }}
+                    className="px-3 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded text-sm font-medium transition"
+                  >
+                    📋 Copy
+                  </button>
+                </div>
+                <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
+                  ⚠️ Comparte esta contraseña con el usuario. Solo se muestra una vez.
+                </p>
+              </div>
+              <button
+                onClick={() => setTempPasswordInfo(null)}
+                className="text-yellow-600 hover:text-yellow-800 font-bold text-xl ml-4"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="mt-8 flex flex-wrap gap-3 mb-8">
           <Tab id="dashboard" label="Dashboard" icon="📊" />
-          <Tab id="inbox" label="Solicitudes" icon="📬" />
-          <Tab id="users" label="Usuarios" icon="👥" />
-          <Tab id="elections" label="Votaciones" icon="🗳️" />
-          <Tab id="student-votes" label="Votos Estudiantes" icon="📝" />
-          <Tab id="stats" label="Estadísticas" icon="📈" />
-          <Tab id="audit" label="Auditoría" icon="📋" />
+          <Tab id="inbox" label="Requests" icon="📬" />
+          <Tab id="users" label="Users" icon="👥" />
+          <Tab id="elections" label="Elections" icon="🗳️" />
+          <Tab id="stats" label="Statistics" icon="📈" />
+          <Tab id="audit" label="Vote Audit" icon="🔐" />
         </div>
 
         {/* Content */}
@@ -359,7 +449,7 @@ export const AdminPanel = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <LoadingSpinner message={`Cargando ${activeTab}...`} />
+              <LoadingSpinner message={`Loading ${activeTab}...`} />
             </motion.div>
           ) : (
             <motion.div
@@ -371,25 +461,37 @@ export const AdminPanel = () => {
             >
               {/* Dashboard */}
               {activeTab === "dashboard" && stats && (
-                <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <StatCard label="Total Usuarios" value={stats.totalUsers} icon="👥" />
-                  <StatCard label="Admins" value={stats.adminCount} icon="👨‍💼" />
-                  <StatCard label="Estudiantes" value={stats.studentCount} icon="🎓" />
-                  <StatCard label="Votaciones" value={stats.totalElections} icon="🗳️" />
-                  <StatCard label="Nullifiers" value={stats.totalNullifiers} icon="🔐" />
-                </div>
+                <>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <StatCard label="Total Users" value={stats.totalUsers} icon="👥" />
+                    <StatCard label="Admins" value={stats.adminCount} icon="👨‍💼" />
+                    <StatCard label="Students" value={stats.studentCount} icon="🎓" />
+                    <StatCard label="Elections" value={stats.totalElections} icon="🗳️" />
+                    <StatCard label="Nullifiers" value={stats.totalNullifiers} icon="🔐" />
+                  </div>
+                  {!isSuperAdmin && adminDomain && (
+                    <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                      Showing data for domain @{adminDomain}
+                    </p>
+                  )}
+                </>
               )}
 
               {/* Users */}
               {activeTab === "users" && (
                 <div className="space-y-8">
+                  {!isSuperAdmin && adminDomain && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-blue-700 dark:text-blue-300 text-sm">
+                      🌐 Gestionando usuarios de @{adminDomain}
+                    </div>
+                  )}
                   {/* Form */}
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"
                   >
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">➕ Crear Nuevo Usuario</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">➕ Create New User</h2>
                     <form onSubmit={handleCreateUser} className="grid md:grid-cols-2 gap-4">
                       <input
                         type="email"
@@ -411,7 +513,7 @@ export const AdminPanel = () => {
                       />
                       <input
                         type="text"
-                        placeholder="ID Estudiante"
+                        placeholder="Student ID"
                         value={newUser.student_id}
                         onChange={(e) => setNewUser({ ...newUser, student_id: e.target.value })}
                         disabled={loading}
@@ -420,13 +522,30 @@ export const AdminPanel = () => {
                       />
                       <input
                         type="password"
-                        placeholder="Contraseña"
+                        placeholder="Password"
                         value={newUser.password}
                         onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                         disabled={loading}
                         required
                         className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                       />
+                      <select
+                        value={newUser.role || 'student'}
+                        onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                        className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                      >
+                        <option value="student">Voter</option>
+                        <option value="admin">Domain Admin</option>
+                      </select>
+                      {newUser.role === 'admin' && (
+                        <input
+                          type="text"
+                          placeholder="Admin domain (e.g. ufv.es)"
+                          value={newUser.admin_domain || ''}
+                          onChange={(e) => setNewUser({ ...newUser, admin_domain: e.target.value })}
+                          className="md:col-span-2 w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                        />
+                      )}
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -434,7 +553,7 @@ export const AdminPanel = () => {
                         disabled={loading}
                         className="md:col-span-2 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50"
                       >
-                        {loading ? "Creando..." : "✨ Crear Usuario"}
+                        {loading ? "Creating..." : "✨ Create User"}
                       </motion.button>
                     </form>
                   </motion.div>
@@ -445,14 +564,14 @@ export const AdminPanel = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-x-auto"
                   >
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">📋 Usuarios Registrados</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">📋 Registered Users</h2>
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-300 dark:border-slate-600">
                           <th className="text-left py-2 px-4">Email</th>
-                          <th className="text-left py-2 px-4">Nombre</th>
-                          <th className="text-left py-2 px-4">Rol</th>
-                          <th className="text-left py-2 px-4">Acción</th>
+                          <th className="text-left py-2 px-4">Name</th>
+                          <th className="text-left py-2 px-4">Role</th>
+                          <th className="text-left py-2 px-4">Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -473,7 +592,7 @@ export const AdminPanel = () => {
                                 onClick={() => handleDeleteUser(user.id)}
                                 className="text-red-500 hover:text-red-700 font-medium transition"
                               >
-                                🗑️ Eliminar
+                                🗑️ Delete
                               </button>
                             </td>
                           </tr>
@@ -493,11 +612,11 @@ export const AdminPanel = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"
                   >
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">➕ Crear Nueva Votación</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">➕ Create New Election</h2>
                     <form onSubmit={handleCreateElection} className="space-y-4">
                       <input
                         type="text"
-                        placeholder="Nombre de la votación"
+                        placeholder="Election Name"
                         value={newElection.name}
                         onChange={(e) => setNewElection({ ...newElection, name: e.target.value })}
                         disabled={loading}
@@ -505,7 +624,7 @@ export const AdminPanel = () => {
                         className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                       />
                       <textarea
-                        placeholder="Descripción"
+                        placeholder="Description"
                         value={newElection.description}
                         onChange={(e) => setNewElection({ ...newElection, description: e.target.value })}
                         disabled={loading}
@@ -538,16 +657,16 @@ export const AdminPanel = () => {
                       />
                       <div className="border border-slate-300 dark:border-slate-600 p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                         <div className="flex justify-between items-center mb-2">
-                          <h3 className="font-bold text-slate-900 dark:text-white">Candidatos</h3>
+                          <h3 className="font-bold text-slate-900 dark:text-white">Candidates</h3>
                           <button type="button" onClick={handleAddCandidateField} className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
-                            + Añadir
+                            + Add
                           </button>
                         </div>
                         {newElection.candidates.map((candidate, idx) => (
                           <div key={idx} className="flex gap-2 mb-2">
                             <input
                               type="text"
-                              placeholder="Nombre del candidato"
+                              placeholder="Candidate Name"
                               value={candidate.name}
                               onChange={(e) => handleCandidateChange(idx, 'name', e.target.value)}
                               className="flex-1 px-3 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
@@ -555,7 +674,7 @@ export const AdminPanel = () => {
                             />
                             <input
                               type="text"
-                              placeholder="Descripción breve..."
+                              placeholder="Brief description..."
                               value={candidate.description}
                               onChange={(e) => handleCandidateChange(idx, 'description', e.target.value)}
                               className="flex-1 px-3 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
@@ -575,7 +694,7 @@ export const AdminPanel = () => {
                         disabled={loading}
                         className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50"
                       >
-                        {loading ? "Creando..." : "🗳️ Crear Votación"}
+                        {loading ? "Creating..." : "🗳️ Create Election"}
                       </motion.button>
                     </form>
                   </motion.div>
@@ -586,27 +705,93 @@ export const AdminPanel = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-4"
                   >
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">📋 Votaciones Registradas</h2>
-                    {elections.map((election) => (
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">📋 Registered Elections</h2>
+                    {elections.map((election) => {
+                      const status = getElectionStatus(election);
+                      const start = election.start_time || election.startTime;
+                      const end = election.end_time || election.endTime;
+                      return (
                       <div
                         key={election.id}
-                        className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between"
+                        className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 flex flex-col"
                       >
-                        <div>
-                          <h3 className="font-bold text-slate-900 dark:text-white">{election.name}</h3>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">{election.description}</p>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-bold text-slate-900 dark:text-white text-lg">{election.name}</h3>
+                            <div className="flex flex-wrap gap-2 mt-2 mb-3 text-xs">
+                               <span className={`px-2 py-1 rounded font-medium ${
+                                  status === 'active' ? "bg-emerald-100 text-emerald-800" :
+   status === 'upcoming' ? "bg-blue-100 text-blue-800" :
+   "bg-slate-100 text-slate-800"
+                                }`}>
+                                 {status.toUpperCase()}
+                               </span>
+                               <span className="px-2 py-1 rounded bg-blue-100 dark:bg-blue-900 text-blue-800 font-medium">
+                                 {election.candidates?.length || "N/A"} candidates
+                               </span>
+                               {election.domains && election.domains.map((d, i) => (
+                                 <span key={i} className="px-2 py-1 rounded bg-purple-100 dark:bg-purple-900 text-purple-800 font-medium">
+                                   @{d}
+                                 </span>
+                               ))}
+                            </div>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{election.description}</p>
+                            <div className="text-xs text-slate-500 mb-4">
+                               <p>Starts: {start ? new Date(start * 1000).toLocaleString('es-ES') : 'N/A'}</p>
+                               <p>Ends: {end ? new Date(end * 1000).toLocaleString('es-ES') : 'N/A'}</p>
+                            </div>
+                          </div>
+                          <div className="ml-4 flex flex-col gap-2 items-end">
+                            <button
+                              onClick={() => handleToggleElection(election.id, election.is_active)}
+                              className={`px-4 py-2 rounded-lg font-medium transition text-sm w-36 ${election.is_active !== false // Usually undefined is true in VTB defaults or boolean toggle
+                                  ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200"
+                                  : "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-300"
+                                }`}
+                            >
+                              {election.is_active !== false ? "✓ Visible" : "⊘ Hidden"}
+                            </button>
+                            <button
+                              onClick={() => setExpandedElection(expandedElection === election.id ? null : election.id)}
+                              className="px-4 py-2 bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 text-blue-700 rounded-lg transition font-medium text-sm w-36"
+                            >
+                              ⚙️ Manage Census
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => handleToggleElection(election.id, election.is_active)}
-                          className={`px-4 py-2 rounded-lg font-medium transition ${election.is_active
-                              ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-300"
-                            }`}
-                        >
-                          {election.is_active ? "✓ Activa" : "⊘ Inactiva"}
-                        </button>
+
+                        {/* Gestionar Censo Section */}
+                        {expandedElection === election.id && (
+                          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                             <h4 className="font-bold text-slate-900 dark:text-white mb-3 text-sm">Gestionar Censo</h4>
+                             <div className="grid md:grid-cols-2 gap-4">
+                               {/* Añadir Votante */}
+                               <div className="flex gap-2">
+                                  <input 
+                                    type="email" 
+                                    placeholder="email@votante.com" 
+                                    className="flex-1 px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded" 
+                                    value={manageCensus.email}
+                                    onChange={e => setManageCensus({...manageCensus, email: e.target.value})}
+                                  />
+                                  <button onClick={() => handleAddVoter(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Add voter</button>
+                               </div>
+                               {/* Añadir Dominio */}
+                               <div className="flex gap-2">
+                                  <input 
+                                    type="text" 
+                                    placeholder="nuevo-dominio.edu" 
+                                    className="flex-1 px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded" 
+                                    value={manageCensus.domain}
+                                    onChange={e => setManageCensus({...manageCensus, domain: e.target.value})}
+                                  />
+                                  <button onClick={() => handleAddDomain(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Add domain</button>
+                               </div>
+                             </div>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    )})}
                   </motion.div>
                 </div>
               )}
@@ -618,7 +803,7 @@ export const AdminPanel = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-4"
                 >
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">📊 Votantes por Votación</h2>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">📊 Voters by Election</h2>
                   {stats2.map((stat) => (
                     <div
                       key={stat.id}
@@ -628,7 +813,7 @@ export const AdminPanel = () => {
                         <div>
                           <h3 className="font-bold text-slate-900 dark:text-white">{stat.election_name}</h3>
                           <p className="text-sm text-slate-600 dark:text-slate-400">
-                            {stat.total_voters} votantes
+                            {stat.total_voters} voters
                           </p>
                         </div>
                         <span className="text-4xl">{stat.total_voters}</span>
@@ -638,109 +823,54 @@ export const AdminPanel = () => {
                 </motion.div>
               )}
 
-              {/* Student Votes */}
-              {activeTab === "student-votes" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-6"
-                >
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">📝 Votos de Estudiantes por Elección</h2>
-                    <select
-                      value={selectedElectionForVotes || ""}
-                      onChange={(e) => setSelectedElectionForVotes(parseInt(e.target.value) || null)}
-                      className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                    >
-                      <option value="">-- Todas las Elecciones --</option>
-                      {elections.map(e => (
-                        <option key={e.id} value={e.id}>{e.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {audit.length === 0 ? (
-                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-6 rounded-lg text-center">
-                      <p className="text-blue-800 dark:text-blue-200">⏳ No hay votos registrados</p>
-                    </div>
-                  ) : (
-                    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden border border-slate-200 dark:border-slate-700">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-slate-100 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
-                            <th className="px-6 py-4 text-left font-semibold text-slate-900 dark:text-white">👤 Estudiante</th>
-                            <th className="px-6 py-4 text-left font-semibold text-slate-900 dark:text-white">📧 Email</th>
-                            <th className="px-6 py-4 text-left font-semibold text-slate-900 dark:text-white">🗳️ Elección</th>
-                            <th className="px-6 py-4 text-left font-semibold text-slate-900 dark:text-white">✅ Voto</th>
-                            <th className="px-6 py-4 text-left font-semibold text-slate-900 dark:text-white">⏰ Fecha</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {audit
-                            .filter(v => !selectedElectionForVotes || v.election_id === selectedElectionForVotes)
-                            .map((vote, idx) => (
-                              <tr key={vote.id} className={`border-b border-slate-200 dark:border-slate-700 ${idx % 2 === 0 ? 'bg-slate-50 dark:bg-slate-800' : 'bg-white dark:bg-slate-750'}`}>
-                                <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{vote.name || "N/A"}</td>
-                                <td className="px-6 py-4 text-slate-700 dark:text-slate-300 font-mono text-xs">{vote.email}</td>
-                                <td className="px-6 py-4 text-slate-700 dark:text-slate-300">{vote.election_name}</td>
-                                <td className="px-6 py-4">
-                                  <span className="inline-block px-3 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 rounded-full text-xs font-medium">
-                                    {vote.vote_choice || "No especificado"}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
-                                  {new Date(vote.generated_at).toLocaleString()}
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {/* Privacy Notice */}
-                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-lg">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                      <strong>⚠️ Confidencial:</strong> Esta información es solo para administradores. Los datos de votos son sensibles
-                      y deben tratarse con confidencialidad.
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-
               {/* Audit */}
               {activeTab === "audit" && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-x-auto"
+                  className="space-y-6"
                 >
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">📋 Auditoría de Nullifiers        </h2>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-300 dark:border-slate-600">
-                        <th className="text-left py-2 px-4">Usuario</th>
-                        <th className="text-left py-2 px-4">Email</th>
-                        <th className="text-left py-2 px-4">Votación</th>
-                        <th className="text-left py-2 px-4">Fecha</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {audit.map((entry) => (
-                        <tr
-                          key={entry.id}
-                          className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
-                        >
-                          <td className="py-3 px-4">{entry.name}</td>
-                          <td className="py-3 px-4 font-mono text-xs text-slate-500">{entry.email}</td>
-                          <td className="py-3 px-4">{entry.election_name}</td>
-                          <td className="py-3 px-4 text-xs text-slate-500">
-                            {new Date(entry.generated_at).toLocaleString()}
-                          </td>
+                  <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">🔐 Vote Audit Log</h2>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-300 dark:border-slate-600">
+                          <th className="text-left py-2 px-4">Voter Email</th>
+                          <th className="text-left py-2 px-4">Election</th>
+                          <th className="text-left py-2 px-4">Vote Hash</th>
+                          <th className="text-left py-2 px-4">Timestamp</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {audit.map((entry) => {
+                          const truncateHash = (h) => h ? `${h.slice(0,10)}...${h.slice(-6)}` : '—';
+                          return (
+                          <tr
+                            key={entry.id}
+                            className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+                          >
+                            <td className="py-3 px-4 font-mono text-xs text-slate-900 dark:text-white">{entry.email}</td>
+                            <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{entry.election_name}</td>
+                            <td className="py-3 px-4 font-mono text-xs">
+                              <span className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-1 rounded">
+                                {truncateHash(entry.nullifier_hash)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-xs text-slate-500">
+                              {new Date(entry.generated_at).toLocaleString()}
+                            </td>
+                          </tr>
+                        )})}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Privacy Notice */}
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4 rounded-lg">
+                    <p className="text-sm text-emerald-800 dark:text-emerald-200">
+                      <strong>🔒 Vote privacy guaranteed:</strong> This audit log confirms participation without revealing candidate choices. Vote hashes are cryptographically anonymous and cannot be reversed.
+                    </p>
+                  </div>
                 </motion.div>
               )}
 
@@ -751,11 +881,11 @@ export const AdminPanel = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-6"
                 >
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">📬 Solicitudes de Registro Pendientes ({registrationRequests.filter(r => r.status === "pending").length})</h2>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">📬 Pending Registration Requests ({registrationRequests.filter(r => r.status === "pending").length})</h2>
 
                   {registrationRequests.filter(r => r.status === "pending").length === 0 ? (
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-6 rounded-lg text-center">
-                      <p className="text-blue-800 dark:text-blue-200">✨ No hay solicitudes pendientes</p>
+                      <p className="text-blue-800 dark:text-blue-200">✨ No pending requests</p>
                     </div>
                   ) : (
                     registrationRequests
@@ -779,7 +909,7 @@ export const AdminPanel = () => {
                               <p className="font-mono text-slate-900 dark:text-white">{request.student_id}</p>
                             </div>
                             <div>
-                              <p className="text-sm text-slate-600 dark:text-slate-400">Fecha Solicitada</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">Request Date</p>
                               <p className="text-sm text-slate-900 dark:text-white">
                                 {new Date(request.created_at).toLocaleString()}
                               </p>
@@ -789,7 +919,7 @@ export const AdminPanel = () => {
                           {/* Approval Section */}
                           <div className="bg-slate-100 dark:bg-slate-700 p-4 rounded-lg space-y-3">
                             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                              ℹ️ Se generará una contraseña temporal automáticamente
+                              ℹ️ A temporary password will be generated automatically
                             </p>
                             <div className="flex gap-3 pt-2">
                               <motion.button
@@ -799,7 +929,7 @@ export const AdminPanel = () => {
                                 disabled={loading}
                                 className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50"
                               >
-                                ✅ Aprobar
+                                ✅ Approve
                               </motion.button>
                               <motion.button
                                 whileHover={{ scale: 1.05 }}
@@ -808,7 +938,7 @@ export const AdminPanel = () => {
                                 disabled={loading}
                                 className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition disabled:opacity-50"
                               >
-                                ❌ Rechazar
+                                ❌ Reject
                               </motion.button>
                             </div>
                           </div>
@@ -820,7 +950,7 @@ export const AdminPanel = () => {
                   {registrationRequests.filter(r => r.status !== "pending").length > 0 && (
                     <div className="mt-8 pt-8 border-t border-slate-300 dark:border-slate-600">
                       <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-                        📋 Solicitudes Procesadas
+                        📋 Processed Requests
                       </h3>
                       <div className="space-y-2">
                         {registrationRequests
@@ -840,8 +970,21 @@ export const AdminPanel = () => {
                                   ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200"
                                   : "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200"
                                 }`}>
-                                {request.status === "approved" ? "✅ Aprobado" : "❌ Rechazado"}
+                                {request.status === "approved" ? "✅ Approved" : "❌ Rejected"}
                               </span>
+                              {request.status === 'approved' && request.approved_password && (
+                                <div className="mt-2 ml-4 flex items-center gap-2">
+                                  <code className="text-xs bg-slate-200 dark:bg-slate-600 px-2 py-0.5 rounded font-mono">
+                                    {request.approved_password}
+                                  </code>
+                                  <button
+                                    onClick={() => navigator.clipboard.writeText(request.approved_password)}
+                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                  >
+                                    Copy
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           ))}
                       </div>
