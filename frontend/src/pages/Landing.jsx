@@ -325,12 +325,9 @@ export const Landing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center text-slate-600 dark:text-slate-400">
             <p>
-              VTB - Final Year Project | 3º Ingeniería Informática |{" "}
-              <span className="font-semibold">Web3 + Full Stack</span>
+              VTB - Vote Through Blockchain
             </p>
-            <p className="text-sm mt-2">
-              Built with React, Vite, Tailwind, Hardhat & Solidity
-            </p>
+            <p className="text-sm mt-2"> </p>
           </div>
         </div>
       </footer>

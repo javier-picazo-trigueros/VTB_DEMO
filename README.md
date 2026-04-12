@@ -6,14 +6,14 @@ Combina lo mejor de ambos mundos:
 - **Privacidad Web2**: Autenticación institucional, gestión de usuarios
 - **Transparencia Web3**: Votos registrados en blockchain, auditoría pública
 
-## 🔑 Características principales
+## Características principales
 
-✅ **Autenticación con credenciales institucionales** — Email + contraseña  
-✅ **Anonimato garantizado** — Nullifier HMAC (no reversible)  
-✅ **Votos en blockchain** — Inmutables y públicamente auditables  
-✅ **Auditoría sin privacidad** — Cualquiera puede verificar la integridad de la elección  
-✅ **Sin coste por voto** — Diseñado para redes L2 (Polygon, Arbitrum)  
-✅ **Escalable** — Manejo de cientos de elecciones simultáneas  
+- **Autenticación con credenciales institucionales** — Email + contraseña  
+- **Anonimato garantizado** — Nullifier HMAC (no reversible)  
+- **Votos en blockchain** — Inmutables y públicamente auditables  
+- **Auditoría sin privacidad** — Cualquiera puede verificar la integridad de la elección  
+- **Sin coste por voto** — Diseñado para redes L2 (Polygon, Arbitrum)  
+- **Escalable** — Manejo de cientos de elecciones simultáneas  
 
 ## 🛠 Stack técnico
 
@@ -26,15 +26,15 @@ Combina lo mejor de ambos mundos:
 | **Containerización** | Docker + Docker Compose |
 | **Autenticación** | JWT (24h) + bcrypt (12 rounds) |
 
-## 📋 Requisitos previos
+## Requisitos previos
 
 - **Node.js** 20+ y **npm** 9+
 - **Docker** y **Docker Compose** (para despliegue containerizado)
 - **Git** (para clonar el repositorio)
 
-## 🚀 Instalación rápida
+## Instalación rápida
 
-### Opción A — Script automático (⭐ RECOMENDADO)
+### Opción A — Script automático (RECOMENDADO)
 
 ```bash
 chmod +x scripts/setup.sh
@@ -128,15 +128,15 @@ docker compose --profile dev up --build
 # - Hardhat: http://localhost:8545
 ```
 
-## 👤 Credenciales de prueba
+## Credenciales de prueba
 
 | Rol | Email | Contraseña |
 |-----|-------|-----------|
 | 🗳️ Votante | juan@universidad.edu | password123 |
 | 👨‍💼 Admin | admin@universidad.edu | admin123 |
 
-## 🏗 Arquitectura
-
+## Arquitectura
+ 
 ```
 ┌─────────────────────────────────────────────┐
 │        Frontend (React 18 + Vite)          │
@@ -189,7 +189,7 @@ docker compose --profile dev up --build
 10. Auditoría pública en tab "Blockchain"
 ```
 
-## 🔐 Seguridad implementada
+## Seguridad implementada
 
 | Aspecto | Implementación | Impacto |
 |---------|---|---|
@@ -201,7 +201,7 @@ docker compose --profile dev up --build
 | **CORS** | Whitelist por origen | Solo dominios autorizados |
 | **Auditoría** | Tabla nullifier_audit | Prevención de fraude |
 
-## 📊 Endpoints principales
+## Endpoints principales
 
 ### Públicos
 
@@ -227,7 +227,7 @@ docker compose --profile dev up --build
 | GET | `/admin/registration-requests` | Ver solicitudes |
 | PATCH | `/admin/registration-requests/:id` | Aprobar/rechazar |
 
-## 🔧 Variables de entorno
+## Variables de entorno
 
 ```bash
 # SERVIDOR
@@ -254,7 +254,7 @@ VITE_CONTRACT_ADDRESS=0x...
 CORS_ORIGINS=http://localhost:5173,http://localhost:3001
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Error: `Cannot connect to Hardhat node`
 ```bash
@@ -278,7 +278,7 @@ docker compose logs backend  # Ver por qué no inició
 docker compose ps            # Verificar status
 ```
 
-## 📈 Desarrollo
+## Desarrollo
 
 ### Build para producción
 
@@ -306,15 +306,11 @@ cd frontend
 npm test
 ```
 
-## 📄 Licencia
+## Licencia
 
 MIT - Libre para uso educativo y comercial
 
-## 📞 Soporte
+## Soporte
 
 - **Documentación:** `SESION_2_COMPLETA.md` y `SESION_3_PLAN.md`
 - **Archivo de cambios:** `SESION_2_RESUMEN.md`
-
----
-
-**Construido con ❤️ para votaciones transparentes y seguras**
