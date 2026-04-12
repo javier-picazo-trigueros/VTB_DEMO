@@ -17,3 +17,13 @@ coverage
 artifacts
 cache
 hardhat.config.ts.bak
+# Maintenance scripts 
+fix_*.cjs
+fix_*.py
+fix_*.js
+run_fix.js
+run_fix.cjs
+remove_console_logs.js
+apply_changes.cjs
+build_output.txt
+temp_seed.ts
