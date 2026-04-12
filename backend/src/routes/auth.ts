@@ -40,20 +40,19 @@ router.post("/register", async (req: Request, res: Response) => {
       return;
     }
 
-    // Crear usuario
+    // Crear usuario pendiente de aprobación (is_approved = 0)
+    // Los usuarios registrados directamente deben ser aprobados por un admin
     const passwordHash = await hashPassword(password);
     const result = await db.exec(
-      `
-      INSERT INTO users (email, password_hash, name, student_id, is_eligible)
-      VALUES (?, ?, ?, ?, 1)
-    `,
+      `INSERT INTO users (email, password_hash, name, student_id, is_approved, is_eligible)
+       VALUES (?, ?, ?, ?, 0, 1)`,
       [email, passwordHash, name, student_id]
     );
 
-    res.json({
+    res.status(201).json({
       success: true,
       userId: result.lastID,
-      message: `Usuario ${name} registrado exitosamente`,
+      message: `Solicitud registrada. Tu cuenta está pendiente de aprobación por un administrador.`,
     });
   } catch (error) {
     console.error("Error en registro:", error);
@@ -91,19 +90,24 @@ router.post("/login", async (req: Request, res: Response) => {
       name: string;
       student_id: string;
       role: string;
+      is_approved: boolean;
       is_eligible: boolean;
       admin_domain: string | null;
-    }>("SELECT id, email, password_hash, name, student_id, role, is_eligible, admin_domain FROM users WHERE email = ?", [email]);
+    }>(
+      "SELECT id, email, password_hash, name, student_id, role, is_approved, is_eligible, admin_domain FROM users WHERE email = ?",
+      [email]
+    );
 
     if (!user) {
       res.status(401).json({ error: "Email o contraseña incorrectos" });
       return;
     }
 
-    // Verificar elegibilidad para votar
-    if (!user.is_eligible) {
+    // Verificar que la cuenta esté aprobada por un administrador
+    if (!user.is_approved) {
       res.status(403).json({
-        error: "Usuario no elegible para votar",
+        error: "Tu cuenta está pendiente de aprobación por un administrador",
+        code: "ACCOUNT_PENDING_APPROVAL",
       });
       return;
     }
@@ -196,13 +200,13 @@ router.post("/admin/register", async (req: Request, res: Response) => {
       return;
     }
 
-    // Verificar que sea admin
-    const admin = await db.get<{ role: string }>(
-      "SELECT role FROM users WHERE id = ?",
+    // Verificar que sea admin o superadmin
+    const admin = await db.get<{ role: string; admin_domain: string | null }>(
+      "SELECT role, admin_domain FROM users WHERE id = ?",
       [decoded.userId]
     );
 
-    if (!admin || admin.role !== "admin") {
+    if (!admin || !["admin", "superadmin"].includes(admin.role)) {
       res.status(403).json({ error: "Solo administradores pueden crear usuarios" });
       return;
     }
@@ -216,6 +220,17 @@ router.post("/admin/register", async (req: Request, res: Response) => {
       return;
     }
 
+    // Admin de dominio: solo puede crear usuarios de su mismo dominio
+    if (admin.role !== "superadmin" && admin.admin_domain) {
+      const emailDomain = email.split("@")[1];
+      if (emailDomain !== admin.admin_domain) {
+        res.status(403).json({
+          error: `Solo puedes crear usuarios del dominio @${admin.admin_domain}`,
+        });
+        return;
+      }
+    }
+
     // Verificar que email no exista
     const existingUser = await db.get<{ id: number }>(
       "SELECT id FROM users WHERE email = ?",
@@ -227,20 +242,18 @@ router.post("/admin/register", async (req: Request, res: Response) => {
       return;
     }
 
-    // Crear usuario
+    // Los usuarios creados por admins quedan auto-aprobados
     const passwordHash = await hashPassword(password);
     const result = await db.exec(
-      `
-      INSERT INTO users (email, password_hash, name, student_id, role, is_eligible)
-      VALUES (?, ?, ?, ?, 'student', 1)
-    `,
-      [email, passwordHash, name, student_id]
+      `INSERT INTO users (email, password_hash, name, student_id, role, is_approved, approved_by, approved_at, is_eligible)
+       VALUES (?, ?, ?, ?, 'student', 1, ?, CURRENT_TIMESTAMP, 1)`,
+      [email, passwordHash, name, student_id, decoded.userId]
     );
 
     res.json({
       success: true,
       userId: result.lastID,
-      message: `Usuario ${name} creado exitosamente por el administrador`,
+      message: `Usuario ${name} creado y aprobado exitosamente`,
     });
   } catch (error) {
     console.error("Error en registro de admin:", error);

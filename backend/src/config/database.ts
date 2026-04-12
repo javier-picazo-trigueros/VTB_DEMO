@@ -35,6 +35,9 @@ export class Database {
     await new Promise<void>((resolve, reject) => {
       this.db.serialize(() => {
         // Tabla de Usuarios (Censo Electoral)
+        // is_approved: cuenta aprobada por un administrador (controla acceso al login)
+        // is_eligible: usuario elegible para votar (controla acceso al voto)
+        // approved_by: FK al admin que aprobó la cuenta
         this.db.run(`
           CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,11 +45,15 @@ export class Database {
             password_hash TEXT NOT NULL,
             name TEXT NOT NULL,
             student_id TEXT UNIQUE NOT NULL,
-            role TEXT DEFAULT 'student',
+            role TEXT NOT NULL DEFAULT 'student',
             admin_domain TEXT DEFAULT NULL,
-            is_eligible BOOLEAN DEFAULT 1,
+            is_approved BOOLEAN NOT NULL DEFAULT 0,
+            approved_by INTEGER DEFAULT NULL,
+            approved_at DATETIME DEFAULT NULL,
+            is_eligible BOOLEAN NOT NULL DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (approved_by) REFERENCES users (id)
           )
         `);
 
@@ -113,6 +120,7 @@ export class Database {
             student_id TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending',
             rejection_reason TEXT,
+            password_hash TEXT DEFAULT NULL,
             approved_password TEXT DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             reviewed_at DATETIME
@@ -136,11 +144,18 @@ export class Database {
       });
     });
 
-    // Migration: add admin_domain column if it doesn't exist (for existing DBs)
+    // Migrations para bases de datos existentes
     await this.exec("ALTER TABLE users ADD COLUMN admin_domain TEXT DEFAULT NULL").catch(() => {});
-    
-    // Migration: add approved_password column if it doesn't exist
+    await this.exec("ALTER TABLE users ADD COLUMN is_approved BOOLEAN NOT NULL DEFAULT 0").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN approved_by INTEGER DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN approved_at DATETIME DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN approved_password TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE registration_requests ADD COLUMN password_hash TEXT DEFAULT NULL").catch(() => {});
+
+    // Los superadmin y admin creados directamente en BD ya están aprobados
+    await this.exec(
+      "UPDATE users SET is_approved = 1, approved_at = CURRENT_TIMESTAMP WHERE role IN ('admin', 'superadmin') AND is_approved = 0"
+    ).catch(() => {});
   }
 
   /**

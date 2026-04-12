@@ -68,18 +68,40 @@ router.get("/dashboard", authAdminMiddleware, async (req: Request, res: Response
 
     let totalUsers, adminCount, studentCount, totalElections, nullifierAudit;
 
+    let pendingApproval;
+
     if (isSuper) {
       totalUsers = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users");
       adminCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role IN ('admin','superadmin')");
       studentCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role IN ('student','voter')");
       totalElections = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM elections");
       nullifierAudit = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM nullifier_audit");
+      pendingApproval = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE is_approved = 0");
     } else {
-      totalUsers = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE email LIKE '%@' || ?", [adminDomain]);
-      adminCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND admin_domain = ?", [adminDomain]);
-      studentCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role IN ('student','voter') AND email LIKE '%@' || ?", [adminDomain]);
-      totalElections = await db.get<{ count: number }>("SELECT COUNT(DISTINCT e.id) as count FROM elections e JOIN election_access ea ON e.id = ea.election_id WHERE ea.email_domain = ?", [adminDomain]);
-      nullifierAudit = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM nullifier_audit");
+      totalUsers = await db.get<{ count: number }>(
+        "SELECT COUNT(*) as count FROM users WHERE email LIKE '%@' || ? AND role NOT IN ('superadmin')",
+        [adminDomain]
+      );
+      adminCount = await db.get<{ count: number }>(
+        "SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND admin_domain = ?",
+        [adminDomain]
+      );
+      studentCount = await db.get<{ count: number }>(
+        "SELECT COUNT(*) as count FROM users WHERE role IN ('student','voter') AND email LIKE '%@' || ?",
+        [adminDomain]
+      );
+      totalElections = await db.get<{ count: number }>(
+        "SELECT COUNT(DISTINCT e.id) as count FROM elections e JOIN election_access ea ON e.id = ea.election_id WHERE ea.email_domain = ?",
+        [adminDomain]
+      );
+      nullifierAudit = await db.get<{ count: number }>(
+        "SELECT COUNT(na.id) as count FROM nullifier_audit na JOIN users u ON na.user_id = u.id WHERE u.email LIKE '%@' || ?",
+        [adminDomain]
+      );
+      pendingApproval = await db.get<{ count: number }>(
+        "SELECT COUNT(*) as count FROM users WHERE is_approved = 0 AND email LIKE '%@' || ?",
+        [adminDomain]
+      );
     }
 
     res.json({
@@ -89,6 +111,7 @@ router.get("/dashboard", authAdminMiddleware, async (req: Request, res: Response
         studentCount: studentCount?.count || 0,
         totalElections: totalElections?.count || 0,
         totalNullifiers: nullifierAudit?.count || 0,
+        pendingApproval: pendingApproval?.count || 0,
       },
     });
   } catch (error) {
@@ -99,22 +122,36 @@ router.get("/dashboard", authAdminMiddleware, async (req: Request, res: Response
 
 /**
  * @route GET /admin/users
- * @desc Lista todos los usuarios
+ * @desc Lista todos los usuarios (filtrado por dominio para admins de dominio)
+ * @query approved - 'all' (default), 'true', 'false'
  */
 router.get("/users", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
-    let users;
-    if (isSuperAdmin(req)) {
-      users = await db.run<any>(
-        "SELECT id, email, name, student_id, role, admin_domain, is_eligible, created_at FROM users ORDER BY created_at DESC"
-      );
-    } else {
+    const approvedFilter = req.query.approved as string;
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (!isSuperAdmin(req)) {
       const adminDomain = getAdminDomain(req);
-      users = await db.run<any>(
-        "SELECT id, email, name, student_id, role, admin_domain, is_eligible, created_at FROM users WHERE email LIKE '%@' || ? ORDER BY created_at DESC",
-        [adminDomain]
-      );
+      conditions.push("email LIKE '%@' || ?");
+      params.push(adminDomain);
+      // Admin de dominio no puede ver otros admins de dominio ni superadmins
+      conditions.push("role NOT IN ('superadmin')");
     }
+
+    if (approvedFilter === "true") {
+      conditions.push("is_approved = 1");
+    } else if (approvedFilter === "false") {
+      conditions.push("is_approved = 0");
+    }
+
+    const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+    const users = await db.run<any>(
+      `SELECT id, email, name, student_id, role, admin_domain,
+              is_approved, approved_at, is_eligible, created_at
+       FROM users ${where} ORDER BY created_at DESC`,
+      params
+    );
 
     res.json({ users: users || [] });
   } catch (error) {
@@ -125,7 +162,7 @@ router.get("/users", authAdminMiddleware, async (req: Request, res: Response) =>
 
 /**
  * @route POST /admin/users
- * @desc Crear nuevo usuario (ya existe en auth.ts con validación admin)
+ * @desc Crear nuevo usuario (auto-aprobado al ser creado por un admin)
  */
 router.post("/users", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
@@ -134,6 +171,23 @@ router.post("/users", authAdminMiddleware, async (req: Request, res: Response) =
     if (!email || !password || !name || !student_id) {
       res.status(400).json({ error: "Faltan campos requeridos" });
       return;
+    }
+
+    // Admin de dominio: solo puede crear usuarios de su mismo dominio
+    if (!isSuperAdmin(req)) {
+      const adminDomain = getAdminDomain(req);
+      const emailDomain = email.split("@")[1];
+      if (adminDomain && emailDomain !== adminDomain) {
+        res.status(403).json({
+          error: `Solo puedes crear usuarios del dominio @${adminDomain}`,
+        });
+        return;
+      }
+      // Admin de dominio no puede crear superadmins ni admins de otros dominios
+      if (role === "superadmin") {
+        res.status(403).json({ error: "No tienes permisos para crear superadministradores" });
+        return;
+      }
     }
 
     // Verificar que email no exista
@@ -147,20 +201,19 @@ router.post("/users", authAdminMiddleware, async (req: Request, res: Response) =
       return;
     }
 
-    // Crear usuario
+    // Los usuarios creados directamente por admins quedan auto-aprobados
     const passwordHash = await hashPassword(password);
     const result = await db.exec(
-      `
-      INSERT INTO users (email, password_hash, name, student_id, role, admin_domain, is_eligible)
-      VALUES (?, ?, ?, ?, ?, ?, 1)
-    `,
-      [email, passwordHash, name, student_id, role, admin_domain]
+      `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain,
+                         is_approved, approved_by, approved_at, is_eligible)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1)`,
+      [email, passwordHash, name, student_id, role, admin_domain, req.user.userId]
     );
 
     res.json({
       success: true,
       userId: result.lastID,
-      message: `Usuario ${name} creado exitosamente`,
+      message: `Usuario ${name} creado y aprobado exitosamente`,
     });
   } catch (error) {
     console.error("Error creando usuario:", error);
@@ -169,22 +222,105 @@ router.post("/users", authAdminMiddleware, async (req: Request, res: Response) =
 });
 
 /**
+ * @route PATCH /admin/users/:id/approval
+ * @desc Aprobar o revocar la aprobación de una cuenta de usuario
+ * @body { approved: boolean, reason?: string }
+ */
+router.patch("/users/:id/approval", authAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { approved, reason } = req.body;
+
+    if (typeof approved !== "boolean") {
+      res.status(400).json({ error: "El campo 'approved' debe ser true o false" });
+      return;
+    }
+
+    const targetUser = await db.get<{
+      id: number;
+      email: string;
+      role: string;
+    }>("SELECT id, email, role FROM users WHERE id = ?", [id]);
+
+    if (!targetUser) {
+      res.status(404).json({ error: "Usuario no encontrado" });
+      return;
+    }
+
+    // Admin de dominio: solo puede aprobar/revocar usuarios de su dominio
+    if (!isSuperAdmin(req)) {
+      const adminDomain = getAdminDomain(req);
+      const userDomain = targetUser.email.split("@")[1];
+      if (adminDomain && userDomain !== adminDomain) {
+        res.status(403).json({ error: "No tienes permisos para gestionar usuarios de otro dominio" });
+        return;
+      }
+      // No puede aprobar/revocar superadmins ni otros admins
+      if (targetUser.role === "superadmin" || targetUser.role === "admin") {
+        res.status(403).json({ error: "No tienes permisos para gestionar administradores" });
+        return;
+      }
+    }
+
+    if (approved) {
+      await db.exec(
+        `UPDATE users SET is_approved = 1, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+         updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [req.user.userId, id]
+      );
+      res.json({ success: true, message: "Cuenta aprobada correctamente" });
+    } else {
+      await db.exec(
+        `UPDATE users SET is_approved = 0, approved_by = NULL, approved_at = NULL,
+         updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [id]
+      );
+      res.json({ success: true, message: "Aprobación revocada correctamente" });
+    }
+  } catch (error) {
+    console.error("Error al cambiar aprobación de usuario:", error);
+    res.status(500).json({ error: "Error al actualizar aprobación" });
+  }
+});
+
+/**
  * @route DELETE /admin/users/:id
- * @desc Eliminar un usuario
+ * @desc Eliminar un usuario (solo del mismo dominio para admins de dominio)
  */
 router.delete("/users/:id", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Verificar que el usuario existe
-    const user = await db.get<{ id: number }>("SELECT id FROM users WHERE id = ?", [id]);
+    const user = await db.get<{ id: number; email: string; role: string }>(
+      "SELECT id, email, role FROM users WHERE id = ?",
+      [id]
+    );
 
     if (!user) {
       res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }
 
-    // Eliminar
+    // Admin de dominio: solo puede eliminar usuarios de su dominio y no puede eliminar admins
+    if (!isSuperAdmin(req)) {
+      const adminDomain = getAdminDomain(req);
+      const userDomain = user.email.split("@")[1];
+      if (adminDomain && userDomain !== adminDomain) {
+        res.status(403).json({ error: "No tienes permisos para eliminar usuarios de otro dominio" });
+        return;
+      }
+      if (user.role === "superadmin" || user.role === "admin") {
+        res.status(403).json({ error: "No tienes permisos para eliminar administradores" });
+        return;
+      }
+    }
+
+    // Evitar que un admin se elimine a sí mismo
+    if (parseInt(id) === req.user.userId) {
+      res.status(400).json({ error: "No puedes eliminar tu propia cuenta" });
+      return;
+    }
+
     await db.exec("DELETE FROM users WHERE id = ?", [id]);
 
     res.json({ success: true, message: "Usuario eliminado" });
@@ -449,13 +585,14 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
       email: string;
       student_id: string;
       status: string;
+      password_hash: string | null;
     }>(
       "SELECT * FROM registration_requests WHERE id = ?",
       [id]
     );
 
     if (!request) {
-      res.status(404).json({ error: "Solicitud no encontrada" });
+      res.status(404).json({ error: "Request not found" });
       return;
     }
 
@@ -470,26 +607,33 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
         }
       }
 
-      // Crear usuario con contraseña temporal: VTB_${studentId}_temp
-      const tempPassword = `VTB_${request.student_id}_temp`;
-      const passwordHash = await hashPassword(tempPassword);
+      // Use the password hash the user provided during registration
+      // If they didn't provide one (legacy request), generate a temp password
+      let passwordHash = request.password_hash;
+      let tempPassword: string | null = null;
+      
+      if (!passwordHash) {
+        tempPassword = `VTB_${request.student_id}_temp`;
+        passwordHash = await hashPassword(tempPassword);
+      }
 
-      // Insertar usuario
+      // Insertar usuario aprobado con referencia al admin que aprobó
       const insertResult = await db.exec(
-        `INSERT INTO users (email, password_hash, name, student_id, role, is_eligible, created_at)
-         VALUES (?, ?, ?, ?, 'student', 1, CURRENT_TIMESTAMP)`,
-        [request.email, passwordHash, request.full_name, request.student_id]
+        `INSERT INTO users (email, password_hash, name, student_id, role,
+                           is_approved, approved_by, approved_at, is_eligible, created_at)
+         VALUES (?, ?, ?, ?, 'student', 1, ?, CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP)`,
+        [request.email, passwordHash, request.full_name, request.student_id, req.user.userId]
       );
 
       const newUserId = insertResult.lastID;
 
-      // Actualizar solicitud como aprobada
+      // Update request as approved
       await db.exec(
-        "UPDATE registration_requests SET status = 'approved', approved_password = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
-        [tempPassword, id]
+        "UPDATE registration_requests SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [id]
       );
 
-      // --- ASIGNACIÓN AUTOMÁTICA POR DOMINIO ---
+      // --- AUTO-ASSIGN TO ELECTIONS BY DOMAIN ---
       const domain = request.email.split('@')[1];
       if (domain) {
         const elections = await db.run<{ election_id: number }>(
@@ -504,20 +648,31 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
               [election.election_id, newUserId]
             );
           } catch (e: any) {
-            // Ignorar error de UNIQUE constraint si ya estaba asignado
             if (!e.message?.includes('UNIQUE')) {
-              console.error(`Error auto-asignando usuario ${newUserId} a elección ${election.election_id}:`, e);
+              console.error(`Error auto-assigning user ${newUserId} to election ${election.election_id}:`, e);
             }
           }
         }
       }
 
       res.json({
-        message: "Usuario aprobado y asignado a elecciones correspondientes",
-        tempPassword, // Para que el admin pueda comunicársela
+        message: tempPassword 
+          ? "User approved with temporary password" 
+          : "User approved. They can now log in with the password they chose during registration.",
+        tempPassword, // Only set for legacy requests without password_hash
       });
 
     } else if (action === 'reject') {
+      // Admin de dominio: solo puede rechazar solicitudes de su dominio
+      if (!isSuperAdmin(req)) {
+        const adminDomain = getAdminDomain(req);
+        const requestDomain = request.email.split('@')[1];
+        if (adminDomain && requestDomain !== adminDomain) {
+          res.status(403).json({ error: "No tienes permisos para gestionar solicitudes de otro dominio" });
+          return;
+        }
+      }
+
       // Motivo es obligatorio si action es reject
       if (!reason?.trim()) {
         res.status(400).json({ error: "El motivo de rechazo es obligatorio" });
@@ -658,6 +813,88 @@ router.post("/elections/:id/candidates", authAdminMiddleware, async (req: Reques
   } catch (error) {
     console.error("Error añadiendo candidato:", error);
     res.status(500).json({ error: "Error al añadir candidato a la elección" });
+  }
+});
+
+/**
+ * @route POST /admin/domain-admins
+ * @desc Crear un administrador de dominio (solo superadmin)
+ * @body { email, password, name, student_id, admin_domain }
+ */
+router.post("/domain-admins", authAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    if (!isSuperAdmin(req)) {
+      res.status(403).json({ error: "Solo el superadministrador puede crear administradores de dominio" });
+      return;
+    }
+
+    const { email, password, name, student_id, admin_domain } = req.body;
+
+    if (!email || !password || !name || !student_id || !admin_domain) {
+      res.status(400).json({
+        error: "Faltan campos requeridos",
+        required: ["email", "password", "name", "student_id", "admin_domain"],
+      });
+      return;
+    }
+
+    // El email del admin debe coincidir con su propio dominio de administración
+    const emailDomain = email.split("@")[1];
+    if (emailDomain !== admin_domain) {
+      res.status(400).json({
+        error: `El email del administrador debe pertenecer al dominio que va a gestionar (@${admin_domain})`,
+      });
+      return;
+    }
+
+    const existingUser = await db.get<{ id: number }>(
+      "SELECT id FROM users WHERE email = ?",
+      [email]
+    );
+    if (existingUser) {
+      res.status(409).json({ error: "El email ya está registrado" });
+      return;
+    }
+
+    const passwordHash = await hashPassword(password);
+    const result = await db.exec(
+      `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain,
+                         is_approved, approved_by, approved_at, is_eligible)
+       VALUES (?, ?, ?, ?, 'admin', ?, 1, ?, CURRENT_TIMESTAMP, 1)`,
+      [email, passwordHash, name, student_id, admin_domain, req.user.userId]
+    );
+
+    res.json({
+      success: true,
+      userId: result.lastID,
+      message: `Administrador de dominio @${admin_domain} creado correctamente`,
+    });
+  } catch (error) {
+    console.error("Error creando admin de dominio:", error);
+    res.status(500).json({ error: "Error al crear administrador de dominio" });
+  }
+});
+
+/**
+ * @route GET /admin/domain-admins
+ * @desc Lista todos los administradores de dominio (solo superadmin)
+ */
+router.get("/domain-admins", authAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    if (!isSuperAdmin(req)) {
+      res.status(403).json({ error: "Solo el superadministrador puede ver los administradores de dominio" });
+      return;
+    }
+
+    const admins = await db.run<any>(
+      `SELECT id, email, name, student_id, admin_domain, is_approved, approved_at, created_at
+       FROM users WHERE role = 'admin' ORDER BY admin_domain, created_at DESC`
+    );
+
+    res.json({ admins: admins || [] });
+  } catch (error) {
+    console.error("Error listando admins de dominio:", error);
+    res.status(500).json({ error: "Error al listar administradores de dominio" });
   }
 });
 

@@ -40,6 +40,11 @@ export const Login = () => {
     setError("");
   };
 
+  const fillCredentials = (email, password) => {
+    setFormData({ email, password });
+    setError("");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -73,8 +78,8 @@ export const Login = () => {
         navigate("/dashboard");
       }
     } catch (err) {
-      console.error("Error en login:", err);
-      setError(err.response?.data?.error || "Error al iniciar sesión");
+      console.error("Login error:", err);
+      setError(err.response?.data?.error || "Invalid email or password");
     } finally {
       setLoading(false);
     }
@@ -95,7 +100,7 @@ export const Login = () => {
             {t("login.title")}
           </h2>
           <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
-            {t("login.subtitle") || "Sign in with your credentials"}
+            {t("login.subtitle")}
           </p>
 
           {sessionExpired && (
@@ -105,7 +110,7 @@ export const Login = () => {
               exit={{ opacity: 0, y: -10 }}
               className="mb-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm"
             >
-              Tu sesión ha expirado. Vuelve a iniciar sesión para continuar.
+              {t("login.sessionExpired")}
             </motion.div>
           )}
 
@@ -131,29 +136,8 @@ export const Login = () => {
                 onChange={handleChange}
                 disabled={loading}
                 className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blockchain-500 disabled:opacity-50"
-                placeholder="usuario@dominio.edu"
+                placeholder="user@domain.edu"
               />
-              {(() => {
-                const emailDomain = formData.email.includes('@') ? formData.email.split('@')[1] : '';
-                const emailPrefix = formData.email.split('@')[0] || '';
-                
-                let hint = null;
-                if (emailDomain === 'vtb.system') {
-                  hint = '🔧 Super administrador del sistema';
-                } else if (emailPrefix === 'admin') {
-                  hint = `👨‍💼 Administrador de @${emailDomain}`;
-                } else if (emailDomain) {
-                  hint = `🗳️ Accediendo como votante de @${emailDomain}`;
-                }
-                
-                if (!hint) return null;
-                
-                return (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    {hint}
-                  </p>
-                );
-              })()}
             </div>
 
             <div>
@@ -178,7 +162,7 @@ export const Login = () => {
               disabled={loading}
               className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold text-sm hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Cargando..." : t("login.login")}
+              {loading ? t("login.signingIn") : t("login.login")}
             </motion.button>
           </form>
 
@@ -188,7 +172,7 @@ export const Login = () => {
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-2 bg-white dark:bg-slate-800 text-slate-500">
-                  o
+                  {t("login.or")}
                 </span>
               </div>
             </div>
@@ -201,30 +185,84 @@ export const Login = () => {
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.25,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1V11.1Z" />
               </svg>
-              Continue with Google
+              {t("login.continueWithGoogle")}
             </button>
 
-          <div className="mt-6 p-3 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-400 space-y-1">
-            <p className="font-semibold text-slate-700 dark:text-slate-300">
-              Test Accounts:
+          {/* ====== DEMO ACCOUNTS ====== */}
+          <div className="mt-6 p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600">
+            <p className="font-semibold text-sm text-slate-800 dark:text-slate-200 mb-3">
+              {t("login.demoAccounts")}
             </p>
-            <p>Votante: juan@universidad.edu / password123</p>
-            <p className="mt-2 font-semibold text-slate-700 dark:text-slate-300">
-              Admins:
-            </p>
-            <p>superadmin@vtb.system / superadmin123</p>
-            <p>admin@ufv.es / admin123</p>
-            <p>admin@universidad.edu / admin123</p>
+
+            {/* Super Admin */}
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-1">{t("login.superAdmin")}</p>
+              <button
+                type="button"
+                onClick={() => fillCredentials("superadmin@vtb.system", "superadmin123")}
+                className="w-full text-left px-3 py-1.5 rounded bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-xs text-slate-700 dark:text-slate-300 transition font-mono"
+              >
+                superadmin@vtb.system / superadmin123
+              </button>
+            </div>
+
+            {/* UFV Domain */}
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                {t("login.ufvAdmin")}
+              </p>
+              <button
+                type="button"
+                onClick={() => fillCredentials("admin@ufv.es", "admin123")}
+                className="w-full text-left px-3 py-1.5 rounded bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs text-slate-700 dark:text-slate-300 transition font-mono"
+              >
+                admin@ufv.es / admin123
+              </button>
+              <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mt-2 mb-1">
+                {t("login.ufvStudent")}
+              </p>
+              <button
+                type="button"
+                onClick={() => fillCredentials("carlos@ufv.es", "demo123")}
+                className="w-full text-left px-3 py-1.5 rounded bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs text-slate-700 dark:text-slate-300 transition font-mono"
+              >
+                carlos@ufv.es / demo123
+              </button>
+            </div>
+
+            {/* EDU Domain */}
+            <div>
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-1">
+                {t("login.eduAdmin")}
+              </p>
+              <button
+                type="button"
+                onClick={() => fillCredentials("admin@universidad.edu", "admin123")}
+                className="w-full text-left px-3 py-1.5 rounded bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs text-slate-700 dark:text-slate-300 transition font-mono"
+              >
+                admin@universidad.edu / admin123
+              </button>
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mt-2 mb-1">
+                {t("login.eduStudent")}
+              </p>
+              <button
+                type="button"
+                onClick={() => fillCredentials("juan@universidad.edu", "password123")}
+                className="w-full text-left px-3 py-1.5 rounded bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs text-slate-700 dark:text-slate-300 transition font-mono"
+              >
+                juan@universidad.edu / password123
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
-            Don't have an account?{" "}
+            {t("login.noAccount")}{" "}
             <button
               type="button"
               onClick={() => navigate("/register-request")}
               className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
             >
-              Request access
+              {t("login.registerHere")}
             </button>
           </div>
         </motion.div>
@@ -243,15 +281,15 @@ export const Login = () => {
                 <path fill="currentColor" d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.25,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1V11.1Z" />
               </svg>
             </div>
-            <h3 className="text-xl font-bold text-center text-slate-900 dark:text-white mb-2">Simulación de SSO</h3>
+            <h3 className="text-xl font-bold text-center text-slate-900 dark:text-white mb-2">{t("login.ssoTitle")}</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
-              Para el despliegue en producción, Google OAuth permitiría iniciar sesión con tu cuenta institucional @ufv.es automáticamente. En esta demo, usa las credenciales de prueba.
+              {t("login.ssoDesc")}
             </p>
             <button
               onClick={() => setShowGoogleModal(false)}
               className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium"
             >
-              Entendido
+              {t("login.gotIt")}
             </button>
           </motion.div>
         </div>

@@ -5,839 +5,707 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ethers } from "ethers";
 import axios from "axios";
 import { Navbar } from "../components/Navbar";
-import { Spinner } from "../components/Spinner";
 import LoadingSpinner from "../components/LoadingSpinner";
-
-/**
- * @title VotingDashboard Component - VTB Frontend
- * @author Senior Web3 Architect
- * @dev Dashboard con Live Feed que escucha eventos VoteCast en tiempo real
- *
- * CAMBIOS (BLOQUE 1.2):
- * ====================
- * - Candidatos cargados dinámicamente desde API
- * - ElectionId obtenido de parámetros de ruta
- * - Validación de estado de elección antes de permitir voto
- * - Nullifier generado en tiempo de votación
- *
- * ARQUITECTURA CRÍTICA:
- * ====================
- *
- * 1. LIVE FEED EN TIEMPO REAL:
- *    - Conecta a Hardhat RPC a través de ethers.js
- *    - Escucha evento VoteCast del Smart Contract
- *    - Evento emite: (nullifier, voteHash, timestamp)
- *    - IMPORTANTE: No muestra PII (email, nombre), solo nullifier anónimo
- *
- * 2. FLUJO DE VOTACIÓN:
- *    a) Usuario selecciona candidato
- *    b) Frontend genera voteHash localmente (no lo envía al backend)
- *    c) Frontend envía: JWT + electionId + voteHash al backend
- *    d) Backend valida JWT + genera nullifier + firma transacción
- *    e) Transacción se ejecuta en Hardhat
- *    f) Smart Contract emite VoteCast con (nullifier, voteHash)
- *    g) Live Feed escucha y muestra el voto registrado
- *
- * 3. PRIVACIDAD GARANTIZADA:
- *    - Blockchain ve: nullifier (hash) + voteHash (hash)
- *    - No ve: identidad del votante
- *    - No se puede linkear voto a persona
- *    - Pero sí se puede auditar transparencia
- */
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://localhost:8545";
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "";
 
+// ---------------------------------------------------------------------------
+// Icons (inline SVG para no depender de librerías extra)
+// ---------------------------------------------------------------------------
+const CheckCircleIcon = () => (
+  <svg className="w-12 h-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+const XCircleIcon = () => (
+  <svg className="w-12 h-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+const ShieldIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+  </svg>
+);
+const SignalIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
+  </svg>
+);
+const ClipboardIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+  </svg>
+);
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+const truncateHash = (hash, start = 8, end = 6) =>
+  hash ? `${hash.slice(0, start)}...${hash.slice(-end)}` : "";
+
+const calculateTimeAgo = (timestamp, lang = "es") => {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (lang === "es") {
+    if (seconds < 60) return `hace ${seconds}s`;
+    if (seconds < 3600) return `hace ${Math.floor(seconds / 60)}m`;
+    return `hace ${Math.floor(seconds / 3600)}h`;
+  }
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+};
+
+// ---------------------------------------------------------------------------
+// Sub-componente: Spinner de progreso de voto
+// ---------------------------------------------------------------------------
+const VoteProgressModal = ({ status, t }) => {
+  const steps = [
+    { key: "proof",      label: t("votingBooth.calculateProof"), sub: t("votingBooth.preparingData") },
+    { key: "sending",    label: t("votingBooth.sendingVote"),     sub: t("votingBooth.connectingBlockchain") },
+    { key: "confirming", label: t("votingBooth.confirmingTx"),    sub: t("votingBooth.waitingConfirmation") },
+  ];
+  const current = steps.find(s => s.key === status);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white dark:bg-slate-800 rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-700"
+      >
+        <div className="flex justify-center mb-6">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            className="w-14 h-14 rounded-full border-4 border-slate-200 dark:border-slate-600 border-t-blue-600"
+          />
+        </div>
+        <h3 className="text-center text-lg font-semibold text-slate-900 dark:text-white mb-1">
+          {current?.label}
+        </h3>
+        <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+          {current?.sub}
+        </p>
+        {/* Barra de progreso */}
+        <div className="mt-6 flex gap-2 justify-center">
+          {steps.map((s, i) => {
+            const idx = steps.indexOf(current);
+            return (
+              <div
+                key={s.key}
+                className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
+                  i <= idx ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"
+                }`}
+              />
+            );
+          })}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Sub-componente: Modal de éxito
+// ---------------------------------------------------------------------------
+const VoteSuccessModal = ({ txData, t, onDashboard, onCopy }) => (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className="bg-white dark:bg-slate-800 rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-700"
+    >
+      <div className="flex justify-center mb-5">
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, delay: 0.1 }}>
+          <CheckCircleIcon />
+        </motion.div>
+      </div>
+      <h2 className="text-center text-xl font-bold text-slate-900 dark:text-white mb-1">
+        {t("votingBooth.voteRegistered")}
+      </h2>
+      <p className="text-center text-sm text-slate-500 dark:text-slate-400 mb-5">
+        {t("votingBooth.txHashLabel")}
+      </p>
+
+      {/* TxHash box */}
+      <div className="bg-slate-900 dark:bg-slate-900 rounded-xl p-3 mb-4 font-mono text-xs text-cyan-400 break-all leading-relaxed">
+        {txData.txHash}
+      </div>
+
+      <button
+        onClick={onCopy}
+        className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition font-medium text-sm"
+      >
+        <ClipboardIcon />
+        {t("votingBooth.copyTxHash")}
+      </button>
+
+      <button
+        onClick={onDashboard}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold"
+      >
+        {t("votingBooth.backToDashboard")}
+      </button>
+    </motion.div>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// Sub-componente: Modal de error
+// ---------------------------------------------------------------------------
+const VoteErrorModal = ({ voteError, t, onRetry, onBack }) => (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className="bg-white dark:bg-slate-800 rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-700"
+    >
+      <div className="flex justify-center mb-5">
+        <XCircleIcon />
+      </div>
+      <h2 className="text-center text-xl font-bold text-slate-900 dark:text-white mb-3">
+        {t("votingBooth.voteFailed")}
+      </h2>
+      <div className="text-center text-sm text-red-600 dark:text-red-400 mb-6 bg-red-50 dark:bg-red-900/20 rounded-xl p-3 border border-red-100 dark:border-red-800">
+        {typeof voteError === "string" ? voteError : voteError?.message || "Error desconocido"}
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={onRetry}
+          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold text-sm"
+        >
+          {t("votingBooth.retry")}
+        </button>
+        <button
+          onClick={onBack}
+          className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-xl transition font-semibold text-sm"
+        >
+          {t("votingBooth.back")}
+        </button>
+      </div>
+    </motion.div>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// Componente principal
+// ---------------------------------------------------------------------------
 export const VotingBoothContent = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { id: electionId } = useParams(); // Get election ID from route
+  const { id: electionId } = useParams();
 
   const [candidates, setCandidates] = useState([]);
   const [electionTitle, setElectionTitle] = useState("");
   const [votes, setVotes] = useState([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [votingLoading, setVotingLoading] = useState(false);
   const [error, setError] = useState("");
   const [eligibilityError, setEligibilityError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [voteCount, setVoteCount] = useState(0);
-  
-  // BLOQUE 3.4: Estados para feedback de transacción
   const [voteStatus, setVoteStatus] = useState(null); // null | 'proof' | 'sending' | 'confirming' | 'success' | 'error'
-  const [txData, setTxData] = useState(null); // { txHash, explorerUrl }
+  const [txData, setTxData] = useState(null);
   const [voteError, setVoteError] = useState(null);
   const [alreadyVoted, setAlreadyVoted] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // Verificar autenticación y cargar elección
+  // Cargar datos de la elección y verificar elegibilidad
   useEffect(() => {
     const token = localStorage.getItem("vtb-token");
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
-    if (!electionId) {
-      setError("ID de elección no válido");
-      setLoading(false);
-      return;
-    }
-
-    // Cargar datos de la elección y candidatos
+    if (!token) { navigate("/login"); return; }
+    if (!electionId) { setError(t("errors.invalidElection")); setLoading(false); return; }
     loadElectionData();
-  }, [electionId, navigate]);
+  }, [electionId]);
 
   const loadElectionData = async () => {
+    setLoading(true);
+    setError("");
+    const token = localStorage.getItem("vtb-token");
+    if (!token) { navigate("/login"); return; }
+
     try {
-      setLoading(true);
-      setError("");
-
-      const token = localStorage.getItem("vtb-token");
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      // 1. VALIDAR ELEGIBILIDAD (BLOQUE 5.3)
+      // 1. Verificar elegibilidad
       try {
-        const eligRes = await axios.get(
-          `${API_URL}/api/elections/${electionId}/eligibility`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
+        const eligRes = await axios.get(`${API_URL}/api/elections/${electionId}/eligibility`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!eligRes.data.eligible) {
           const reason = eligRes.data.reason;
-          const status = eligRes.data.status;
-          
-          if (reason === 'already_voted') {
+          if (reason === "already_voted") {
             setAlreadyVoted(true);
+          } else {
+            const msgs = {
+              not_active:  t("errors.electionNotActive"),
+              not_eligible: t("errors.notInCensus"),
+            };
+            setEligibilityError(msgs[reason] || t("errors.unauthorized"));
           }
-          
-          let errorMsg;
-          switch (reason) {
-            case 'already_voted':
-              errorMsg = 'You have already voted in this election';
-              break;
-            case 'not_active':
-              errorMsg = 'Esta elección no está activa';
-              break;
-            case 'not_eligible':
-              errorMsg = 'No estás en el censo de esta elección';
-              break;
-            default:
-              errorMsg = 'No puedes votar en esta elección';
-          }
-          
-          setEligibilityError(errorMsg);
-          // Do not redirect, just show the message and hide the vote button later.
         }
       } catch (eligErr) {
-        console.error('Error validando elegibilidad:', eligErr);
-        setEligibilityError('Error al validar tu elegibilidad');
+        console.error("Error checking eligibility:", eligErr);
       }
 
-      // 2. GET /api/elections/:id para obtener candidatos
-      const response = await axios.get(`${API_URL}/api/elections/${electionId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      // 2. Obtener candidatos
+      const { data } = await axios.get(`${API_URL}/api/elections/${electionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = response.data;
-
-      // Validar que la elección existe
-      if (!data || !data.election) {
-        setError("Esta elección no existe");
+      if (!data?.election) {
+        setError(t("errors.electionNotFound"));
         setLoading(false);
         return;
       }
 
       const election = data.election;
-      setElectionTitle(election.name || election.title || "Elección");
-      
-      // Asegurar que candidates es un array
-      const candidatesList = Array.isArray(election.candidates)
-        ? election.candidates
-        : [];
-      setCandidates(candidatesList);
-
-      if (candidatesList.length === 0) {
-        console.warn("⚠️  No hay candidatos cargados para esta elección");
-      }
-
-      setLoading(false);
+      setElectionTitle(election.name || "");
+      setCandidates(Array.isArray(election.candidates) ? election.candidates : []);
     } catch (err) {
       console.error("Error loading election:", err);
-
-      if (err.response?.status === 404) {
-        setError("Elección no encontrada");
-      } else if (err.response?.status === 401) {
-        navigate("/login");
-        return;
-      } else {
-        setError(
-          err.response?.data?.error ||
-            "Error al cargar la elección. Intenta de nuevo."
-        );
-      }
-
+      if (err.response?.status === 401) { navigate("/login"); return; }
+      setError(err.response?.data?.error || t("errors.loadingElections"));
+    } finally {
       setLoading(false);
     }
   };
 
-  // Iniciar escucha de eventos blockchain (BLOQUE 3.3 - Mejorado)
+  // Escucha de eventos blockchain
   useEffect(() => {
-    if (!CONTRACT_ADDRESS || !RPC_URL) {
-      console.warn("⚠️ Blockchain no configurado");
-      return;
-    }
+    if (!CONTRACT_ADDRESS || !RPC_URL) return;
 
+    let contract = null;
+    let interval = null;
     let reconnectAttempts = 0;
     const MAX_RECONNECT = 3;
-    let timeUpdateInterval = null;
-    let contract = null;
 
     const setupListener = async () => {
       try {
-
         const provider = new ethers.JsonRpcProvider(RPC_URL);
-
-        // ABI del contrato (solo eventos que nos interesan)
-        const contractAbi = [
-          "event VoteCast(uint256 indexed electionId, bytes32 nullifier, bytes32 voteHash)",
-        ];
-
-        contract = new ethers.Contract(
-          CONTRACT_ADDRESS,
-          contractAbi,
-          provider
-        );
-
-
+        const contractAbi = ["event VoteCast(uint256 indexed electionId, bytes32 nullifier, bytes32 voteHash)"];
+        contract = new ethers.Contract(CONTRACT_ADDRESS, contractAbi, provider);
         setIsListening(true);
-
-        // ESCUCHAR EVENTOS EN TIEMPO REAL (BLOQUE 3.3)
-        // Filtra solo votos de la elección actual
-        contract.on("VoteCast", (eId, nullifier, voteHash, event) => {
-          // Filter por elección actual (MEJORA 1: Filtrado)
-          if (eId.toString() !== electionId?.toString()) {
-            return;
-          }
-
-
-          const voteTimestamp = Date.now();
-          const newVote = {
-            id: Date.now() + Math.random(),
-            nullifier: nullifier, // completo para truncar en render
-            voteHash,
-            createdAt: voteTimestamp, // timestamp para calcular tiempo relativo
-            timeText: calculateTimeAgo(voteTimestamp), // inicial
-          };
-
-          // MEJORA 2: Mantener máximo 8 eventos
-          setVotes((prev) => {
-            const updated = [newVote, ...prev];
-            return updated.slice(0, 8); // Máximo 8 eventos
-          });
-          
-          setVoteCount((prev) => prev + 1);
-        });
-
-        // Limpiar intentos de reconexión
         reconnectAttempts = 0;
-      } catch (err) {
-        console.error("âŒ Error conectando a blockchain:", err);
-        
+
+        contract.on("VoteCast", (eId, nullifier) => {
+          if (eId.toString() !== electionId?.toString()) return;
+          const now = Date.now();
+          setVotes(prev => [
+            { id: now + Math.random(), nullifier, createdAt: now, timeText: calculateTimeAgo(now, i18n.language) },
+            ...prev,
+          ].slice(0, 8));
+          setVoteCount(prev => prev + 1);
+        });
+      } catch {
+        setIsListening(false);
         if (reconnectAttempts < MAX_RECONNECT) {
           reconnectAttempts++;
-          // Mostrar badge de reconexión
-          setIsListening(false);
-
-          // Reintentar en 5 segundos
           setTimeout(setupListener, 5000);
-        } else {
-          setError(
-            "No se pudo conectar al blockchain después de varios intentos."
-          );
         }
       }
     };
 
     setupListener();
 
-    // MEJORA 3: Actualizar tiempos relativos cada segundo
-    timeUpdateInterval = setInterval(() => {
-      setVotes((prev) =>
-        prev.map((vote) => ({
-          ...vote,
-          timeText: calculateTimeAgo(vote.createdAt),
-        }))
-      );
+    interval = setInterval(() => {
+      setVotes(prev => prev.map(v => ({ ...v, timeText: calculateTimeAgo(v.createdAt, i18n.language) })));
     }, 1000);
 
-    // MEJORA 4: Cleanup obligatorio
     return () => {
-      if (contract) {
-        contract.removeAllListeners("VoteCast");
-      }
-      if (timeUpdateInterval) {
-        clearInterval(timeUpdateInterval);
-      }
+      contract?.removeAllListeners("VoteCast");
+      clearInterval(interval);
     };
-  }, [electionId]);
+  }, [electionId, i18n.language]);
 
-  // Helper: Calcular tiempo relativo en texto (MEJORA 3)
-  const calculateTimeAgo = (timestamp) => {
-    const now = Date.now();
-    const diff = now - timestamp;
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-
-    if (seconds < 60) {
-      return `hace ${seconds}s`;
-    } else if (minutes < 60) {
-      return `hace ${minutes}m`;
-    } else {
-      return `hace ${Math.floor(minutes / 60)}h`;
-    }
-  };
-
-  /**
-   * BLOQUE 3.4: Función mejorada para registrar voto con feedback 3 pasos
-   * Flujo: proof (calcular) → sending (enviando al backend) → confirming (esperando confirmación) → success|error
-   */
-  const handleVote = async (candidateId) => {
+  // Enviar voto
+  const handleVote = async () => {
     if (!selectedCandidate || !electionId) return;
+    const token = localStorage.getItem("vtb-token");
+    if (!token) { navigate("/login"); return; }
 
     try {
-      const token = localStorage.getItem("vtb-token");
+      setVoteStatus("proof");
+      await new Promise(r => setTimeout(r, 800));
 
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      // PASO 1: Generar proof (simula cálculo del nullifier)
-      setVoteStatus('proof');
-      await new Promise(resolve => setTimeout(resolve, 800)); // Simular cálculo
-
-      // Generar voteHash localmente
-      const voteHash = ethers.keccak256(ethers.toUtf8Bytes(`${selectedCandidate}-${Date.now()}-${Math.random()}`));
-
-
-
-
-
-      // PASO 2: Enviar al backend
-      setVoteStatus('sending');
-      
-      const response = await axios.post(
-        `${API_URL}/api/elections/register-vote`,
-        {
-          electionId: parseInt(electionId),
-          voteHash,
-          candidateId: selectedCandidate,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
+      const voteHash = ethers.keccak256(
+        ethers.toUtf8Bytes(`${selectedCandidate}-${Date.now()}-${Math.random()}`)
       );
 
-      // PASO 3: Confirmación
-      setVoteStatus('confirming');
-      await new Promise(resolve => setTimeout(resolve, 600)); // Simular confirmación
+      setVoteStatus("sending");
+      const response = await axios.post(
+        `${API_URL}/api/elections/register-vote`,
+        { electionId: parseInt(electionId), voteHash, candidateId: selectedCandidate },
+        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+      );
 
-      // Transacción exitosa
+      setVoteStatus("confirming");
+      await new Promise(r => setTimeout(r, 600));
 
-
-      setTxData({
-        txHash: response.data.txHash,
-        explorerUrl: `${import.meta.env.VITE_EXPLORER_URL || 'http://localhost:8545'}/tx/${response.data.txHash}`,
-      });
-      
-      setVoteStatus('success');
+      setTxData({ txHash: response.data.txHash });
+      setVoteStatus("success");
       setSelectedCandidate(null);
-
     } catch (err) {
-      console.error("Error al registrar voto:", err);
+      console.error("Vote error:", err);
+      const isBlockchainErr =
+        err.response?.status === 500 &&
+        (err.response?.data?.error?.toLowerCase().includes("blockchain") ||
+         err.response?.data?.error?.toLowerCase().includes("provider"));
 
-      // Check for blockchain unavailability
-      if (err.response?.status === 500 &&
-          (err.response?.data?.error?.includes('blockchain') ||
-           err.response?.data?.error?.includes('Blockchain'))) {
-        setVoteError({
-          type: 'blockchain_unavailable',
-          message: 'El nodo blockchain no está disponible en este momento.',
-          detail: 'Asegúrate de que Hardhat está corriendo: npx hardhat node'
-        });
+      if (isBlockchainErr) {
+        setVoteError({ type: "blockchain_unavailable", message: t("votingBooth.blockchainUnavailable"), detail: t("votingBooth.blockchainUnavailableDetail") });
       } else {
-        setVoteError(
-          err.response?.data?.error ||
-          err.message ||
-          "Error al registrar voto. Intenta de nuevo."
-        );
+        setVoteError(err.response?.data?.error || err.message || t("votingBooth.error"));
       }
-      
-      setVoteStatus('error');
-
-      if (err.response?.status === 401) {
-        setTimeout(() => navigate("/login"), 2000);
-      }
+      setVoteStatus("error");
+      if (err.response?.status === 401) setTimeout(() => navigate("/login"), 2000);
     }
   };
 
-  // HashMessage function removed since we now use ethers.keccak256
-
-
-  const handleLogout = () => {
-    localStorage.removeItem("vtb-token");
-    localStorage.removeItem("vtb-role");
-    localStorage.removeItem("vtb-user-id");
-    navigate("/login");
-  };
-
-  // Copiar al portapapeles
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      alert("✅ Copiado al portapapeles");
-    } catch (err) {
-      console.error("Error copiando:", err);
-    }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* fallback */ }
   };
 
+  // ----- Render: loading -----
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
         <Navbar />
         <div className="flex items-center justify-center min-h-[calc(100vh-70px)]">
-          <LoadingSpinner message="Cargando cabina de votación..." />
+          <LoadingSpinner message={t("loading")} />
         </div>
       </div>
     );
   }
 
-  // BLOQUE 3.4: Renderizar modales de feedback de transacción
+  const inProgress = voteStatus && voteStatus !== "success" && voteStatus !== "error";
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <Navbar />
 
-      {/* Already Voted Dedicated State */}
-      {alreadyVoted && (
-        <div className="max-w-2xl mx-auto px-4 py-16">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-8 text-center"
-          >
-            <div className="text-5xl mb-4">✅</div>
-            <h3 className="text-xl font-bold text-emerald-700 dark:text-emerald-300 mb-2">
-              You have already voted in this election
-            </h3>
-            <p className="text-emerald-600 dark:text-emerald-400 mb-6">
-              Tu voto ha sido registrado en la blockchain.
-            </p>
-            <button
-              onClick={() => navigate(`/results/${electionId}`)}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition"
-            >
-              📊 View Results
-            </button>
-          </motion.div>
-        </div>
+      {/* ---------- Modales ---------- */}
+      {inProgress && <VoteProgressModal status={voteStatus} t={t} />}
+
+      {voteStatus === "success" && txData && (
+        <VoteSuccessModal
+          txData={txData}
+          t={t}
+          onDashboard={() => navigate("/dashboard")}
+          onCopy={() => copyToClipboard(txData.txHash)}
+        />
       )}
 
-      {/* Blockchain Unavailable Error Card */}
-      {voteError?.type === 'blockchain_unavailable' && (
-        <div className="max-w-2xl mx-auto px-4 py-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6"
+      {voteStatus === "error" && !voteError?.type && (
+        <VoteErrorModal
+          voteError={voteError}
+          t={t}
+          onRetry={() => { setVoteStatus(null); setVoteError(null); }}
+          onBack={() => { setVoteStatus(null); setVoteError(null); navigate("/dashboard"); }}
+        />
+      )}
+
+      {/* ---------- Contenido ---------- */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center gap-1 mb-4 transition"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            </svg>
+            {t("votingBooth.backToDashboard")}
+          </button>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{electionTitle || t("votingBooth.title")}</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">{t("votingBooth.anonymousInfo")}</p>
+        </motion.div>
+
+        {/* Estado: ya votado */}
+        {alreadyVoted && (
+          <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
+            className="mb-8 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-2xl p-8 text-center"
+          >
+            <div className="flex justify-center mb-3"><CheckCircleIcon /></div>
+            <h3 className="text-xl font-bold text-emerald-800 dark:text-emerald-300 mb-1">{t("votingBooth.alreadyVoted")}</h3>
+            <p className="text-emerald-600 dark:text-emerald-400 text-sm mb-5">{t("votingBooth.alreadyVotedDesc")}</p>
+            <button
+              onClick={() => navigate(`/results/${electionId}`)}
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition text-sm"
+            >
+              {t("votingBooth.viewResults")}
+            </button>
+          </motion.div>
+        )}
+
+        {/* Error de blockchain no disponible */}
+        {voteError?.type === "blockchain_unavailable" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-2xl p-5"
           >
             <div className="flex items-start gap-3">
-              <span className="text-2xl">⚠️</span>
-              <div className="flex-1">
-                <h3 className="font-bold text-amber-800 dark:text-amber-300 mb-1">{voteError.message}</h3>
-                <p className="text-sm text-amber-700 dark:text-amber-400 mb-4">{voteError.detail}</p>
+              <svg className="w-6 h-6 text-amber-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              <div>
+                <p className="font-semibold text-amber-800 dark:text-amber-300">{voteError.message}</p>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1 font-mono">{voteError.detail}</p>
                 <button
-                  onClick={() => { setVoteError(null); setVoteStatus(null); handleVote(selectedCandidate); }}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition text-sm"
+                  onClick={() => { setVoteError(null); setVoteStatus(null); handleVote(); }}
+                  className="mt-3 px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition"
                 >
-                  🔄 Reintentar voto
+                  {t("votingBooth.retryVote")}
                 </button>
               </div>
             </div>
           </motion.div>
-        </div>
-      )}
+        )}
 
-      {/* MODAL DE PROGRESO - Overlay no cancelable */}
-      {voteStatus && voteStatus !== 'success' && voteStatus !== 'error' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-slate-800 rounded-lg p-8 max-w-sm mx-4 shadow-xl"
-          >
-            {/* Spinner animado */}
-            <div className="flex justify-center mb-6">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                className="w-12 h-12 border-4 border-slate-300 dark:border-slate-600 border-t-blue-600 rounded-full"
-              />
-            </div>
-
-            {/* Mensaje del paso actual */}
-            <h3 className="text-center text-lg font-semibold text-slate-900 dark:text-white mb-2">
-              {voteStatus === 'proof' && 'ðŸ” Calculando prueba...'}
-              {voteStatus === 'sending' && '📤 Enviando voto...'}
-              {voteStatus === 'confirming' && 'â³ Confirming transacción...'}
-            </h3>
-
-            <p className="text-center text-sm text-slate-600 dark:text-slate-400">
-              {voteStatus === 'proof' && 'Preparando datos...'}
-              {voteStatus === 'sending' && 'Conectando con blockchain...'}
-              {voteStatus === 'confirming' && 'Esperando confirmación de la red...'}
-            </p>
-          </motion.div>
-        </div>
-      )}
-
-      {/* MODAL DE ÉXITO */}
-      {voteStatus === 'success' && txData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-slate-800 rounded-lg p-8 max-w-sm mx-4 shadow-xl"
-          >
-            {/* Icono éxito */}
-            <div className="flex justify-center mb-6">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 200 }}
-                className="text-5xl"
-              >
-                ✅
-              </motion.div>
-            </div>
-
-            <h2 className="text-center text-2xl font-bold text-slate-900 dark:text-white mb-4">
-              ¡Vote registered en blockchain!
-            </h2>
-
-            {/* TxHash Box */}
-            <div className="bg-slate-900 dark:bg-slate-900 rounded-lg p-4 mb-6 font-mono text-xs text-cyan-400 break-all max-h-20 overflow-y-auto">
-              {txData.txHash}
-            </div>
-
-            {/* Botón Copiar */}
-            <button
-              onClick={() => copyToClipboard(txData.txHash)}
-              className="w-full mb-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium"
-            >
-              📋 Copiar TxHash
-            </button>
-
-            {/* Enlace al explorador */}
-            <a
-              href={txData.explorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full mb-6 px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white text-center rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition font-medium block text-sm"
-            >
-              ðŸ” Ver en el explorador →
-            </a>
-
-            {/* Botón Volver */}
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium"
-            >
-              Back to Dashboard
-            </button>
-          </motion.div>
-        </div>
-      )}
-
-      {/* MODAL DE ERROR */}
-      {voteStatus === 'error' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-slate-800 rounded-lg p-8 max-w-sm mx-4 shadow-xl"
-          >
-            {/* Icono error */}
-            <div className="flex justify-center mb-6 text-5xl">
-              âŒ
-            </div>
-
-            <h2 className="text-center text-xl font-bold text-slate-900 dark:text-white mb-4">
-              No se pudo registrar el voto
-            </h2>
-
-            {/* Mensaje de error exacto */}
-            <p className="text-center text-sm text-red-600 dark:text-red-400 mb-6 bg-red-50 dark:bg-red-900/20 rounded p-3">
-              {voteError || "Error desconocido"}
-            </p>
-
-            {/* Botones de acción */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setVoteStatus(null);
-                  setVoteError(null);
-                }}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium"
-              >
-                🔄 Reintentar
-              </button>
-              <button
-                onClick={() => {
-                  setVoteStatus(null);
-                  setVoteError(null);
-                  navigate("/dashboard");
-                }}
-                className="flex-1 px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg transition font-medium"
-              >
-                â† Volver
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-12">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              {electionTitle || "Voting Booth"}
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400 mt-2">
-              Selecciona tu opción y vota de forma segura y anónima
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-          >
-            Cerrar sesión
-          </button>
-        </div>
-
-        {/* Messages */}
+        {/* Error general */}
         {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 text-sm"
           >
             {error}
           </motion.div>
         )}
 
-        {successMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400"
-          >
-            {successMessage}
-          </motion.div>
-        )}
+        {!alreadyVoted && (
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* ---- Panel de votación ---- */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+              className="lg:col-span-2"
+            >
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                {/* Cabecera del panel */}
+                <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700">
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+                    {t("votingBooth.selectYourOption")}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {candidates.length} {candidates.length === 1 ? "candidato" : "candidatos"}
+                  </p>
+                </div>
 
-        {candidates.length === 0 && !error && (
-          <div className="mb-6 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-600 dark:text-yellow-400">
-            No hay candidatos disponibles para esta elección
-          </div>
-        )}
+                <div className="p-6">
+                  {/* Sin candidatos */}
+                  {candidates.length === 0 && !error && (
+                    <div className="py-12 text-center text-slate-400 dark:text-slate-500 text-sm">
+                      <svg className="w-10 h-10 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
+                      Sin candidatos disponibles
+                    </div>
+                  )}
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* VOTING SECTION */}
-          <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">
-                Selecciona tu opción
-              </h2>
+                  {/* Lista de candidatos */}
+                  <div className="space-y-3">
+                    {candidates.map((candidate) => {
+                      const selected = selectedCandidate === candidate.id;
+                      return (
+                        <motion.button
+                          key={candidate.id}
+                          whileHover={{ scale: eligibilityError ? 1 : 1.01 }}
+                          whileTap={{ scale: eligibilityError ? 1 : 0.99 }}
+                          onClick={() => !eligibilityError && setSelectedCandidate(candidate.id)}
+                          disabled={!!eligibilityError}
+                          className={`w-full p-4 rounded-xl border-2 transition-all text-left group ${
+                            selected
+                              ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm"
+                              : eligibilityError
+                              ? "border-slate-200 dark:border-slate-700 opacity-60 cursor-not-allowed"
+                              : "border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            {/* Radio circle */}
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                              selected ? "border-blue-500 bg-blue-500" : "border-slate-300 dark:border-slate-500"
+                            }`}>
+                              {selected && <div className="w-2 h-2 bg-white rounded-full" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`font-semibold text-sm transition-colors ${
+                                selected ? "text-blue-700 dark:text-blue-300" : "text-slate-800 dark:text-white"
+                              }`}>
+                                {candidate.name}
+                              </p>
+                              {candidate.description && (
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                                  {candidate.description}
+                                </p>
+                              )}
+                            </div>
+                            {selected && (
+                              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                                <svg className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              </motion.div>
+                            )}
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
 
-              <div className="space-y-4">
-                {candidates.map((candidate) => (
-                  <motion.button
-                    key={candidate.id}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setSelectedCandidate(candidate.id)}
-                    className={`w-full p-4 rounded-lg border-2 transition text-left ${
-                      selectedCandidate === candidate.id
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                        : "border-slate-300 dark:border-slate-600 hover:border-blue-300"
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
-                          selectedCandidate === candidate.id
-                            ? "border-blue-500 bg-blue-500"
-                            : "border-slate-400"
+                  {/* Mensaje de no elegibilidad */}
+                  {eligibilityError && (
+                    <div className="mt-5 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                      <p className="text-sm text-amber-700 dark:text-amber-300 font-medium text-center">{eligibilityError}</p>
+                    </div>
+                  )}
+
+                  {/* Botón de emitir voto */}
+                  {!eligibilityError && (
+                    <div className="mt-6">
+                      <motion.button
+                        whileHover={{ scale: selectedCandidate ? 1.01 : 1 }}
+                        whileTap={{ scale: selectedCandidate ? 0.99 : 1 }}
+                        onClick={handleVote}
+                        disabled={!selectedCandidate || voteStatus !== null}
+                        className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
+                          selectedCandidate && !voteStatus
+                            ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md"
+                            : "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
                         }`}
                       >
-                        {selectedCandidate === candidate.id && (
-                          <div className="w-2 h-2 bg-white rounded-full"></div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-slate-900 dark:text-white">
-                          {candidate.name}
-                        </h3>
-                        {candidate.description && (
-                          <p className="text-sm text-slate-600 dark:text-slate-400">
-                            {candidate.description}
-                          </p>
-                        )}
-                      </div>
+                        {voteStatus
+                          ? t("votingBooth.processing")
+                          : selectedCandidate
+                          ? t("votingBooth.castVote")
+                          : t("votingBooth.selectOption")}
+                      </motion.button>
+                      {!selectedCandidate && (
+                        <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-2">
+                          {t("votingBooth.selectOption")}
+                        </p>
+                      )}
                     </div>
-                  </motion.button>
-                ))}
-              </div>
-
-              {/* Confirm Button & Eligibility Message */}
-              {eligibilityError ? (
-                <div className="mt-8 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-600 dark:text-yellow-400 text-center font-medium">
-                  {eligibilityError === 'You have already voted in this election' ? 'Ya has votado' : eligibilityError}
+                  )}
                 </div>
-              ) : (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleVote(selectedCandidate)}
-                  disabled={!selectedCandidate || voteStatus !== null}
-                  className="w-full mt-8 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {voteStatus === null ? '🗳️ Emitir voto' : 'Processing...'}
-                </motion.button>
-              )}
-            </div>
-          </div>
-
-          {/* LIVE FEED SECTION */}
-          <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 border border-slate-200 dark:border-slate-700 h-full max-h-[600px] flex flex-col">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                📡 Live Feed
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                Votos registrados en tiempo real
-              </p>
-
-              {/* Vote Counter */}
-              <div className=" mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <span className="font-bold">{voteCount}</span> votantes
-                  registrados
-                </p>
               </div>
+            </motion.div>
 
-              {/* Votes List */}
-              <div className="flex-1 overflow-y-auto space-y-2">
-                {votes.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-slate-500 dark:text-slate-400 text-sm">
-                    {isListening ? "Esperando votos..." : "⚡ Reconectando..."}
+            {/* ---- Live Feed ---- */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+              className="lg:col-span-1 flex flex-col gap-4"
+            >
+              {/* Contador */}
+              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{voteCount}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t("votingBooth.votersRegistered")}</p>
                   </div>
-                ) : (
-                  votes.map((vote) => (
-                    <motion.div
-                      key={vote.id}
-                      initial={{ y: -20, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs"
-                    >
-                      {/* Nullifier truncado: 0x1a2b...ef34 */}
-                      <p className="font-mono text-blue-600 dark:text-blue-400 truncate">
-                        🔗 {vote.nullifier.slice(0, 6)}...{vote.nullifier.slice(-4)}
-                      </p>
-                      {/* Tiempo relativo que se actualiza cada segundo */}
-                      <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">
-                        {vote.timeText}
-                      </p>
-                    </motion.div>
-                  ))
-                )}
+                  <div className={`p-2 rounded-full ${isListening ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-slate-100 dark:bg-slate-700"}`}>
+                    <div className={`w-2.5 h-2.5 rounded-full ${isListening ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Privacy Info */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          className="mt-12 p-6 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
-        >
-          <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            ðŸ” Privacidad Garantizada
-          </h4>
-          <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-            <li>âœ“ Tu voto se cifra localmente antes de enviarse</li>
-            <li>âœ“ Tu identidad nunca se vincula al voto</li>
-            <li>âœ“ Solo se registra un hash anónimo en blockchain</li>
-            <li>âœ“ Los resultados son públicamente auditables</li>
-          </ul>
-        </motion.div>
-      </div>
+              {/* Feed */}
+              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex-1">
+                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                  <SignalIcon />
+                  <span className="text-sm font-semibold text-slate-900 dark:text-white">{t("liveFeed.title")}</span>
+                </div>
+                <div className="p-3 max-h-64 overflow-y-auto space-y-2">
+                  {votes.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
+                      {isListening ? t("votingBooth.waitingVotes") : t("votingBooth.reconnecting")}
+                    </div>
+                  ) : (
+                    votes.map(vote => (
+                      <motion.div
+                        key={vote.id}
+                        initial={{ x: -10, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        className="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-700/60 rounded-lg"
+                      >
+                        <span className="font-mono text-xs text-blue-600 dark:text-blue-400 truncate mr-2">
+                          {truncateHash(vote.nullifier, 6, 4)}
+                        </span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                          {vote.timeText}
+                        </span>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Privacy card */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-4">
+                <div className="flex items-center gap-2 mb-3 text-blue-700 dark:text-blue-300">
+                  <ShieldIcon />
+                  <span className="text-sm font-semibold">{t("votingBooth.privacyTitle")}</span>
+                </div>
+                <ul className="space-y-1.5">
+                  {[
+                    t("votingBooth.privacyEncrypted"),
+                    t("votingBooth.privacyAnonymous"),
+                    t("votingBooth.privacyHash"),
+                    t("votingBooth.privacyAuditable"),
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
+                      <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </main>
     </div>
   );
 };
 
-// Error Boundary Component
+// Error Boundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
-
-  componentDidCatch(error, errorInfo) {
-    console.error("ErrorBoundary atrapó un error en VotingBooth:", error, errorInfo);
+  componentDidCatch(error, info) {
+    console.error("VotingBooth error:", error, info);
   }
-
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-8 max-w-md w-full text-center border border-red-200 dark:border-red-900/50">
-            <div className="text-5xl mb-6">💥</div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Algo inesperado ocurrió</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 bg-slate-100 dark:bg-slate-900 p-3 rounded">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 max-w-md w-full text-center border border-red-200 dark:border-red-900/50">
+            <div className="flex justify-center mb-4"><XCircleIcon /></div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Algo inesperado ocurrió</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 bg-slate-100 dark:bg-slate-900 p-3 rounded-xl">
               {this.state.error?.message || "Error desconocido en la cabina de votación"}
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg font-medium hover:bg-slate-800 transition shadow"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition"
             >
-              🔄 Recargar página
+              Recargar página
             </button>
           </div>
         </div>
       );
     }
-
     return this.props.children;
   }
 }

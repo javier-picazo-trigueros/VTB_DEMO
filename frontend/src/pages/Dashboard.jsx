@@ -1,268 +1,348 @@
 /**
  * VTB - Dashboard.jsx
- * ===================
  * Panel principal para votantes.
  * Muestra elecciones disponibles y permite votar.
  */
 
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { useAuth } from '../context/AuthContext'
-import { Navbar } from '../components/Navbar'
-import LoadingSpinner from '../components/LoadingSpinner'
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
+import { useAuth } from "../context/AuthContext";
+import { Navbar } from "../components/Navbar";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-export const Dashboard = () => {
-  const navigate = useNavigate()
-  const { user, isAuthenticated } = useAuth()
-  
-  const [elections, setElections] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [eligibilityMap, setEligibilityMap] = useState({})
+// ---------------------------------------------------------------------------
+// Helper: estado real de una elección basado en tiempo actual
+// ---------------------------------------------------------------------------
+function getRealStatus(election) {
+  const now = Date.now() / 1000;
+  if (!election.isActive && election.status !== "upcoming") return "closed";
+  if (election.startTime && election.startTime > now) return "upcoming";
+  if (election.endTime && election.endTime < now) return "closed";
+  return "active";
+}
 
-  const userEmail = localStorage.getItem('vtb-email') || '';
-  const domain = userEmail.split('@')[1] || '';
+// ---------------------------------------------------------------------------
+// Helper: badge de estado
+// ---------------------------------------------------------------------------
+const StatusBadge = ({ election, t }) => {
+  const status = getRealStatus(election);
+  if (status === "closed") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+        {t("dashboard.closed")}
+      </span>
+    );
+  }
+  if (status === "upcoming") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        {t("dashboard.coming")}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      {t("dashboard.active")}
+    </span>
+  );
+};
 
-  // Verificar autenticación
+// ---------------------------------------------------------------------------
+// Helper: cuenta regresiva para el cierre de una elección activa
+// ---------------------------------------------------------------------------
+const Countdown = ({ endTime }) => {
+  const [remaining, setRemaining] = useState(endTime - Math.floor(Date.now() / 1000));
+  const ref = useRef(null);
+
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login')
-      return
-    }
-    loadElections()
-  }, [isAuthenticated, navigate])
+    ref.current = setInterval(() => {
+      setRemaining(endTime - Math.floor(Date.now() / 1000));
+    }, 1000);
+    return () => clearInterval(ref.current);
+  }, [endTime]);
+
+  if (remaining <= 0) return <span className="text-slate-400 text-xs">Cerrando…</span>;
+
+  const d = Math.floor(remaining / 86400);
+  const h = Math.floor((remaining % 86400) / 3600);
+  const m = Math.floor((remaining % 3600) / 60);
+  const s = remaining % 60;
+
+  const parts = d > 0
+    ? `${d}d ${h}h ${m}m`
+    : h > 0
+    ? `${h}h ${m}m ${s}s`
+    : `${m}m ${s}s`;
+
+  return (
+    <span className="font-mono text-xs font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+      {parts}
+    </span>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Tarjeta de elección
+// ---------------------------------------------------------------------------
+const ElectionCard = ({ election, eligibility, index, t, navigate }) => {
+  const status = getRealStatus(election);
+  const isReallyActive = status === "active";
+  const alreadyVoted = eligibility?.reason === "already_voted";
+  const canVote = isReallyActive && !alreadyVoted;
+
+  const formatDate = (ts) =>
+    ts
+      ? new Date(ts * 1000).toLocaleDateString("es-ES", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "—";
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.07 }}
+      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow flex flex-col overflow-hidden"
+    >
+      <div className="p-6 flex-1">
+        {/* Top row */}
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white truncate">
+                {election.name}
+              </h3>
+              {alreadyVoted && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  {t("dashboard.voted")}
+                </span>
+              )}
+            </div>
+            <StatusBadge election={election} t={t} />
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+            </svg>
+          </div>
+        </div>
+
+        {election.description && (
+          <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2 mb-4">
+            {election.description}
+          </p>
+        )}
+
+        {/* Fechas */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl px-3 py-2">
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">{t("dashboard.starts")}</p>
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{formatDate(election.startTime)}</p>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl px-3 py-2">
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">{t("dashboard.ends")}</p>
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{formatDate(election.endTime)}</p>
+          </div>
+        </div>
+
+        {/* Tiempo restante — solo en elecciones activas */}
+        {isReallyActive && election.endTime && (
+          <div className="mt-3 flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl px-3 py-2">
+            <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+            </svg>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 mr-1">Cierra en</span>
+            <Countdown endTime={election.endTime} />
+          </div>
+        )}
+      </div>
+
+      {/* Acciones */}
+      <div className="px-6 pb-5 flex gap-2">
+        <button
+          onClick={() => canVote && navigate(`/voting/${election.id}`)}
+          disabled={!canVote}
+          className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+            alreadyVoted
+              ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 cursor-default"
+              : canVote
+              ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow"
+              : "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+          }`}
+        >
+          {alreadyVoted
+            ? t("dashboard.voted")
+            : canVote
+            ? t("dashboard.vote")
+            : t("dashboard.closed")}
+        </button>
+        <button
+          onClick={() => navigate(`/results/${election.id}`)}
+          className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-all"
+          title={isReallyActive ? t("dashboard.partialResults") : t("dashboard.results")}
+        >
+          {isReallyActive ? t("dashboard.partialResults") : t("dashboard.results")}
+        </button>
+      </div>
+    </motion.article>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Dashboard principal
+// ---------------------------------------------------------------------------
+export const Dashboard = () => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+
+  const [elections, setElections] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [eligibilityMap, setEligibilityMap] = useState({});
+
+  useEffect(() => {
+    if (!isAuthenticated) { navigate("/login"); return; }
+    loadElections();
+  }, [isAuthenticated]);
 
   const loadElections = async () => {
+    setIsLoading(true);
+    setError("");
+    const token = localStorage.getItem("vtb-token");
+    if (!token) { navigate("/login"); return; }
+
     try {
-      setIsLoading(true)
-      setError('')
-      
-      const token = localStorage.getItem('vtb-token')
-      if (!token) {
-        navigate('/login')
-        return
-      }
+      const res = await fetch(`${API_URL}/api/elections`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) { navigate("/login"); return; }
+      if (!res.ok) throw new Error(t("errors.loadingElections"));
 
-      const response = await fetch(`${API_URL}/api/elections`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : data.elections || [];
+      setElections(list);
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          navigate('/login')
-          return
-        }
-        throw new Error('Error al cargar elecciones')
-      }
-      
-      const data = await response.json()
-      const electionList = Array.isArray(data) ? data : data.elections || []
-      setElections(electionList)
-
-      // Fetch eligibility for each active election
-      for (const election of electionList) {
-        if (election.isActive) {
-          try {
-            const eligRes = await fetch(`${API_URL}/api/elections/${election.id}/eligibility`, {
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-            })
-            if (eligRes.ok) {
-              const eligData = await eligRes.json()
-              setEligibilityMap(prev => ({ ...prev, [election.id]: eligData }))
-            }
-          } catch (e) {
-            // silently skip
-          }
-        }
-      }
+      // Fetch eligibilidad en paralelo — solo para elecciones realmente activas
+      const eligChecks = list
+        .filter(e => getRealStatus(e) === "active")
+        .map(e =>
+          fetch(`${API_URL}/api/elections/${e.id}/eligibility`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => d && setEligibilityMap(prev => ({ ...prev, [e.id]: d })))
+            .catch(() => null)
+        );
+      await Promise.all(eligChecks);
     } catch (err) {
-      console.error('Error cargando elecciones:', err)
-      setError(err.message || 'Error al cargar elecciones')
-      setElections([])
+      setError(err.message || t("errors.loadingElections"));
+      setElections([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
-  if (!isAuthenticated) {
-    return null
-  }
+  if (!isAuthenticated) return null;
+
+  const userName = user?.name || user?.email || "";
 
   return (
     <>
       <Navbar />
-      
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-        {/* Contenedor principal */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Encabezado */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-12"
-          >
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">
-              📋 Voting Dashboard
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Welcome, <span className="font-semibold text-blue-600 dark:text-blue-400">{user?.name || user?.email}</span>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+          {/* Header */}
+          <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
+              {t("dashboard.welcome")}, <span className="font-medium text-blue-600 dark:text-blue-400">{userName}</span>
             </p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              {t("dashboard.availableElections")}
+            </h1>
           </motion.div>
 
-          {/* Error Message */}
+          {/* Error */}
           {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 text-sm flex items-center gap-2"
             >
-              ⚠️ {error}
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              {error}
             </motion.div>
           )}
 
-          {/* Loading State */}
+          {/* Loading */}
           {isLoading && (
-            <LoadingSpinner message="Cargando tus elecciones..." />
+            <div className="flex justify-center py-20">
+              <LoadingSpinner message={t("loading")} />
+            </div>
           )}
 
-          {/* Empty State */}
+          {/* Estado vacío */}
           {!isLoading && elections.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-16"
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              className="text-center py-20"
             >
-              <div className="text-6xl mb-4">🗳️</div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-                No elections assigned
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-1">
+                {t("dashboard.noElectionsTitle")}
               </h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-2 max-w-md mx-auto">
-                Aún no tienes ninguna elección activa asignada a tu cuenta.
-                Esto puede ocurrir porque:
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-2">
+                {t("dashboard.noElectionsDesc")}
               </p>
-              <ul className="text-sm text-slate-500 dark:text-slate-400 mb-6 space-y-1">
-                <li>• Tu solicitud fue aprobada recientemente y el admin aún no ha creado elecciones</li>
-                <li>• Las elecciones disponibles no incluyen tu dominio de email</li>
-                <li>• Las elecciones han finalizado o no han comenzado aún</li>
+              <ul className="text-xs text-slate-400 dark:text-slate-500 mb-6 space-y-1">
+                <li>• {t("dashboard.noElectionsReason1")}</li>
+                <li>• {t("dashboard.noElectionsReason2")}</li>
+                <li>• {t("dashboard.noElectionsReason3")}</li>
               </ul>
               <button
                 onClick={loadElections}
-                className="px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition"
               >
-                🔄 Reload
+                {t("dashboard.reload")}
               </button>
             </motion.div>
           )}
 
-          {/* Elections Grid */}
+          {/* Grid de elecciones */}
           {!isLoading && elections.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ staggerChildren: 0.1 }}
-              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-            >
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {elections.map((election, idx) => (
-                <motion.div
+                <ElectionCard
                   key={election.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  className="bg-white dark:bg-slate-800 rounded-lg shadow-md hover:shadow-lg transition border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col"
-                >
-                  <div className="p-6 pb-4">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                            {election.name}
-                          </h3>
-                          {eligibilityMap[election.id]?.reason === 'already_voted' && (
-                            <span className="text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-medium">
-                              ✓ Voted
-                            </span>
-                          )}
-                        </div>
-                        {domain && (
-                          <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full font-medium tracking-wide">
-                            @{domain}
-                          </span>
-                        )}
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-3">
-                          {election.description}
-                        </p>
-                      </div>
-                      <span className="text-3xl ml-3">🗳️</span>
-                    </div>
-
-                    <div className="mb-6 flex gap-4 text-xs">
-                      <div className="flex-1">
-                        <p className="text-slate-500 dark:text-slate-400 text-xs">Inicia</p>
-                        <p className="font-semibold text-slate-700 dark:text-slate-300">
-                          {election.startTime
-                            ? new Date(election.startTime * 1000).toLocaleDateString('es-ES', {
-                                day: '2-digit', month: 'short', year: 'numeric'
-                              })
-                            : '—'}
-                        </p>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-slate-500 dark:text-slate-400 text-xs">Termina</p>
-                        <p className="font-semibold text-slate-700 dark:text-slate-300">
-                          {election.endTime
-                            ? new Date(election.endTime * 1000).toLocaleDateString('es-ES', {
-                                day: '2-digit', month: 'short', year: 'numeric'
-                              })
-                            : '—'}
-                        </p>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-slate-500 dark:text-slate-400 text-xs">Estado</p>
-                        <p className={`font-semibold text-sm ${
-                          election.isActive
-                            ? 'text-yellow-600 dark:text-yellow-400'
-                            : 'text-emerald-600 dark:text-emerald-400'
-                        }`}>
-                          {election.isActive ? 'Activa' : 'Cerrada'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-200 dark:border-slate-700 p-4 flex gap-2">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => navigate(`/voting/${election.id}`)}
-                      className="flex-1 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!election.isActive || eligibilityMap[election.id]?.reason === 'already_voted'}
-                    >
-                      {eligibilityMap[election.id]?.reason === 'already_voted' ? '✓ Voted' : election.isActive ? 'Vote' : 'Cerrada'}
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => navigate(`/results/${election.id}`)}
-                      className="flex-1 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
-                      title={election.isActive ? 'Ver resultados parciales' : 'Ver resultados definitivos'}
-                    >
-                      {election.isActive ? '📊  Parcial' : '📊  Resultados'}
-                    </motion.button>
-                  </div>
-                </motion.div>
+                  election={election}
+                  eligibility={eligibilityMap[election.id]}
+                  index={idx}
+                  t={t}
+                  navigate={navigate}
+                />
               ))}
-            </motion.div>
+            </div>
           )}
         </main>
       </div>
     </>
-  )
-}
+  );
+};
 
-export default Dashboard
+export default Dashboard;

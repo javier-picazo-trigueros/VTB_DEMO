@@ -1,30 +1,35 @@
 /**
- * VTB - RegisterRequest.jsx (BLOQUE 3.1)
+ * VTB - RegisterRequest.jsx
  * =======================================
- * Página para que usuarios nuevos soliciten acceso.
- * Formulario de registro sin autenticación (público).
+ * Public page for new users to request access.
+ * Includes password field so users can log in immediately after approval.
  */
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export const RegisterRequest = () => {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     studentId: '',
+    password: '',
+    confirmPassword: '',
   })
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -35,63 +40,63 @@ export const RegisterRequest = () => {
     setError('')
   }
 
-  // Validación client-side antes de enviar
   const validateForm = () => {
-    // Todos los campos no vacíos
     if (!formData.fullName.trim()) {
-      setError('El nombre completo es obligatorio')
+      setError('Full name is required')
       return false
     }
-    
     if (!formData.email.trim()) {
-      setError('El email es obligatorio')
+      setError('Email is required')
       return false
     }
-    
-    if (!formData.studentId.trim()) {
-      setError('El ID de estudiante/empleado es obligatorio')
-      return false
-    }
-    
-    // Email contiene @ y .
     if (!formData.email.includes('@') || !formData.email.includes('.')) {
-      setError('Email inválido')
+      setError('Invalid email format')
       return false
     }
-    
-    // StudentId tiene al menos 4 caracteres
+    if (!formData.studentId.trim()) {
+      setError('Student ID is required')
+      return false
+    }
     if (formData.studentId.trim().length < 4) {
-      setError('El ID debe tener al menos 4 caracteres')
+      setError('Student ID must be at least 4 characters')
       return false
     }
-    
+    if (!formData.password) {
+      setError('Password is required')
+      return false
+    }
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return false
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match')
+      return false
+    }
     return true
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    if (!validateForm()) {
-      return
-    }
+    if (!validateForm()) return
     
     setLoading(true)
     setError('')
 
     try {
-      const response = await axios.post(`${API_URL}/registration/request`, {
+      await axios.post(`${API_URL}/registration/request`, {
         fullName: formData.fullName,
         email: formData.email,
         studentId: formData.studentId,
+        password: formData.password,
       })
 
-      // Éxito: mostrar mensaje de confirmación
       setSubmitted(true)
-      setFormData({ fullName: '', email: '', studentId: '' })
+      setFormData({ fullName: '', email: '', studentId: '', password: '', confirmPassword: '' })
     } catch (err) {
-      console.error('Error en solicitud:', err)
-      // Mostrar el mensaje exacto que devuelve la API
-      setError(err.response?.data?.error || 'Error al enviar la solicitud')
+      console.error('Registration error:', err)
+      setError(err.response?.data?.error || 'Error submitting request')
     } finally {
       setLoading(false)
     }
@@ -110,15 +115,13 @@ export const RegisterRequest = () => {
         >
           {!submitted ? (
             <>
-              {/* Formulario de solicitud */}
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                🚀 Solicitar Acceso
+                🚀 {t("register.title")}
               </h2>
               <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
-                Completa este formulario para solicitar tu cuenta de votación
+                {t("register.subtitle")}
               </p>
 
-              {/* Error Message */}
               {error && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
@@ -133,7 +136,7 @@ export const RegisterRequest = () => {
                 {/* Full Name */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Nombre Completo
+                    {t("register.name")}
                   </label>
                   <input
                     type="text"
@@ -142,7 +145,7 @@ export const RegisterRequest = () => {
                     onChange={handleChange}
                     disabled={loading}
                     className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:opacity-50"
-                    placeholder="Juan Pérez García"
+                    placeholder="e.g., John Smith"
                     required
                   />
                 </div>
@@ -150,7 +153,7 @@ export const RegisterRequest = () => {
                 {/* Email */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Email Institucional
+                    {t("register.email")}
                   </label>
                   <input
                     type="email"
@@ -159,7 +162,7 @@ export const RegisterRequest = () => {
                     onChange={handleChange}
                     disabled={loading}
                     className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:opacity-50"
-                    placeholder="juan@universidad.edu"
+                    placeholder="you@universidad.edu"
                     required
                   />
                 </div>
@@ -167,7 +170,7 @@ export const RegisterRequest = () => {
                 {/* Student ID */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Student ID/Empleado
+                    {t("register.studentId")}
                   </label>
                   <input
                     type="text"
@@ -181,31 +184,73 @@ export const RegisterRequest = () => {
                   />
                 </div>
 
+                {/* Password */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {t("register.password")}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      disabled={loading}
+                      className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:opacity-50"
+                      placeholder="Min. 6 characters"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-sm"
+                    >
+                      {showPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {t("register.confirmPassword")}
+                  </label>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    disabled={loading}
+                    className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:opacity-50"
+                    placeholder="Repeat your password"
+                    required
+                  />
+                </div>
+
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={loading || !formData.fullName || !formData.email || !formData.studentId}
+                  disabled={loading || !formData.fullName || !formData.email || !formData.studentId || !formData.password}
                   className="w-full py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
                       <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                      Submitting...
+                      {t("register.submitting")}
                     </>
                   ) : (
-                    '📤 Submit Request'
+                    t("register.register")
                   )}
                 </button>
               </form>
 
-              {/* Link to Login */}
               <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
-                ¿Ya tienes cuenta?{' '}
+                {t("register.haveAccount")}{' '}
                 <button
                   onClick={() => navigate('/login')}
                   className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
                 >
-                  Inicia sesión
+                  {t("register.loginHere")}
                 </button>
               </div>
             </>
@@ -219,19 +264,19 @@ export const RegisterRequest = () => {
               >
                 <div className="text-5xl mb-4">✅</div>
                 <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">
-                  ¡Solicitud Enviada!
+                  {t("register.registerSuccessTitle")}
                 </h2>
                 <p className="text-slate-600 dark:text-slate-400 mb-6">
-                  Tu solicitud ha sido registrada exitosamente.
+                  {t("register.registerSuccessDesc1")}
                   <br />
-                  Un administrador revisará tu petición pronto.
+                  {t("register.registerSuccessDesc2")}
                 </p>
 
                 <button
                   onClick={() => navigate('/login')}
                   className="w-full py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors"
                 >
-                  🔐 Back to Login
+                  {t("register.backToLogin")}
                 </button>
               </motion.div>
             </>

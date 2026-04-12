@@ -4,6 +4,7 @@ import express, { Express, Response } from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { getDatabase } from "./config/database.js";
+import { seedDemoData } from "./scripts/seedDatabase.js";
 import authRoutes from "./routes/auth.js";
 import electionRoutes from "./routes/elections.js";
 import adminRoutes from "./routes/admin.js";
@@ -173,9 +174,10 @@ async function initializeDatabase() {
   try {
     const db = getDatabase();
     await db.initialize();
-    console.log("í¢Å“â€¦ Base de datos SQLite inicializada");
+    console.log('✅ Base de datos SQLite inicializada');
+    await seedDemoData();
   } catch (error) {
-    console.error("í¢Å’ Error al inicializar BD:", error);
+    console.error('❌ Error al inicializar BD:', error);
     process.exit(1);
   }
 }

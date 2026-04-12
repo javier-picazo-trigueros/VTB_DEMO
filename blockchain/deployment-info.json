@@ -1,0 +1,23 @@
+{
+  "network": "localhost",
+  "contractName": "ElectionRegistry",
+  "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "deployerAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "deploymentTime": "2026-04-10T16:17:03.932Z",
+  "electionId": 1,
+  "electionName": "Elección Universitaria 2026",
+  "startTime": 1775837833,
+  "endTime": 1783613823,
+  "chainId": "31337",
+  "frontendConfig": {
+    "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "contractABI": "Ver: artifacts/contracts/VTB.sol/ElectionRegistry.json",
+    "electionId": 1,
+    "rpcUrl": "http://localhost:8545"
+  },
+  "backendConfig": {
+    "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "rpcUrl": "http://localhost:8545",
+    "explorerUrl": "http://localhost:8545"
+  }
+}

@@ -53,7 +53,7 @@ router.get("/", async (req: Request, res: Response) => {
     
     const userId = decoded.userId;
     
-    // Obtener SOLO las elecciones donde este usuario está en election_voters
+    // Obtener TODAS las elecciones donde este usuario está en election_voters
     const elections = await db.run<{
       id: number;
       election_id_blockchain: number;
@@ -65,20 +65,27 @@ router.get("/", async (req: Request, res: Response) => {
     }>(
       `SELECT e.* FROM elections e
        INNER JOIN election_voters ev ON e.id = ev.election_id
-       WHERE ev.user_id = ? AND e.is_active = 1`,
+       WHERE ev.user_id = ?`,
       [userId]
     );
 
+    const now = Math.floor(Date.now() / 1000);
+
     res.json({
-      elections: elections.map((e) => ({
-        id: e.id,
-        blockchainId: e.election_id_blockchain,
-        name: e.name,
-        description: e.description,
-        startTime: e.start_time,
-        endTime: e.end_time,
-        isActive: e.is_active,
-      })),
+      elections: elections.map((e) => {
+        const isActive = Boolean(e.is_active) && now >= e.start_time && now <= e.end_time;
+        const status = isActive ? "active" : (now < e.start_time ? "upcoming" : "closed");
+        return {
+          id: e.id,
+          blockchainId: e.election_id_blockchain,
+          name: e.name,
+          description: e.description,
+          startTime: e.start_time,
+          endTime: e.end_time,
+          isActive,
+          status,
+        };
+      }),
     });
   } catch (error) {
     console.error("Error al obtener elecciones:", error);

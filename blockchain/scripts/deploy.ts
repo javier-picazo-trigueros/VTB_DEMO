@@ -34,25 +34,31 @@ async function main() {
   const deployedAddress = await electionRegistry.getAddress();
   console.log(`✅ ElectionRegistry desplegado en: ${deployedAddress}`);
 
-  // Crear una elección de prueba
-  console.log("\n📝 Creando elección de prueba...");
+  // Crear 6 elecciones de prueba para sincronizar con la DB (1 a 6)
+  console.log("\n📝 Creando elecciones base...");
   
   const now = Math.floor(Date.now() / 1000);
-  const startTime = now + 60; // Inicia en 1 minuto
-  const endTime = now + 3600; // Termina en 1 hora
+  const startTime = now + 10; // Inicio técnico en 10s para pasar la validación
+  const endTime = now + (3 * 30 * 24 * 3600); // 3 meses en el futuro
 
-  const createElectionTx = await electionRegistry.createElection(
-    "Elección Universitaria 2026",
-    startTime,
-    endTime
-  );
+  for (let i = 1; i <= 6; i++) {
+    const createElectionTx = await electionRegistry.createElection(
+      "Elección " + i,
+      startTime,
+      endTime
+    );
+    await createElectionTx.wait();
+  }
+  
+  // Avanzar el tiempo 15s instantáneamente en el blockchain para que las elecciones queden activas *ahora*
+  await ethers.provider.send("evm_increaseTime", [15]);
+  await ethers.provider.send("evm_mine", []);
 
-  await createElectionTx.wait();
-  console.log("✅ Elección de prueba creada exitosamente");
+  console.log("✅ 6 elecciones creadas y activadas exitosamente");
 
   // Obtener información de la elección
   const electionInfo = await electionRegistry.getElection(1);
-  console.log("\n📊 Información de la Elección:");
+  console.log("\n📊 Información de la Elección 1:");
   console.log(`  - Nombre: ${electionInfo.name}`);
   console.log(`  - Activa: ${electionInfo.active}`);
   console.log(`  - Total de votos: ${electionInfo.totalVotes}`);
@@ -90,13 +96,13 @@ async function main() {
   console.log("🎉 DEPLOYMENT EXITOSO");
   console.log("=".repeat(60));
   console.log("\n📍 INFORMACIÓN PARA CONFIGURACIÓN:");
-  console.log(JSON.stringify(deploymentInfo, null, 2));
+  console.log(JSON.stringify(deploymentInfo, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2));
 
   // Guardar a archivo para referencia
   const fs = require("fs");
   fs.writeFileSync(
     "deployment-info.json",
-    JSON.stringify(deploymentInfo, null, 2)
+    JSON.stringify(deploymentInfo, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2)
   );
   console.log("\n✅ Información guardada en: deployment-info.json");
 }
