@@ -103,7 +103,7 @@ const PORT = process.env.PORT || 3001;
 
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:5173']; // Default para desarrollo
+  : ['http://localhost:5173', 'http://localhost:3000']; // Default para desarrollo
 
 app.use(cors({
   origin: (origin, callback) => {
