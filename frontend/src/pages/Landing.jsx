@@ -154,16 +154,16 @@ export const Landing = () => {
         >
           <div>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-6">
-              ¿Qué es VTB?
+              {t("landing.about.title")}
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-400 mb-4">
-              VTB (Vote Through Blockchain) es un sistema de votación revolucionario que combina la seguridad y facilidad de uso de plataformas tradicionales (Web2) con la transparencia e inmutabilidad de la tecnología blockchain (Web3).
+              {t("landing.about.description1")}
             </p>
             <p className="text-lg text-slate-600 dark:text-slate-400 mb-4">
-              Nuestro objetivo es democratizar el voto electrónico, garantizando que cada voto sea contado una sola vez, manteniendo el anonimato del votante y permitiendo una auditoría pública completa del proceso.
+              {t("landing.about.description2")}
             </p>
             <p className="text-lg text-slate-600 dark:text-slate-400">
-              Diseñado para universidades, organizaciones y gobiernos que buscan procesos electorales modernos, seguros y verificables.
+              {t("landing.about.description3")}
             </p>
           </div>
 
@@ -175,17 +175,17 @@ export const Landing = () => {
             className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-8 border border-emerald-200 dark:border-slate-700"
           >
             <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
-              ¿Por Qué VTB?
+              {t("landing.about.whyVtb")}
             </h3>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <span className="text-2xl">✅</span>
                 <div>
                   <p className="font-semibold text-slate-900 dark:text-white">
-                    Seguridad Garantizada
+                    {t("landing.about.benefit1Title")}
                   </p>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Autenticación verificada + blockchain = imposible duplicar votos
+                    {t("landing.about.benefit1Desc")}
                   </p>
                 </div>
               </li>
@@ -193,10 +193,10 @@ export const Landing = () => {
                 <span className="text-2xl">🎭</span>
                 <div>
                   <p className="font-semibold text-slate-900 dark:text-white">
-                    Anonimato Perfecto
+                    {t("landing.about.benefit2Title")}
                   </p>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Tu voto se cuenta sin revelar tu identidad
+                    {t("landing.about.benefit2Desc")}
                   </p>
                 </div>
               </li>
@@ -204,10 +204,10 @@ export const Landing = () => {
                 <span className="text-2xl">📊</span>
                 <div>
                   <p className="font-semibold text-slate-900 dark:text-white">
-                    Transparencia Total
+                    {t("landing.about.benefit3Title")}
                   </p>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Cualquiera puede auditar el resultado en la blockchain
+                    {t("landing.about.benefit3Desc")}
                   </p>
                 </div>
               </li>
@@ -215,10 +215,10 @@ export const Landing = () => {
                 <span className="text-2xl">⚡</span>
                 <div>
                   <p className="font-semibold text-slate-900 dark:text-white">
-                    Rápido y Accesible
+                    {t("landing.about.benefit4Title")}
                   </p>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Interfaz simple, resultados instantáneos
+                    {t("landing.about.benefit4Desc")}
                   </p>
                 </div>
               </li>
@@ -236,26 +236,26 @@ export const Landing = () => {
           viewport={{ once: true }}
           className="text-3xl sm:text-4xl font-bold text-center text-slate-900 dark:text-white mb-16"
         >
-          Casos de Uso
+          {t("landing.useCases.title")}
         </motion.h2>
 
         <div className="grid md:grid-cols-3 gap-8">
           <UseCase
             icon="🏫"
-            title="Universidades"
-            description="Elecciones de delegados de clase, cambios en exámenes, representantes estudiantiles. Seguro y transparente para toda la comunidad."
+            title={t("landing.useCases.universities.title")}
+            description={t("landing.useCases.universities.description")}
             index={0}
           />
           <UseCase
             icon="🏢"
-            title="Organizaciones"
-            description="Votaciones internas, decisiones corporativas, elecciones de junta directiva. Resultados inmediatos y auditables."
+            title={t("landing.useCases.organizations.title")}
+            description={t("landing.useCases.organizations.description")}
             index={1}
           />
           <UseCase
             icon="🏛️"
-            title="Gobiernos"
-            description="Referéndums, consultas ciudadanas, votaciones locales. Máxima seguridad y confianza pública."
+            title={t("landing.useCases.governments.title")}
+            description={t("landing.useCases.governments.description")}
             index={2}
           />
         </div>
@@ -271,7 +271,7 @@ export const Landing = () => {
           className="bg-gradient-to-br from-blockchain-50 to-blockchain-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-8 sm:p-12 border border-blockchain-200 dark:border-slate-700"
         >
           <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-6">
-            Hybrid Web2 + Web3 Architecture
+            {t("landing.architecture.title")}
           </h3>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -279,13 +279,13 @@ export const Landing = () => {
             <div className="space-y-4">
               <div className="text-3xl mb-3">🗄️</div>
               <h4 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Web2 (Database)
+                {t("landing.architecture.web2.title")}
               </h4>
               <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
-                <li>✓ User Authentication</li>
-                <li>✓ Electoral Census</li>
-                <li>✓ Private Data</li>
-                <li>✓ Access Control</li>
+                <li>{t("landing.architecture.web2.item1")}</li>
+                <li>{t("landing.architecture.web2.item2")}</li>
+                <li>{t("landing.architecture.web2.item3")}</li>
+                <li>{t("landing.architecture.web2.item4")}</li>
               </ul>
             </div>
 
@@ -293,13 +293,13 @@ export const Landing = () => {
             <div className="space-y-4">
               <div className="text-3xl mb-3">🌉</div>
               <h4 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Backend Relayer
+                {t("landing.architecture.bridge.title")}
               </h4>
               <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
-                <li>✓ Nullifier Generation</li>
-                <li>✓ Transaction Signing</li>
-                <li>✓ Blockchain Relay</li>
-                <li>✓ Event Listening</li>
+                <li>{t("landing.architecture.bridge.item1")}</li>
+                <li>{t("landing.architecture.bridge.item2")}</li>
+                <li>{t("landing.architecture.bridge.item3")}</li>
+                <li>{t("landing.architecture.bridge.item4")}</li>
               </ul>
             </div>
 
@@ -307,13 +307,13 @@ export const Landing = () => {
             <div className="space-y-4">
               <div className="text-3xl mb-3">⛓️</div>
               <h4 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Web3 (Blockchain)
+                {t("landing.architecture.web3.title")}
               </h4>
               <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
-                <li>✓ Vote Registry</li>
-                <li>✓ Double-Vote Prevention</li>
-                <li>✓ Public Auditability</li>
-                <li>✓ Smart Contracts</li>
+                <li>{t("landing.architecture.web3.item1")}</li>
+                <li>{t("landing.architecture.web3.item2")}</li>
+                <li>{t("landing.architecture.web3.item3")}</li>
+                <li>{t("landing.architecture.web3.item4")}</li>
               </ul>
             </div>
           </div>
@@ -325,7 +325,7 @@ export const Landing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center text-slate-600 dark:text-slate-400">
             <p>
-              VTB - Vote Through Blockchain
+              {t("appName")} - {t("appTagline")}
             </p>
             <p className="text-sm mt-2"> </p>
           </div>

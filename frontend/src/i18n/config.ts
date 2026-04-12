@@ -95,6 +95,35 @@ const resources = {
           },
         },
 
+        architecture: {
+          title: "Hybrid Web2 + Web3 Architecture",
+          web2: {
+            title: "Web2 (Database)",
+            item1: "✓ User Authentication",
+            item2: "✓ Electoral Census",
+            item3: "✓ Private Data",
+            item4: "✓ Access Control",
+          },
+          bridge: {
+            title: "Backend Relayer",
+            item1: "✓ Nullifier Generation",
+            item2: "✓ Transaction Signing",
+            item3: "✓ Blockchain Relay",
+            item4: "✓ Event Listening",
+          },
+          web3: {
+            title: "Web3 (Blockchain)",
+            item1: "✓ Vote Registry",
+            item2: "✓ Double-Vote Prevention",
+            item3: "✓ Public Auditability",
+            item4: "✓ Smart Contracts",
+          },
+        },
+
+        footer: {
+          text: "VTB - Vote Through Blockchain",
+        },
+
         cta: "Start Voting Now",
         documentation: "Documentation",
       },
@@ -380,6 +409,35 @@ const resources = {
             title: "Gobiernos",
             description: "Referéndums, consultas ciudadanas, votaciones locales. Máxima seguridad y confianza pública.",
           },
+        },
+
+        architecture: {
+          title: "Arquitectura Híbrida Web2 + Web3",
+          web2: {
+            title: "Web2 (Base de Datos)",
+            item1: "✓ Autenticación de Usuario",
+            item2: "✓ Censo Electoral",
+            item3: "✓ Datos Privados",
+            item4: "✓ Control de Acceso",
+          },
+          bridge: {
+            title: "Relayer Backend",
+            item1: "✓ Generación de Nullifier",
+            item2: "✓ Firma de Transacciones",
+            item3: "✓ Relay Blockchain",
+            item4: "✓ Escucha de Eventos",
+          },
+          web3: {
+            title: "Web3 (Blockchain)",
+            item1: "✓ Registro de Votos",
+            item2: "✓ Prevención de Voto Doble",
+            item3: "✓ Auditoría Pública",
+            item4: "✓ Contratos Inteligentes",
+          },
+        },
+
+        footer: {
+          text: "VTB - Votación A Través de Blockchain",
         },
 
         cta: "Comienza a Votar Ahora",
