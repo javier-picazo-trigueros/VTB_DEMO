@@ -58,6 +58,45 @@ const isSuperAdmin = (req: Request) => req.user?.role === 'superadmin';
 const getAdminDomain = (req: Request): string | null => req.user?.adminDomain || null;
 
 /**
+ * Auto-assign all approved users with a given domain to an election.
+ * Called whenever a new (election, domain) pair is established, so existing
+ * users do not need to re-register to see newly created elections.
+ */
+async function autoAssignUsersByDomain(electionId: number, domain: string): Promise<void> {
+  const users = await db.run<{ id: number }>(
+    "SELECT id FROM users WHERE email LIKE '%@' || ? AND is_approved = 1 AND role IN ('student','voter')",
+    [domain]
+  );
+  for (const user of users) {
+    try {
+      await db.exec(
+        "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
+        [electionId, user.id]
+      );
+    } catch { /* ignore */ }
+  }
+}
+
+/**
+ * Auto-assign a newly created/approved user to all elections whose domain
+ * matches the user's email domain.
+ */
+async function autoAssignElectionsToUser(userId: number, emailDomain: string): Promise<void> {
+  const elections = await db.run<{ election_id: number }>(
+    'SELECT election_id FROM election_access WHERE email_domain = ? OR email_domain = \'*\'',
+    [emailDomain]
+  );
+  for (const row of elections) {
+    try {
+      await db.exec(
+        "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
+        [row.election_id, userId]
+      );
+    } catch { /* ignore */ }
+  }
+}
+
+/**
  * @route GET /admin/dashboard
  * @desc Obtiene estadísticas principales del sistema
  */
@@ -209,6 +248,12 @@ router.post("/users", authAdminMiddleware, async (req: Request, res: Response) =
        VALUES (?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1)`,
       [email, passwordHash, name, student_id, role, admin_domain, req.user.userId]
     );
+
+    // Auto-assign this new user to all elections matching their domain
+    const emailDomain = email.split('@')[1];
+    if (emailDomain) {
+      await autoAssignElectionsToUser(result.lastID, emailDomain);
+    }
 
     res.json({
       success: true,
@@ -406,6 +451,8 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
       } catch (e: any) {
         // Ignore UNIQUE constraint
       }
+      // Auto-assign existing approved users of this domain
+      await autoAssignUsersByDomain(result.lastID, adminDomain);
     }
 
     res.json({
@@ -723,6 +770,10 @@ router.post("/elections/:id/domains", authAdminMiddleware, async (req: Request, 
         "INSERT INTO election_access (election_id, email_domain) VALUES (?, ?)",
         [id, domain.trim()]
       );
+      // Auto-assign all existing approved users of this domain to the election
+      if (domain.trim() !== '*') {
+        await autoAssignUsersByDomain(parseInt(id), domain.trim());
+      }
       res.json({ success: true, message: `Dominio ${domain} añadido correctamente` });
     } catch (e: any) {
       if (e.message?.includes("UNIQUE")) {

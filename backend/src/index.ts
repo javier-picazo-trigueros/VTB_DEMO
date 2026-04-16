@@ -126,7 +126,7 @@ app.use(cors({
     callback(new Error(`CORS: origen no permitido: ${origin}`));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400 // 24 horas
 }));

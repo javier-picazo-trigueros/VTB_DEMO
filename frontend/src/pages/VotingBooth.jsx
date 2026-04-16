@@ -111,7 +111,7 @@ const VoteProgressModal = ({ status, t }) => {
 // ---------------------------------------------------------------------------
 // Sub-componente: Modal de éxito
 // ---------------------------------------------------------------------------
-const VoteSuccessModal = ({ txData, t, onDashboard, onCopy }) => (
+const VoteSuccessModal = ({ txData, t, onDashboard, onViewResults, onCopy }) => (
   <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
     <motion.div
       initial={{ scale: 0.9, opacity: 0 }}
@@ -144,8 +144,15 @@ const VoteSuccessModal = ({ txData, t, onDashboard, onCopy }) => (
       </button>
 
       <button
+        onClick={onViewResults}
+        className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold"
+      >
+        {t("votingBooth.viewResults")}
+      </button>
+
+      <button
         onClick={onDashboard}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold"
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition font-medium text-sm"
       >
         {t("votingBooth.backToDashboard")}
       </button>
@@ -397,6 +404,7 @@ export const VotingBoothContent = () => {
           txData={txData}
           t={t}
           onDashboard={() => navigate("/dashboard")}
+          onViewResults={() => navigate(`/results/${electionId}`)}
           onCopy={() => copyToClipboard(txData.txHash)}
         />
       )}

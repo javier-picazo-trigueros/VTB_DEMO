@@ -247,10 +247,10 @@ export const Login = () => {
               </p>
               <button
                 type="button"
-                onClick={() => fillCredentials("juan@universidad.edu", "password123")}
+                onClick={() => fillCredentials("juan@universidad.edu", "demo123")}
                 className="w-full text-left px-3 py-1.5 rounded bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs text-slate-700 dark:text-slate-300 transition font-mono"
               >
-                juan@universidad.edu / password123
+                juan@universidad.edu / demo123
               </button>
             </div>
           </div>

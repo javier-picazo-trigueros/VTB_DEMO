@@ -304,10 +304,15 @@ export const AdminPanel = () => {
         { action: 'approve' },
         { headers: getAuthHeader() }
       );
-      setTempPasswordInfo({
-        email: email,
-        password: response.data.tempPassword
-      });
+      if (response.data.tempPassword) {
+        setTempPasswordInfo({
+          email: email,
+          password: response.data.tempPassword
+        });
+      } else {
+        setSuccess(`✅ User approved. They can log in with the password they chose during registration.`);
+        setTimeout(() => setSuccess(""), 5000);
+      }
       loadTabData();
     } catch (err) {
       setError(err.response?.data?.error || "Error aprobando solicitud");

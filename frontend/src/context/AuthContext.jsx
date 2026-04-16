@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('vtb-user', JSON.stringify(userData))
   }
 
-  const hasRole = (role) => user && user.role === role
+  const hasRole = (role) => user && (user.role === role || user.role === 'superadmin')
 
   const value = {
     user,
