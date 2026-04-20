@@ -10,6 +10,7 @@ import LoadingSpinner from "../components/LoadingSpinner";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://localhost:8545";
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "";
+const EXPLORER_URL = import.meta.env.VITE_EXPLORER_URL || "http://localhost:8545";
 
 // ---------------------------------------------------------------------------
 // Icons (inline SVG para no depender de librerías extra)
@@ -46,26 +47,26 @@ const ClipboardIcon = () => (
 const truncateHash = (hash, start = 8, end = 6) =>
   hash ? `${hash.slice(0, start)}...${hash.slice(-end)}` : "";
 
-const calculateTimeAgo = (timestamp, lang = "es") => {
+const calculateTimeAgo = (timestamp) => {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (lang === "es") {
-    if (seconds < 60) return `hace ${seconds}s`;
-    if (seconds < 3600) return `hace ${Math.floor(seconds / 60)}m`;
-    return `hace ${Math.floor(seconds / 3600)}h`;
-  }
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.max(seconds, 0)} seconds ago`;
+};
+
+const getEligibilityMessage = (reason) => {
+  if (reason === "not_eligible") return "You are not in the voter census for this election";
+  if (reason === "not_active") return "This election is not currently active";
+  if (reason === "not_found") return "Election not found";
+  return "You are not authorized to vote in this election";
 };
 
 // ---------------------------------------------------------------------------
 // Sub-componente: Spinner de progreso de voto
 // ---------------------------------------------------------------------------
-const VoteProgressModal = ({ status, t }) => {
+const VoteProgressModal = ({ status }) => {
   const steps = [
-    { key: "proof",      label: t("votingBooth.calculateProof"), sub: t("votingBooth.preparingData") },
-    { key: "sending",    label: t("votingBooth.sendingVote"),     sub: t("votingBooth.connectingBlockchain") },
-    { key: "confirming", label: t("votingBooth.confirmingTx"),    sub: t("votingBooth.waitingConfirmation") },
+    { key: "proof", label: "Generating proof", sub: "Computing your anonymous vote hash locally" },
+    { key: "sending", label: "Sending to blockchain", sub: "Submitting your vote to the relayer" },
+    { key: "confirming", label: "Confirming", sub: "Waiting for blockchain confirmation" },
   ];
   const current = steps.find(s => s.key === status);
 
@@ -89,7 +90,6 @@ const VoteProgressModal = ({ status, t }) => {
         <p className="text-center text-sm text-slate-500 dark:text-slate-400">
           {current?.sub}
         </p>
-        {/* Barra de progreso */}
         <div className="mt-6 flex gap-2 justify-center">
           {steps.map((s, i) => {
             const idx = steps.indexOf(current);
@@ -103,6 +103,28 @@ const VoteProgressModal = ({ status, t }) => {
             );
           })}
         </div>
+        <div className="mt-5 space-y-2">
+          {steps.map((s, i) => {
+            const idx = steps.indexOf(current);
+            const active = s.key === status;
+            const done = i < idx;
+            return (
+              <div
+                key={s.key}
+                className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs ${
+                  active
+                    ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                    : done
+                    ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
+                    : "bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+                }`}
+              >
+                <span className="font-semibold">Step {i + 1}</span>
+                <span>{s.label}</span>
+              </div>
+            );
+          })}
+        </div>
       </motion.div>
     </div>
   );
@@ -111,7 +133,7 @@ const VoteProgressModal = ({ status, t }) => {
 // ---------------------------------------------------------------------------
 // Sub-componente: Modal de éxito
 // ---------------------------------------------------------------------------
-const VoteSuccessModal = ({ txData, t, onDashboard, onViewResults, onCopy }) => (
+const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResults, onCopy }) => (
   <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
     <motion.div
       initial={{ scale: 0.9, opacity: 0 }}
@@ -124,14 +146,13 @@ const VoteSuccessModal = ({ txData, t, onDashboard, onViewResults, onCopy }) => 
         </motion.div>
       </div>
       <h2 className="text-center text-xl font-bold text-slate-900 dark:text-white mb-1">
-        {t("votingBooth.voteRegistered")}
+        Vote registered on the blockchain!
       </h2>
       <p className="text-center text-sm text-slate-500 dark:text-slate-400 mb-5">
-        {t("votingBooth.txHashLabel")}
+        Transaction hash
       </p>
 
-      {/* TxHash box */}
-      <div className="bg-slate-900 dark:bg-slate-900 rounded-xl p-3 mb-4 font-mono text-xs text-cyan-400 break-all leading-relaxed">
+      <div className="bg-slate-900 dark:bg-slate-900 rounded-xl p-3 mb-4 font-mono text-xs text-cyan-400 break-all leading-relaxed select-all">
         {txData.txHash}
       </div>
 
@@ -140,21 +161,32 @@ const VoteSuccessModal = ({ txData, t, onDashboard, onViewResults, onCopy }) => 
         className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition font-medium text-sm"
       >
         <ClipboardIcon />
-        {t("votingBooth.copyTxHash")}
+        {copied ? "Copied" : "Copy txHash"}
       </button>
+
+      {txData.txHash && explorerUrl && (
+        <a
+          href={`${explorerUrl.replace(/\/$/, "")}/tx/${txData.txHash}`}
+          target="_blank"
+          rel="noreferrer"
+          className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition font-medium text-sm"
+        >
+          View in Explorer
+        </a>
+      )}
 
       <button
         onClick={onViewResults}
         className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold"
       >
-        {t("votingBooth.viewResults")}
+        View Results
       </button>
 
       <button
         onClick={onDashboard}
         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition font-medium text-sm"
       >
-        {t("votingBooth.backToDashboard")}
+        Back to Dashboard
       </button>
     </motion.div>
   </div>
@@ -177,7 +209,7 @@ const VoteErrorModal = ({ voteError, t, onRetry, onBack }) => (
         {t("votingBooth.voteFailed")}
       </h2>
       <div className="text-center text-sm text-red-600 dark:text-red-400 mb-6 bg-red-50 dark:bg-red-900/20 rounded-xl p-3 border border-red-100 dark:border-red-800">
-        {typeof voteError === "string" ? voteError : voteError?.message || "Error desconocido"}
+        {typeof voteError === "string" ? voteError : voteError?.message || "Unknown error"}
       </div>
       <div className="flex gap-3">
         <button
@@ -201,12 +233,14 @@ const VoteErrorModal = ({ voteError, t, onRetry, onBack }) => (
 // Componente principal
 // ---------------------------------------------------------------------------
 export const VotingBoothContent = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id: electionId } = useParams();
 
   const [candidates, setCandidates] = useState([]);
   const [electionTitle, setElectionTitle] = useState("");
+  const [electionStatus, setElectionStatus] = useState(null);
+  const [blockchainElectionId, setBlockchainElectionId] = useState(null);
   const [votes, setVotes] = useState([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -219,6 +253,9 @@ export const VotingBoothContent = () => {
   const [voteError, setVoteError] = useState(null);
   const [alreadyVoted, setAlreadyVoted] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [participation, setParticipation] = useState(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
   // Cargar datos de la elección y verificar elegibilidad
   useEffect(() => {
@@ -231,6 +268,8 @@ export const VotingBoothContent = () => {
   const loadElectionData = async () => {
     setLoading(true);
     setError("");
+    setEligibilityError("");
+    setAlreadyVoted(false);
     const token = localStorage.getItem("vtb-token");
     if (!token) { navigate("/login"); return; }
 
@@ -245,15 +284,13 @@ export const VotingBoothContent = () => {
           if (reason === "already_voted") {
             setAlreadyVoted(true);
           } else {
-            const msgs = {
-              not_active:  t("errors.electionNotActive"),
-              not_eligible: t("errors.notInCensus"),
-            };
-            setEligibilityError(msgs[reason] || t("errors.unauthorized"));
+            setEligibilityError(getEligibilityMessage(reason));
           }
         }
       } catch (eligErr) {
         console.error("Error checking eligibility:", eligErr);
+        if (eligErr.response?.status === 401) { navigate("/login"); return; }
+        setEligibilityError("Could not verify your voting eligibility");
       }
 
       // 2. Obtener candidatos
@@ -269,6 +306,8 @@ export const VotingBoothContent = () => {
 
       const election = data.election;
       setElectionTitle(election.name || "");
+      setElectionStatus(election.status || (election.isActive ? "active" : "closed"));
+      setBlockchainElectionId(election.blockchainId || election.id || electionId);
       setCandidates(Array.isArray(election.candidates) ? election.candidates : []);
     } catch (err) {
       console.error("Error loading election:", err);
@@ -284,47 +323,110 @@ export const VotingBoothContent = () => {
     if (!CONTRACT_ADDRESS || !RPC_URL) return;
 
     let contract = null;
+    let provider = null;
     let interval = null;
-    let reconnectAttempts = 0;
+    let heartbeat = null;
+    let reconnectTimer = null;
+    let attempts = 0;
+    let disposed = false;
     const MAX_RECONNECT = 3;
+
+    const removeListeners = () => {
+      if (contract) {
+        contract.removeAllListeners();
+        contract = null;
+      }
+    };
+
+    const scheduleReconnect = () => {
+      if (disposed) return;
+      removeListeners();
+      setIsListening(false);
+      if (attempts >= MAX_RECONNECT) {
+        setReconnecting(false);
+        return;
+      }
+      attempts += 1;
+      setReconnectAttempts(attempts);
+      setReconnecting(true);
+      reconnectTimer = setTimeout(setupListener, 3000);
+    };
 
     const setupListener = async () => {
       try {
-        const provider = new ethers.JsonRpcProvider(RPC_URL);
+        if (disposed) return;
+        provider = new ethers.JsonRpcProvider(RPC_URL);
+        await provider.getBlockNumber();
         const contractAbi = ["event VoteCast(uint256 indexed electionId, bytes32 nullifier, bytes32 voteHash)"];
         contract = new ethers.Contract(CONTRACT_ADDRESS, contractAbi, provider);
         setIsListening(true);
-        reconnectAttempts = 0;
+        setReconnecting(false);
 
         contract.on("VoteCast", (eId, nullifier) => {
-          if (eId.toString() !== electionId?.toString()) return;
+          if (eId.toString() !== (blockchainElectionId || electionId)?.toString()) return;
           const now = Date.now();
           setVotes(prev => [
-            { id: now + Math.random(), nullifier, createdAt: now, timeText: calculateTimeAgo(now, i18n.language) },
+            { id: now + Math.random(), nullifier: String(nullifier), createdAt: now, timeText: calculateTimeAgo(now) },
             ...prev,
           ].slice(0, 8));
           setVoteCount(prev => prev + 1);
         });
       } catch {
         setIsListening(false);
-        if (reconnectAttempts < MAX_RECONNECT) {
-          reconnectAttempts++;
-          setTimeout(setupListener, 5000);
-        }
+        scheduleReconnect();
       }
     };
 
     setupListener();
 
+    heartbeat = setInterval(async () => {
+      if (!provider || disposed) return;
+      try {
+        await provider.getBlockNumber();
+      } catch {
+        scheduleReconnect();
+      }
+    }, 10000);
+
     interval = setInterval(() => {
-      setVotes(prev => prev.map(v => ({ ...v, timeText: calculateTimeAgo(v.createdAt, i18n.language) })));
+      setVotes(prev => prev.map(v => ({ ...v, timeText: calculateTimeAgo(v.createdAt) })));
     }, 1000);
 
     return () => {
-      contract?.removeAllListeners("VoteCast");
+      disposed = true;
+      removeListeners();
       clearInterval(interval);
+      clearInterval(heartbeat);
+      clearTimeout(reconnectTimer);
     };
-  }, [electionId, i18n.language]);
+  }, [electionId, blockchainElectionId]);
+
+  useEffect(() => {
+    if (!electionId || voteStatus === "success" || alreadyVoted || electionStatus !== "active") return;
+
+    const fetchParticipation = async () => {
+      try {
+        const token = localStorage.getItem("vtb-token");
+        const res = await fetch(`${API_URL}/api/elections/${electionId}/results`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setParticipation({
+            totalVotes: Number(data.totalVotes) || 0,
+            totalVoters: Number(data.election?.totalVoters) || 0,
+            participationRate: Number(data.participationRate) || 0,
+          });
+        }
+      } catch {
+        // Participation is informational; voting should not fail if polling does.
+      }
+    };
+
+    fetchParticipation();
+    const interval = setInterval(fetchParticipation, 15000);
+    return () => clearInterval(interval);
+  }, [electionId, voteStatus, alreadyVoted, electionStatus]);
 
   // Enviar voto
   const handleVote = async () => {
@@ -333,6 +435,7 @@ export const VotingBoothContent = () => {
     if (!token) { navigate("/login"); return; }
 
     try {
+      setVoteError(null);
       setVoteStatus("proof");
       await new Promise(r => setTimeout(r, 800));
 
@@ -341,13 +444,15 @@ export const VotingBoothContent = () => {
       );
 
       setVoteStatus("sending");
-      const response = await axios.post(
+      const voteRequest = axios.post(
         `${API_URL}/api/elections/register-vote`,
         { electionId: parseInt(electionId), voteHash, candidateId: selectedCandidate },
         { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
       );
 
+      await new Promise(r => setTimeout(r, 250));
       setVoteStatus("confirming");
+      const response = await voteRequest;
       await new Promise(r => setTimeout(r, 600));
 
       setTxData({ txHash: response.data.txHash });
@@ -355,15 +460,26 @@ export const VotingBoothContent = () => {
       setSelectedCandidate(null);
     } catch (err) {
       console.error("Vote error:", err);
+      if (err.response?.status === 409) {
+        setAlreadyVoted(true);
+        setVoteError(null);
+        setVoteStatus(null);
+        return;
+      }
+
       const isBlockchainErr =
         err.response?.status === 500 &&
         (err.response?.data?.error?.toLowerCase().includes("blockchain") ||
          err.response?.data?.error?.toLowerCase().includes("provider"));
 
       if (isBlockchainErr) {
-        setVoteError({ type: "blockchain_unavailable", message: t("votingBooth.blockchainUnavailable"), detail: t("votingBooth.blockchainUnavailableDetail") });
+        setVoteError({
+          type: "blockchain_unavailable",
+          message: "Blockchain node unavailable",
+          detail: "Make sure Hardhat is running: npx hardhat node",
+        });
       } else {
-        setVoteError(err.response?.data?.error || err.message || t("votingBooth.error"));
+        setVoteError(err.response?.data?.error || err.message || "Error registering vote");
       }
       setVoteStatus("error");
       if (err.response?.status === 401) setTimeout(() => navigate("/login"), 2000);
@@ -390,19 +506,20 @@ export const VotingBoothContent = () => {
     );
   }
 
-  const inProgress = voteStatus && voteStatus !== "success" && voteStatus !== "error";
+  const inProgress = ["proof", "sending", "confirming"].includes(voteStatus);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <Navbar />
 
       {/* ---------- Modales ---------- */}
-      {inProgress && <VoteProgressModal status={voteStatus} t={t} />}
+      {inProgress && <VoteProgressModal status={voteStatus} />}
 
       {voteStatus === "success" && txData && (
         <VoteSuccessModal
           txData={txData}
-          t={t}
+          copied={copied}
+          explorerUrl={EXPLORER_URL}
           onDashboard={() => navigate("/dashboard")}
           onViewResults={() => navigate(`/results/${electionId}`)}
           onCopy={() => copyToClipboard(txData.txHash)}
@@ -430,7 +547,7 @@ export const VotingBoothContent = () => {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
-            {t("votingBooth.backToDashboard")}
+            Back to Dashboard
           </button>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{electionTitle || t("votingBooth.title")}</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">{t("votingBooth.anonymousInfo")}</p>
@@ -442,13 +559,32 @@ export const VotingBoothContent = () => {
             className="mb-8 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-2xl p-8 text-center"
           >
             <div className="flex justify-center mb-3"><CheckCircleIcon /></div>
-            <h3 className="text-xl font-bold text-emerald-800 dark:text-emerald-300 mb-1">{t("votingBooth.alreadyVoted")}</h3>
-            <p className="text-emerald-600 dark:text-emerald-400 text-sm mb-5">{t("votingBooth.alreadyVotedDesc")}</p>
+            <h3 className="text-xl font-bold text-emerald-800 dark:text-emerald-300 mb-1">You have already voted in this election</h3>
+            <p className="text-emerald-600 dark:text-emerald-400 text-sm mb-5">Your vote has been recorded on the blockchain.</p>
             <button
               onClick={() => navigate(`/results/${electionId}`)}
               className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition text-sm"
             >
-              {t("votingBooth.viewResults")}
+              View Results
+            </button>
+          </motion.div>
+        )}
+
+        {!alreadyVoted && eligibilityError && (
+          <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
+            className="mb-8 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-2xl p-8 text-center"
+          >
+            <div className="flex justify-center mb-3">
+              <svg className="w-12 h-12 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12v-.008zM10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-amber-800 dark:text-amber-300 mb-1">{eligibilityError}</h3>
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="mt-5 px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-semibold transition text-sm"
+            >
+              Back to Dashboard
             </button>
           </motion.div>
         )}
@@ -463,13 +599,13 @@ export const VotingBoothContent = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
               </svg>
               <div>
-                <p className="font-semibold text-amber-800 dark:text-amber-300">{voteError.message}</p>
-                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1 font-mono">{voteError.detail}</p>
+                <p className="font-semibold text-amber-800 dark:text-amber-300">Blockchain node unavailable</p>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1 font-mono">Make sure Hardhat is running: npx hardhat node</p>
                 <button
                   onClick={() => { setVoteError(null); setVoteStatus(null); handleVote(); }}
                   className="mt-3 px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition"
                 >
-                  {t("votingBooth.retryVote")}
+                  Retry
                 </button>
               </div>
             </div>
@@ -485,52 +621,50 @@ export const VotingBoothContent = () => {
           </motion.div>
         )}
 
-        {!alreadyVoted && (
+        {!alreadyVoted && !eligibilityError && (
           <div className="grid lg:grid-cols-3 gap-6">
-            {/* ---- Panel de votación ---- */}
+            {/* ---- Voting panel ---- */}
             <motion.div
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
               className="lg:col-span-2"
             >
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                {/* Cabecera del panel */}
+                {/* Panel header */}
                 <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700">
                   <h2 className="text-base font-semibold text-slate-900 dark:text-white">
                     {t("votingBooth.selectYourOption")}
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {candidates.length} {candidates.length === 1 ? "candidato" : "candidatos"}
+                    {candidates.length} {candidates.length === 1 ? "candidate" : "candidates"}
                   </p>
                 </div>
 
                 <div className="p-6">
-                  {/* Sin candidatos */}
+                  {/* No candidates */}
                   {candidates.length === 0 && !error && (
                     <div className="py-12 text-center text-slate-400 dark:text-slate-500 text-sm">
                       <svg className="w-10 h-10 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                       </svg>
-                      Sin candidatos disponibles
+                      No candidates available
                     </div>
                   )}
 
-                  {/* Lista de candidatos */}
+                  {/* Candidate list */}
                   <div className="space-y-3">
                     {candidates.map((candidate) => {
                       const selected = selectedCandidate === candidate.id;
                       return (
                         <motion.button
                           key={candidate.id}
-                          whileHover={{ scale: eligibilityError ? 1 : 1.01 }}
-                          whileTap={{ scale: eligibilityError ? 1 : 0.99 }}
-                          onClick={() => !eligibilityError && setSelectedCandidate(candidate.id)}
-                          disabled={!!eligibilityError}
+                          whileHover={{ scale: inProgress ? 1 : 1.01 }}
+                          whileTap={{ scale: inProgress ? 1 : 0.99 }}
+                          onClick={() => setSelectedCandidate(candidate.id)}
+                          disabled={inProgress}
                           className={`w-full p-4 rounded-xl border-2 transition-all text-left group ${
                             selected
                               ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm"
-                              : eligibilityError
-                              ? "border-slate-200 dark:border-slate-700 opacity-60 cursor-not-allowed"
-                              : "border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                            : "border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                           }`}
                         >
                           <div className="flex items-center gap-4">
@@ -565,40 +699,30 @@ export const VotingBoothContent = () => {
                     })}
                   </div>
 
-                  {/* Mensaje de no elegibilidad */}
-                  {eligibilityError && (
-                    <div className="mt-5 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
-                      <p className="text-sm text-amber-700 dark:text-amber-300 font-medium text-center">{eligibilityError}</p>
-                    </div>
-                  )}
-
-                  {/* Botón de emitir voto */}
-                  {!eligibilityError && (
-                    <div className="mt-6">
-                      <motion.button
-                        whileHover={{ scale: selectedCandidate ? 1.01 : 1 }}
-                        whileTap={{ scale: selectedCandidate ? 0.99 : 1 }}
-                        onClick={handleVote}
-                        disabled={!selectedCandidate || voteStatus !== null}
-                        className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
-                          selectedCandidate && !voteStatus
-                            ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md"
-                            : "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
-                        }`}
-                      >
-                        {voteStatus
-                          ? t("votingBooth.processing")
-                          : selectedCandidate
-                          ? t("votingBooth.castVote")
-                          : t("votingBooth.selectOption")}
-                      </motion.button>
-                      {!selectedCandidate && (
-                        <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-2">
-                          {t("votingBooth.selectOption")}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <div className="mt-6">
+                    <motion.button
+                      whileHover={{ scale: selectedCandidate ? 1.01 : 1 }}
+                      whileTap={{ scale: selectedCandidate ? 0.99 : 1 }}
+                      onClick={handleVote}
+                      disabled={!selectedCandidate || inProgress}
+                      className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
+                        selectedCandidate && !inProgress
+                          ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md"
+                          : "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                      }`}
+                    >
+                      {inProgress
+                        ? "Processing..."
+                        : selectedCandidate
+                        ? "Cast Vote"
+                        : "Select a candidate to vote"}
+                    </motion.button>
+                    {!selectedCandidate && (
+                      <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-2">
+                        Select a candidate to vote
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -623,14 +747,21 @@ export const VotingBoothContent = () => {
 
               {/* Feed */}
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex-1">
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
-                  <SignalIcon />
-                  <span className="text-sm font-semibold text-slate-900 dark:text-white">{t("liveFeed.title")}</span>
+                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <SignalIcon />
+                    <span className="text-sm font-semibold text-slate-900 dark:text-white">Live Vote Stream</span>
+                  </div>
+                  {reconnecting && reconnectAttempts <= 3 && (
+                    <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                      ⚡ Reconnecting...
+                    </span>
+                  )}
                 </div>
                 <div className="p-3 max-h-64 overflow-y-auto space-y-2">
                   {votes.length === 0 ? (
                     <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
-                      {isListening ? t("votingBooth.waitingVotes") : t("votingBooth.reconnecting")}
+                      {isListening ? "Waiting for votes..." : "Connecting to live feed..."}
                     </div>
                   ) : (
                     votes.map(vote => (
@@ -638,19 +769,38 @@ export const VotingBoothContent = () => {
                         key={vote.id}
                         initial={{ x: -10, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}
-                        className="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-700/60 rounded-lg"
+                        className="px-3 py-2 bg-slate-50 dark:bg-slate-700/60 rounded-lg"
                       >
-                        <span className="font-mono text-xs text-blue-600 dark:text-blue-400 truncate mr-2">
-                          {truncateHash(vote.nullifier, 6, 4)}
-                        </span>
-                        <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                          {vote.timeText}
+                        <span className="font-mono text-xs text-blue-600 dark:text-blue-400">
+                          {truncateHash(vote.nullifier, 6, 4)} — {vote.timeText}
                         </span>
                       </motion.div>
                     ))
                   )}
                 </div>
               </div>
+
+              {participation && voteStatus !== "success" && (
+                <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 mt-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Current participation
+                    </span>
+                    <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                      {participation.participationRate.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-3">
+                    <div
+                      className="bg-blue-600 h-3 rounded-full transition-all duration-700"
+                      style={{ width: `${Math.min(participation.participationRate, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                    {participation.totalVotes} of {participation.totalVoters} voters have voted ({participation.participationRate.toFixed(1)}%)
+                  </p>
+                </div>
+              )}
 
               {/* Privacy card */}
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-4">
@@ -700,15 +850,15 @@ class ErrorBoundary extends React.Component {
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 max-w-md w-full text-center border border-red-200 dark:border-red-900/50">
             <div className="flex justify-center mb-4"><XCircleIcon /></div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Algo inesperado ocurrió</h2>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Something unexpected happened</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 bg-slate-100 dark:bg-slate-900 p-3 rounded-xl">
-              {this.state.error?.message || "Error desconocido en la cabina de votación"}
+              {this.state.error?.message || "Unknown error in the voting booth"}
             </p>
             <button
               onClick={() => window.location.reload()}
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition"
             >
-              Recargar página
+              Reload page
             </button>
           </div>
         </div>

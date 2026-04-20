@@ -254,6 +254,105 @@ VITE_CONTRACT_ADDRESS=0x...
 CORS_ORIGINS=http://localhost:5173,http://localhost:3001
 ```
 
+## Blockchain Configuration
+
+VTB supports three network modes. Set the appropriate variables in `backend/.env` and `frontend/.env.local`.
+
+### Local Hardhat (default — development)
+
+No extra configuration needed. The default keys in `.env.example` work with the local node.
+
+```bash
+# Start local Hardhat node
+cd blockchain && npx hardhat node
+
+# Deploy contract (new terminal)
+cd blockchain && npx hardhat run scripts/deploy.ts --network localhost
+
+# Copy printed CONTRACT_ADDRESS to backend/.env
+```
+
+**Backend `.env`:**
+```env
+RPC_URL=http://127.0.0.1:8545
+CONTRACT_ADDRESS=<address from deploy output>
+PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+EXPLORER_URL=
+```
+
+**Frontend `.env.local`:**
+```env
+VITE_RPC_URL=http://localhost:8545
+VITE_CONTRACT_ADDRESS=<same address>
+VITE_EXPLORER_URL=
+```
+
+---
+
+### Sepolia Testnet
+
+1. Get an Alchemy or Infura endpoint for Sepolia.
+2. Fund a wallet with test ETH from a Sepolia faucet.
+3. Export the wallet private key.
+
+```bash
+# In blockchain/.env
+SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<YOUR_KEY>
+DEPLOYER_PRIVATE_KEY=0x<your-wallet-private-key>
+
+# Deploy
+cd blockchain && npx hardhat run scripts/deploy.ts --network sepolia
+```
+
+**Backend `.env`:**
+```env
+RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<YOUR_KEY>
+CONTRACT_ADDRESS=<deployed address>
+PRIVATE_KEY=0x<same relayer wallet>
+EXPLORER_URL=https://sepolia.etherscan.io
+```
+
+**Frontend `.env.local`:**
+```env
+VITE_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<YOUR_KEY>
+VITE_CONTRACT_ADDRESS=<deployed address>
+VITE_EXPLORER_URL=https://sepolia.etherscan.io
+```
+
+---
+
+### Custom / Institutional Node
+
+For a private Geth or Besu node:
+
+```bash
+# In blockchain/.env
+CUSTOM_RPC_URL=http://<node-ip>:8545
+CUSTOM_CHAIN_ID=<your chain id>
+DEPLOYER_PRIVATE_KEY=0x<deployer key>
+
+# Deploy
+cd blockchain && npx hardhat run scripts/deploy.ts --network custom
+```
+
+**Backend `.env`:**
+```env
+RPC_URL=http://<node-ip>:8545
+CONTRACT_ADDRESS=<deployed address>
+PRIVATE_KEY=0x<relayer key>
+EXPLORER_URL=http://<your-blockscout-or-other>
+```
+
+---
+
+### Switching networks at runtime
+
+Only the environment variables need to change — no code edits required. The backend reads `RPC_URL`, `CONTRACT_ADDRESS`, and `PRIVATE_KEY` at startup; the frontend reads `VITE_*` variables at build time.
+
+The Admin Dashboard shows a live **Blockchain Status** card that confirms whether the node is reachable, the current block number, chain ID, and how many elections are registered on-chain.
+
+---
+
 ## Troubleshooting
 
 ### Error: `Cannot connect to Hardhat node`

@@ -164,11 +164,27 @@ export class Database {
     await this.exec("ALTER TABLE registration_requests ADD COLUMN approved_password TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN password_hash TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE nullifier_audit ADD COLUMN vote_choice TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE nullifier_audit ADD COLUMN tx_hash TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE nullifier_audit ADD COLUMN block_number INTEGER DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE nullifier_audit ADD COLUMN candidate_id INTEGER DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE users ADD COLUMN org_unit_domain TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN image_url TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN banner_color TEXT DEFAULT '#1E3A5F'").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN target_type TEXT DEFAULT 'domain'").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN target_description TEXT DEFAULT NULL").catch(() => {});
+
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS email_whitelist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        full_name TEXT,
+        student_id TEXT,
+        admin_domain TEXT NOT NULL,
+        imported_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        used INTEGER DEFAULT 0,
+        UNIQUE(email, admin_domain)
+      )
+    `).catch(() => {});
 
     // Los superadmin y admin creados directamente en BD ya están aprobados
     await this.exec(

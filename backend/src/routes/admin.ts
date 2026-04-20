@@ -124,56 +124,84 @@ router.get("/dashboard", authAdminMiddleware, async (req: Request, res: Response
   try {
     const adminDomain = getAdminDomain(req);
     const isSuper = isSuperAdmin(req);
+    const domainFilter = isSuper ? null : adminDomain;
 
-    let totalUsers, adminCount, studentCount, totalElections, nullifierAudit, pendingApproval;
+    const dw = domainFilter
+      ? "AND (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ?)"
+      : "";
+    const dp = domainFilter ? [domainFilter, domainFilter] : [];
 
-    if (isSuper) {
-      totalUsers = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users");
-      adminCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role IN ('admin','superadmin')");
-      studentCount = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role IN ('student','voter')");
-      totalElections = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM elections");
-      nullifierAudit = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM nullifier_audit");
-      pendingApproval = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE is_approved = 0");
-    } else {
-      totalUsers = await db.get<{ count: number }>(
-        "SELECT COUNT(*) as count FROM users WHERE (email LIKE '%@' || ? OR email LIKE '%@%.' || ?) AND role NOT IN ('superadmin')",
-        [adminDomain, adminDomain]
-      );
-      adminCount = await db.get<{ count: number }>(
-        "SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND (admin_domain = ? OR admin_domain LIKE '%.' || ?)",
-        [adminDomain, adminDomain]
-      );
-      studentCount = await db.get<{ count: number }>(
-        "SELECT COUNT(*) as count FROM users WHERE role IN ('student','voter') AND (email LIKE '%@' || ? OR email LIKE '%@%.' || ?)",
-        [adminDomain, adminDomain]
-      );
-      totalElections = await db.get<{ count: number }>(
-        "SELECT COUNT(DISTINCT e.id) as count FROM elections e JOIN election_access ea ON e.id = ea.election_id WHERE (ea.email_domain = ? OR ea.email_domain LIKE '%.' || ?)",
-        [adminDomain, adminDomain]
-      );
-      nullifierAudit = await db.get<{ count: number }>(
-        "SELECT COUNT(na.id) as count FROM nullifier_audit na JOIN users u ON na.user_id = u.id WHERE (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ?)",
-        [adminDomain, adminDomain]
-      );
-      pendingApproval = await db.get<{ count: number }>(
-        "SELECT COUNT(*) as count FROM users WHERE is_approved = 0 AND (email LIKE '%@' || ? OR email LIKE '%@%.' || ?)",
-        [adminDomain, adminDomain]
-      );
-    }
+    const totalUsers = await db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM users u WHERE 1=1 ${dw}`, dp
+    );
+    const pendingRequests = await db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM registration_requests rr WHERE status = 'pending'
+       ${domainFilter ? "AND rr.email LIKE '%@' || ?" : ""}`,
+      domainFilter ? [domainFilter] : []
+    );
+    const totalElections = await db.get<{ count: number }>(
+      isSuper
+        ? "SELECT COUNT(*) as count FROM elections"
+        : `SELECT COUNT(DISTINCT e.id) as count FROM elections e
+           JOIN election_access ea ON e.id = ea.election_id
+           WHERE (ea.email_domain = ? OR ea.email_domain LIKE '%.' || ?)`,
+      isSuper ? [] : [adminDomain!, adminDomain!]
+    );
+    const activeElections = await db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM elections WHERE is_active = 1
+       AND start_time <= strftime('%s','now') AND end_time >= strftime('%s','now')`
+    );
+    const totalVotes = await db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM nullifier_audit na
+       JOIN users u ON na.user_id = u.id WHERE 1=1
+       ${domainFilter ? "AND (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ?)" : ""}`,
+      domainFilter ? [domainFilter, domainFilter] : []
+    );
+
+    const recentVotes = await db.run<any>(
+      `SELECT na.generated_at, u.email, e.name as election_name
+       FROM nullifier_audit na
+       JOIN users u ON na.user_id = u.id
+       JOIN elections e ON na.election_id = e.id
+       ${domainFilter ? "WHERE (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ?)" : ""}
+       ORDER BY na.generated_at DESC LIMIT 5`,
+      domainFilter ? [domainFilter, domainFilter] : []
+    );
+
+    const electionParticipation = await db.run<any>(
+      `SELECT e.id, e.name,
+         COUNT(DISTINCT ev.user_id) as total_voters,
+         COUNT(DISTINCT na.user_id) as votes_cast,
+         ROUND(COUNT(DISTINCT na.user_id) * 100.0 / NULLIF(COUNT(DISTINCT ev.user_id),0), 1) as rate
+       FROM elections e
+       LEFT JOIN election_voters ev ON e.id = ev.election_id
+       LEFT JOIN nullifier_audit na ON e.id = na.election_id
+       WHERE e.is_active = 1
+       GROUP BY e.id ORDER BY e.created_at DESC LIMIT 5`
+    );
+
+    const requestsTrend = await db.run<any>(
+      `SELECT date(created_at) as day, COUNT(*) as count
+       FROM registration_requests
+       WHERE created_at >= date('now', '-7 days')
+       GROUP BY date(created_at) ORDER BY day ASC`
+    );
 
     res.json({
       stats: {
         totalUsers: totalUsers?.count || 0,
-        adminCount: adminCount?.count || 0,
-        studentCount: studentCount?.count || 0,
+        pendingRequests: pendingRequests?.count || 0,
         totalElections: totalElections?.count || 0,
-        totalNullifiers: nullifierAudit?.count || 0,
-        pendingApproval: pendingApproval?.count || 0,
+        activeElections: activeElections?.count || 0,
+        totalVotes: totalVotes?.count || 0,
       },
+      recentVotes: recentVotes || [],
+      electionParticipation: electionParticipation || [],
+      requestsTrend: requestsTrend || [],
     });
   } catch (error) {
-    console.error("Error en dashboard:", error);
-    res.status(500).json({ error: "Error al obtener estadísticas" });
+    console.error("Error in dashboard:", error);
+    res.status(500).json({ error: "Error loading dashboard stats" });
   }
 });
 
@@ -309,6 +337,13 @@ router.post("/users/import", authAdminMiddleware, upload.single('file'), async (
           continue;
         }
       }
+
+      // Store in whitelist so future registration requests auto-approve
+      const wlDomain = getAdminDomain(req) || '*';
+      await db.exec(
+        `INSERT OR IGNORE INTO email_whitelist (email, full_name, student_id, admin_domain) VALUES (?, ?, ?, ?)`,
+        [email.toLowerCase(), full_name || '', student_id || '', wlDomain]
+      ).catch(() => {});
 
       const existing = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]);
       if (existing) {
@@ -521,10 +556,37 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
       await autoAssignUsersByDomain(result.lastID, adminDomain);
     }
 
+    // Best-effort on-chain election registration
+    let onChainTx: string | null = null;
+    const contractAddress = process.env.CONTRACT_ADDRESS || "";
+    const privateKey = process.env.PRIVATE_KEY || "";
+    const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
+    if (contractAddress && privateKey) {
+      try {
+        const now = Math.floor(Date.now() / 1000);
+        // Only attempt if start_time is in the future (on-chain contract requires it)
+        if (Number(start_time) > now) {
+          const provider = new ethers.JsonRpcProvider(rpcUrl);
+          const wallet = new ethers.Wallet(privateKey, provider);
+          const abi = [
+            "function createElection(string memory _name, uint256 _startTime, uint256 _endTime) external",
+          ];
+          const contract = new ethers.Contract(contractAddress, abi, wallet);
+          const tx = await contract.createElection(name, start_time, end_time);
+          const receipt = await tx.wait();
+          onChainTx = tx.hash;
+          console.log(`Election "${name}" registered on-chain: ${tx.hash} (block ${receipt?.blockNumber})`);
+        }
+      } catch (bcErr: any) {
+        console.warn(`Could not register election on-chain (best-effort): ${bcErr.message}`);
+      }
+    }
+
     res.json({
       success: true,
       electionId: result.lastID,
       blockchainId: election_id_blockchain,
+      onChainTx,
       message: `Elección "${name}" creada exitosamente`,
     });
   } catch (error) {
@@ -1181,6 +1243,54 @@ router.get("/domains", authAdminMiddleware, async (req: Request, res: Response) 
   } catch (error) {
     console.error("Error obteniendo dominios:", error);
     res.status(500).json({ error: "Error al obtener dominios" });
+  }
+});
+
+/**
+ * @route GET /admin/blockchain-status
+ * @desc Returns the live status of the connected blockchain node and contract.
+ */
+router.get("/blockchain-status", authAdminMiddleware, async (req: Request, res: Response) => {
+  const contractAddress = process.env.CONTRACT_ADDRESS || "";
+  const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
+  const explorerUrl = process.env.EXPLORER_URL || "";
+
+  if (!contractAddress) {
+    res.json({
+      connected: false,
+      reason: "CONTRACT_ADDRESS not configured",
+      contractAddress: null,
+      rpcUrl,
+      explorerUrl,
+    });
+    return;
+  }
+
+  try {
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const network = await provider.getNetwork();
+    const blockNumber = await provider.getBlockNumber();
+    const abi = ["function getElectionCount() public view returns (uint256)"];
+    const contract = new ethers.Contract(contractAddress, abi, provider);
+    const electionCount = await contract.getElectionCount();
+
+    res.json({
+      connected: true,
+      contractAddress,
+      rpcUrl,
+      explorerUrl,
+      chainId: network.chainId.toString(),
+      blockNumber,
+      electionCount: electionCount.toString(),
+    });
+  } catch (err: any) {
+    res.json({
+      connected: false,
+      reason: err.message || "Could not connect to blockchain node",
+      contractAddress,
+      rpcUrl,
+      explorerUrl,
+    });
   }
 });
 

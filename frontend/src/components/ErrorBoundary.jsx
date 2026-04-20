@@ -20,16 +20,16 @@ export const ErrorBoundary = ({ children }) => {
           <div className="text-center">
             <div className="text-5xl mb-4">⚠️</div>
             <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">
-              Algo salió mal
+              Something went wrong
             </h1>
             <p className="text-slate-600 dark:text-slate-400 mb-6">
-              Se produjo un error inesperado. Intenta recargar la página o vuelve al inicio.
+              An unexpected error occurred. Try reloading the page or return home.
             </p>
 
             {process.env.NODE_ENV === 'development' && error && (
               <details className="mt-6 mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-left">
                 <summary className="cursor-pointer font-semibold text-red-600 dark:text-red-400 mb-2">
-                  Detalles del error (solo en desarrollo)
+                  Error details (development only)
                 </summary>
                 <pre className="text-xs text-red-700 dark:text-red-300 overflow-auto max-h-48 p-2 bg-white dark:bg-slate-700 rounded">
                   {error.toString()}
@@ -42,7 +42,7 @@ export const ErrorBoundary = ({ children }) => {
                 onClick={() => window.location.reload()}
                 className="w-full py-2 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition"
               >
-                🔄 Recargar página
+                🔄 Reload page
               </button>
               <button
                 onClick={() => {
@@ -52,7 +52,7 @@ export const ErrorBoundary = ({ children }) => {
                 }}
                 className="w-full py-2 px-4 rounded-lg bg-slate-600 hover:bg-slate-700 text-white font-semibold transition"
               >
-                🏠 Volver al inicio
+                🏠 Return home
               </button>
             </div>
           </div>

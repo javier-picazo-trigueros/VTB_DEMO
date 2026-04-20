@@ -8,12 +8,13 @@ import { Navbar } from '../components/Navbar';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const EXPLORER_URL = import.meta.env.VITE_EXPLORER_URL || '';
 
-const BAR_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#14b8a6'];
+const BAR_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
-const formatDateES = (value) => {
+const formatDate = (value) => {
   if (!value) return '—';
-  return new Date(value).toLocaleString('es-ES', {
+  return new Date(value).toLocaleString('en-US', {
     timeZone: 'Europe/Madrid',
     day: '2-digit',
     month: '2-digit',
@@ -22,6 +23,11 @@ const formatDateES = (value) => {
     minute: '2-digit',
     second: '2-digit',
   });
+};
+
+const truncateHash = (h) => {
+  if (!h || h.length < 16) return h || '—';
+  return `${h.slice(0, 10)}...${h.slice(-6)}`;
 };
 
 const ElectionResults = () => {
@@ -60,13 +66,32 @@ const ElectionResults = () => {
     tooltipText: isDark ? '#f8fafc' : '#0f172a',
   };
 
+  const CustomTooltip = ({ active, payload }) => {
+    if (!active || !payload || !payload.length) return null;
+    const item = payload[0]?.payload || {};
+    return (
+      <div
+        className="rounded-xl border px-3 py-2 text-sm shadow-lg"
+        style={{
+          backgroundColor: chartColors.tooltipBg,
+          borderColor: chartColors.tooltipBorder,
+          color: chartColors.tooltipText,
+        }}
+      >
+        <p className="font-semibold">{item.name || '—'}</p>
+        <p>{Number(item.votes) || 0} votes</p>
+        <p>{Number(item.percentage || 0).toFixed(1)}%</p>
+      </div>
+    );
+  };
+
   useEffect(() => {
     fetchResults();
   }, [id]);
 
-  const fetchResults = async () => {
+  const fetchResults = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await axios.get(
         `${API_URL}/api/elections/${id}/results`,
         {
@@ -81,7 +106,7 @@ const ElectionResults = () => {
       console.error('Error loading results:', err);
       setError(err.response?.data?.error || t('results.loadError'));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -106,9 +131,9 @@ const ElectionResults = () => {
   const exportCSV = () => {
     if (!auditData || auditData.length === 0) return;
 
-    const headers = ['Nullifier', 'TxHash', 'Timestamp'];
-    const rows = auditData.map((row) => [row.nullifier, row.txHash, row.timestamp]);
-    const csv = [headers, ...rows].map((r) => r.join(',')).join('\n');
+    const headers = 'Nullifier,TxHash,BlockNumber,OnChain,Timestamp';
+    const rows = auditData.map((r) => `${r.nullifier || ''},${r.txHash || ''},${r.blockNumber || ''},${r.onChain ? 'true' : 'false'},${r.timestamp || ''}`);
+    const csv = [headers, ...rows].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -123,14 +148,14 @@ const ElectionResults = () => {
   // Auto-refresh for active elections + last-updated counter
   useEffect(() => {
     if (!results?.election || results.election.status !== 'active') return;
-    const counter = setInterval(() => setLastUpdatedSec(s => s + 1), 1000);
-    const refresher = setInterval(async () => {
+    const counterInterval = setInterval(() => setLastUpdatedSec(s => s + 1), 1000);
+    const refreshInterval = setInterval(async () => {
       setRefreshing(true);
-      await fetchResults();
+      await fetchResults({ silent: true });
       setRefreshing(false);
     }, 30000);
-    return () => { clearInterval(counter); clearInterval(refresher); };
-  }, [results?.election?.status]);
+    return () => { clearInterval(refreshInterval); clearInterval(counterInterval); };
+  }, [results?.election?.status, id]);
 
   // ── Loading ──
   if (loading) {
@@ -177,8 +202,22 @@ const ElectionResults = () => {
 
   if (!results) return null;
 
-  const { election, candidates = [], totalVotes = 0, participationRate: rawRate = 0 } = results;
-  const participationRate = isNaN(rawRate) ? 0 : rawRate;
+  const { election } = results;
+  const rawCandidates = Array.isArray(results.candidates) ? results.candidates : [];
+  const totalVotes = Number(results.totalVotes) || 0;
+  const totalVoters = Number(election?.totalVoters) || 0;
+  const rawRate = Number(results.participationRate);
+  const safeRate = isNaN(rawRate) ? 0 : rawRate;
+  const candidates = rawCandidates.map((candidate, idx) => {
+    const votes = Number(candidate?.votes) || 0;
+    return {
+      id: candidate?.id ?? idx,
+      name: candidate?.name || '—',
+      votes,
+      percentage: totalVotes > 0 ? (votes / totalVotes) * 100 : 0,
+    };
+  });
+  const maxVotes = Math.max(...candidates.map(c => c.votes), 0);
   const isActive = election?.status === 'active';
 
   const statusInfo = {
@@ -200,10 +239,7 @@ const ElectionResults = () => {
               onClick={() => navigate('/dashboard')}
               className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition mb-3"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-              {t('results.backToDashboard')}
+              ← Back to Dashboard
             </button>
 
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -216,7 +252,7 @@ const ElectionResults = () => {
                   <p className="text-xs text-slate-400 mt-1">{t('results.refreshing')}</p>
                 )}
                 {isActive && !refreshing && lastUpdatedSec > 0 && (
-                  <p className="text-xs text-slate-400 mt-1">Last updated {lastUpdatedSec}s ago</p>
+                  <p className="text-xs text-slate-400 mt-1">Last updated {lastUpdatedSec} seconds ago</p>
                 )}
               </div>
               <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full ${si.badge}`}>
@@ -240,31 +276,31 @@ const ElectionResults = () => {
             className="grid sm:grid-cols-3 gap-4 mb-6"
           >
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('results.totalVotes')}</p>
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{totalVotes}</p>
-            </div>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('results.candidates')}</p>
-              <p className="text-3xl font-bold text-slate-900 dark:text-white">{candidates.length}</p>
-            </div>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{t('results.participation')}</p>
-              <p className="text-3xl font-bold text-slate-900 dark:text-white">{(isNaN(participationRate) ? 0 : participationRate).toFixed(1)}%</p>
-              {election?.totalVoters > 0 && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Participation</p>
+              <p className="text-3xl font-bold text-slate-900 dark:text-white">{safeRate.toFixed(1)}%</p>
+              {totalVoters > 0 && (
                 <>
                   <div className="mt-2 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(participationRate, 100)}%` }}
+                      animate={{ width: `${Math.min(safeRate, 100)}%` }}
                       transition={{ duration: 0.6, ease: 'easeOut' }}
                       className="h-full bg-blue-500 rounded-full"
                     />
                   </div>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                    {totalVotes} / {election.totalVoters} voters
+                    {totalVotes} / {totalVoters} voters
                   </p>
                 </>
               )}
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Votes cast</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{totalVotes}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Total census</p>
+              <p className="text-3xl font-bold text-slate-900 dark:text-white">{totalVoters}</p>
             </div>
           </motion.div>
 
@@ -339,14 +375,7 @@ const ElectionResults = () => {
                             allowDecimals={false}
                           />
                           <Tooltip
-                            contentStyle={{
-                              backgroundColor: chartColors.tooltipBg,
-                              border: `1px solid ${chartColors.tooltipBorder}`,
-                              borderRadius: '0.75rem',
-                              color: chartColors.tooltipText,
-                              fontSize: 13,
-                            }}
-                            formatter={(value) => [value, t('results.votes')]}
+                            content={<CustomTooltip />}
                           />
                           <Bar dataKey="votes" radius={[6, 6, 0, 0]} isAnimationActive>
                             {candidates.map((_, idx) => (
@@ -394,9 +423,9 @@ const ElectionResults = () => {
                                   <span className="font-medium text-slate-900 dark:text-white">
                                     {candidate.name}
                                   </span>
-                                  {idx === 0 && totalVotes > 0 && (
+                                  {totalVotes > 0 && candidate.votes === maxVotes && (
                                     <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
-                                      {t('results.leading')}
+                                      👑 Winner
                                     </span>
                                   )}
                                 </div>
@@ -405,13 +434,13 @@ const ElectionResults = () => {
                                 {candidate.votes}
                               </td>
                               <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">
-                                {(isNaN(candidate.percentage) ? 0 : candidate.percentage).toFixed(1)}%
+                                {candidate.percentage.toFixed(1)}%
                               </td>
                               <td className="px-4 py-3 hidden sm:table-cell">
                                 <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                                   <motion.div
                                     initial={{ width: 0 }}
-                                    animate={{ width: `${candidate.percentage}%` }}
+                                    animate={{ width: `${Math.min(candidate.percentage, 100)}%` }}
                                     transition={{ delay: idx * 0.05 + 0.2, duration: 0.5, ease: 'easeOut' }}
                                     className="h-full rounded-full"
                                     style={{ backgroundColor: BAR_COLORS[idx % BAR_COLORS.length] }}
@@ -431,6 +460,17 @@ const ElectionResults = () => {
                         {isActive && ' ' + t('results.stillOpen')}
                       </p>
                     </div>
+
+                    {totalVotes > 0 && (
+                      <div className="mt-3 flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+                        <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>
+                        <p className="text-sm text-emerald-800 dark:text-emerald-200">
+                          <strong>On-chain verified</strong> — {totalVotes} vote{totalVotes !== 1 ? 's' : ''} recorded on the blockchain. Each vote is cryptographically anchored and publicly auditable.
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
               </motion.div>
@@ -466,7 +506,7 @@ const ElectionResults = () => {
                   </div>
                 ) : auditData.length === 0 ? (
                   <div className="text-center py-16">
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">{t('results.noVotes')}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">No audit records found</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
@@ -485,19 +525,47 @@ const ElectionResults = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                        {auditData.slice(0, 50).map((record, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
-                            <td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">
-                              {record.nullifier?.slice(0, 12)}...{record.nullifier?.slice(-8)}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
-                              {record.txHash?.slice(0, 12)}...{record.txHash?.slice(-8)}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                              {formatDateES(record.timestamp)}
-                            </td>
-                          </tr>
-                        ))}
+                        {auditData.slice(0, 50).map((record, idx) => {
+                          const explorerLink = record.explorerLink ||
+                            (EXPLORER_URL && record.txHash && record.onChain
+                              ? `${EXPLORER_URL.replace(/\/$/, '')}/tx/${record.txHash}`
+                              : null);
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
+                              <td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">
+                                {truncateHash(record.nullifier)}
+                              </td>
+                              <td className="px-4 py-3 font-mono text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  {record.onChain && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 text-xs font-medium" title="Confirmed on-chain">✓</span>
+                                  )}
+                                  {explorerLink ? (
+                                    <a
+                                      href={explorerLink}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                                      title={record.txHash}
+                                    >
+                                      {truncateHash(record.txHash)}
+                                    </a>
+                                  ) : (
+                                    <span className="text-slate-600 dark:text-slate-400" title={record.txHash}>
+                                      {truncateHash(record.txHash)}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                {record.blockNumber && (
+                                  <span className="text-slate-400 dark:text-slate-500 mr-2">#{record.blockNumber}</span>
+                                )}
+                                {formatDate(record.timestamp)}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                     {auditData.length > 50 && (

@@ -2,17 +2,15 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-ethers";
 
-/**
- * @title Configuración de Hardhat - VTB Demo
- * @author Senior Web3 Architect
- * @dev Configuración para compilar, testear y desplegar Smart Contract
- *
- * Red Local:
- * - Puerto: 8545
- * - URL RPC: http://localhost:8545
- * - Chainsaw ID: 31337 (testnet local default)
- * - Cuentas prefinanciadas: 20 cuentas con 10,000 ETH cada una
- */
+// Load .env if dotenv is available (optional dev dependency)
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require("dotenv").config();
+} catch { /* dotenv not installed — env vars must be set externally */ }
+
+const DEPLOYER_PRIVATE_KEY =
+  process.env.DEPLOYER_PRIVATE_KEY ||
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // Hardhat default account #0
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -26,21 +24,35 @@ const config: HardhatUserConfig = {
   },
 
   networks: {
-    /**
-     * Red local de Hardhat
-     * Se ejecuta cuando haces: npx hardhat node
-     */
+    // Local Hardhat node — run with: npx hardhat node
     localhost: {
       url: "http://127.0.0.1:8545",
       chainId: 31337,
     },
 
-    /**
-     * Red de prueba ephemeral (para tests)
-     * Se usa automáticamente en tests
-     */
+    // In-process ephemeral network used by tests
     hardhat: {
       chainId: 31337,
+    },
+
+    // Sepolia testnet — set SEPOLIA_RPC_URL and DEPLOYER_PRIVATE_KEY in .env
+    sepolia: {
+      url: process.env.SEPOLIA_RPC_URL || "",
+      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
+      chainId: 11155111,
+    },
+
+    // Custom institutional / private node — set CUSTOM_RPC_URL in .env
+    custom: {
+      url: process.env.CUSTOM_RPC_URL || "http://127.0.0.1:8545",
+      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
+      chainId: Number(process.env.CUSTOM_CHAIN_ID || 31337),
+    },
+  },
+
+  etherscan: {
+    apiKey: {
+      sepolia: process.env.ETHERSCAN_API_KEY || "",
     },
   },
 

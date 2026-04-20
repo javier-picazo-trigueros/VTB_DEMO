@@ -1,115 +1,104 @@
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
- * @title Script de Deployment - VTB Election Registry
- * @author Senior Web3 Architect
- * @dev Script que despliega ElectionRegistry en red Hardhat local
+ * Network-agnostic deploy script for ElectionRegistry.
  *
- * EJECUCIÓN:
- * $ npx hardhat run scripts/deploy.ts --network localhost
+ * Usage:
+ *   npx hardhat run scripts/deploy.ts --network localhost
+ *   npx hardhat run scripts/deploy.ts --network sepolia
+ *   npx hardhat run scripts/deploy.ts --network custom
  *
- * ARQUITECTURA:
- * 1. Conecta a nodo local de Hardhat
- * 2. Despliega contrato ElectionRegistry
- * 3. Crea elección de prueba con horario válido
- * 4. Retorna direcciones para frontend/backend
+ * Saves deployment info to deployment-info.json for easy backend/frontend wiring.
  */
-
 async function main() {
-  console.log("🚀 Iniciando deployment del VTB Election Registry...");
+  console.log(`Deploying ElectionRegistry to network: ${network.name}`);
 
-  // Obtener signer (cuenta deployer)
   const [deployer] = await ethers.getSigners();
-  console.log(`📋 Desplegando desde cuenta: ${deployer.address}`);
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log(`Deployer: ${deployer.address} (balance: ${ethers.formatEther(balance)} ETH)`);
 
-  // Compilar si es necesario
   const ElectionRegistry = await ethers.getContractFactory("ElectionRegistry");
-  
-  console.log("⏳ Desplegando contrato...");
+  console.log("Deploying contract...");
   const electionRegistry = await ElectionRegistry.deploy();
-  
-  // Esperar a que se confirme la transacción
   await electionRegistry.waitForDeployment();
-  
-  const deployedAddress = await electionRegistry.getAddress();
-  console.log(`✅ ElectionRegistry desplegado en: ${deployedAddress}`);
 
-  // Crear 6 elecciones de prueba para sincronizar con la DB (1 a 6)
-  console.log("\n📝 Creando elecciones base...");
-  
+  const deployedAddress = await electionRegistry.getAddress();
+  console.log(`ElectionRegistry deployed at: ${deployedAddress}`);
+
+  const chainId = (await ethers.provider.getNetwork()).chainId;
+  const isLocalNode = network.name === "localhost" || network.name === "hardhat" || chainId === 31337n;
+
+  // Create 6 test elections aligned with DB seed (IDs 1-6)
+  console.log("\nCreating 6 base elections...");
   const now = Math.floor(Date.now() / 1000);
-  const startTime = now + 10; // Inicio técnico en 10s para pasar la validación
-  const endTime = now + (3 * 30 * 24 * 3600); // 3 meses en el futuro
+  const startTime = now + 10;
+  const endTime = now + 3 * 30 * 24 * 3600; // ~3 months
 
   for (let i = 1; i <= 6; i++) {
-    const createElectionTx = await electionRegistry.createElection(
-      "Elección " + i,
-      startTime,
-      endTime
-    );
-    await createElectionTx.wait();
+    const tx = await electionRegistry.createElection(`Election ${i}`, startTime, endTime);
+    await tx.wait();
   }
-  
-  // Avanzar el tiempo 15s instantáneamente en el blockchain para que las elecciones queden activas *ahora*
-  await ethers.provider.send("evm_increaseTime", [15]);
-  await ethers.provider.send("evm_mine", []);
 
-  console.log("✅ 6 elecciones creadas y activadas exitosamente");
+  if (isLocalNode) {
+    // Advance time so elections are immediately active on local node
+    await ethers.provider.send("evm_increaseTime", [15]);
+    await ethers.provider.send("evm_mine", []);
+  }
 
-  // Obtener información de la elección
+  console.log("6 elections created and activated");
+
   const electionInfo = await electionRegistry.getElection(1);
-  console.log("\n📊 Información de la Elección 1:");
-  console.log(`  - Nombre: ${electionInfo.name}`);
-  console.log(`  - Activa: ${electionInfo.active}`);
-  console.log(`  - Total de votos: ${electionInfo.totalVotes}`);
+  console.log(`\nElection 1 — name: ${electionInfo.name}, active: ${electionInfo.active}, votes: ${electionInfo.totalVotes}`);
 
-  // Guardar información de deployment
+  // Explorer URL by network
+  const explorerUrls: Record<string, string> = {
+    sepolia: "https://sepolia.etherscan.io",
+    mainnet: "https://etherscan.io",
+    localhost: "",
+    hardhat: "",
+  };
+  const explorerUrl = process.env.EXPLORER_URL || explorerUrls[network.name] || "";
+
   const deploymentInfo = {
-    network: "localhost",
+    network: network.name,
+    chainId: chainId.toString(),
     contractName: "ElectionRegistry",
     contractAddress: deployedAddress,
     deployerAddress: deployer.address,
     deploymentTime: new Date().toISOString(),
-    electionId: 1,
-    electionName: "Elección Universitaria 2026",
-    startTime: startTime,
-    endTime: endTime,
-    chainId: (await ethers.provider.getNetwork()).chainId,
-    
-    // Información para Frontend
+    startTime,
+    endTime,
+    explorerUrl,
     frontendConfig: {
-      contractAddress: deployedAddress,
-      contractABI: "Ver: artifacts/contracts/VTB.sol/ElectionRegistry.json",
-      electionId: 1,
-      rpcUrl: "http://localhost:8545"
+      VITE_CONTRACT_ADDRESS: deployedAddress,
+      VITE_RPC_URL: (network.config as any).url || "http://localhost:8545",
+      VITE_EXPLORER_URL: explorerUrl,
     },
-
-    // Información para Backend
     backendConfig: {
-      contractAddress: deployedAddress,
-      rpcUrl: "http://localhost:8545",
-      explorerUrl: "http://localhost:8545" // Hardhat no tiene explorer
-    }
+      CONTRACT_ADDRESS: deployedAddress,
+      RPC_URL: (network.config as any).url || "http://localhost:8545",
+      EXPLORER_URL: explorerUrl,
+    },
   };
 
-  console.log("\n" + "=".repeat(60));
-  console.log("🎉 DEPLOYMENT EXITOSO");
-  console.log("=".repeat(60));
-  console.log("\n📍 INFORMACIÓN PARA CONFIGURACIÓN:");
-  console.log(JSON.stringify(deploymentInfo, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2));
-
-  // Guardar a archivo para referencia
-  const fs = require("fs");
+  const outPath = path.join(__dirname, "..", "deployment-info.json");
   fs.writeFileSync(
-    "deployment-info.json",
-    JSON.stringify(deploymentInfo, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2)
+    outPath,
+    JSON.stringify(deploymentInfo, (_k, v) => (typeof v === "bigint" ? v.toString() : v), 2)
   );
-  console.log("\n✅ Información guardada en: deployment-info.json");
+
+  console.log("\n" + "=".repeat(60));
+  console.log("DEPLOYMENT SUCCESSFUL");
+  console.log("=".repeat(60));
+  console.log(JSON.stringify(deploymentInfo, (_k, v) => (typeof v === "bigint" ? v.toString() : v), 2));
+  console.log(`\nDeployment info saved to: ${outPath}`);
 }
 
 main()
   .then(() => process.exit(0))
-  .catch((error) => {
-    console.error("❌ Error en deployment:", error);
+  .catch((err) => {
+    console.error("Deployment failed:", err);
     process.exit(1);
   });

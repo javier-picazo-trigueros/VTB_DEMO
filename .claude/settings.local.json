@@ -6,7 +6,8 @@
       "Bash(xargs ls *)",
       "Bash(node -e ' *)",
       "Bash(python3 -c ' *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(npx hardhat *)"
     ]
   }
 }

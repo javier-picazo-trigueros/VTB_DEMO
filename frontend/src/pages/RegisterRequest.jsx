@@ -29,6 +29,7 @@ export const RegisterRequest = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [autoApproved, setAutoApproved] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
   const handleChange = (e) => {
@@ -85,14 +86,18 @@ export const RegisterRequest = () => {
     setError('')
 
     try {
-      await axios.post(`${API_URL}/registration/request`, {
+      const response = await axios.post(`${API_URL}/registration/request`, {
         fullName: formData.fullName,
         email: formData.email,
         studentId: formData.studentId,
         password: formData.password,
       })
 
-      setSubmitted(true)
+      if (response.data.autoApproved) {
+        setAutoApproved(true)
+      } else {
+        setSubmitted(true)
+      }
       setFormData({ fullName: '', email: '', studentId: '', password: '', confirmPassword: '' })
     } catch (err) {
       console.error('Registration error:', err)
@@ -113,7 +118,27 @@ export const RegisterRequest = () => {
           transition={{ duration: 0.5 }}
           className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700"
         >
-          {!submitted ? (
+          {autoApproved ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center"
+            >
+              <div className="text-5xl mb-4">✅</div>
+              <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">
+                Account automatically approved!
+              </h2>
+              <p className="text-slate-600 dark:text-slate-400 mb-2">
+                Your email was on the whitelist. You can log in immediately with the password you chose.
+              </p>
+              <button
+                onClick={() => navigate('/login')}
+                className="w-full py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors mt-4"
+              >
+                Log in now
+              </button>
+            </motion.div>
+          ) : !submitted ? (
             <>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
                 🚀 {t("register.title")}
@@ -162,7 +187,7 @@ export const RegisterRequest = () => {
                     onChange={handleChange}
                     disabled={loading}
                     className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:opacity-50"
-                    placeholder="you@universidad.edu"
+                    placeholder="you@university.edu"
                     required
                   />
                 </div>

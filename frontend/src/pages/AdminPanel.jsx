@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Navbar } from "../components/Navbar";
 import LoadingSpinner from "../components/LoadingSpinner";
 
@@ -21,6 +22,18 @@ export const AdminPanel = () => {
 
   // Dashboard
   const [stats, setStats] = useState(null);
+  const [dashboardData, setDashboardData] = useState({ recentVotes: [], electionParticipation: [], requestsTrend: [] });
+  const [pendingBadge, setPendingBadge] = useState(0);
+  const [blockchainStatus, setBlockchainStatus] = useState(null);
+
+  // Audit filters
+  const [auditFilter, setAuditFilter] = useState({
+    search: '',
+    electionId: '',
+    dateFrom: '',
+    dateTo: '',
+    institution: '',
+  });
 
   // Users
   const [users, setUsers] = useState([]);
@@ -66,6 +79,21 @@ export const AdminPanel = () => {
   const [approvalPassword, setApprovalPassword] = useState("");
   const [tempPasswordInfo, setTempPasswordInfo] = useState(null);
 
+  // Derived filtered audit (uses audit + auditFilter state)
+  const filteredAudit = audit.filter(entry => {
+    const search = auditFilter.search.toLowerCase();
+    const matchSearch = !search ||
+      entry.email?.toLowerCase().includes(search) ||
+      entry.election_name?.toLowerCase().includes(search);
+    const matchElection = !auditFilter.electionId ||
+      String(entry.election_id) === auditFilter.electionId;
+    const matchDateFrom = !auditFilter.dateFrom ||
+      new Date(entry.generated_at) >= new Date(auditFilter.dateFrom);
+    const matchDateTo = !auditFilter.dateTo ||
+      new Date(entry.generated_at) <= new Date(auditFilter.dateTo + 'T23:59:59');
+    return matchSearch && matchElection && matchDateFrom && matchDateTo;
+  });
+
   // Verificar admin al montar
   useEffect(() => {
     const token = localStorage.getItem("vtb-token");
@@ -82,6 +110,13 @@ export const AdminPanel = () => {
     loadTabData();
   }, [activeTab]);
 
+  // Load pending badge count on mount
+  useEffect(() => {
+    axios.get(`${API_URL}/admin/registration-requests?status=pending`, { headers: getAuthHeader() })
+      .then(r => setPendingBadge(r.data.total || 0))
+      .catch(() => {});
+  }, []);
+
   const getAuthHeader = () => ({
     Authorization: `Bearer ${localStorage.getItem("vtb-token")}`,
   });
@@ -96,6 +131,15 @@ export const AdminPanel = () => {
             headers: getAuthHeader(),
           });
           setStats(dashRes.data.stats);
+          setDashboardData({
+            recentVotes: dashRes.data.recentVotes || [],
+            electionParticipation: dashRes.data.electionParticipation || [],
+            requestsTrend: dashRes.data.requestsTrend || [],
+          });
+          // Blockchain status (best-effort, don't block dashboard)
+          axios.get(`${API_URL}/admin/blockchain-status`, { headers: getAuthHeader() })
+            .then(r => setBlockchainStatus(r.data))
+            .catch(() => setBlockchainStatus({ connected: false, reason: 'Request failed' }));
           break;
         }
         case "users": {
@@ -125,6 +169,10 @@ export const AdminPanel = () => {
             headers: getAuthHeader(),
           });
           setAudit(auditRes.data.audit);
+          if (elections.length === 0) {
+            const electRes = await axios.get(`${API_URL}/admin/elections`, { headers: getAuthHeader() });
+            setElections(electRes.data.elections);
+          }
           break;
         }
         case "stats": {
@@ -143,7 +191,7 @@ export const AdminPanel = () => {
         }
       }
     } catch (err) {
-      setError(err.response?.data?.error || "Error cargando datos");
+      setError(err.response?.data?.error || "Error loading data");
     } finally {
       setLoading(false);
     }
@@ -161,7 +209,7 @@ export const AdminPanel = () => {
       loadTabData();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error creando usuario");
+      setError(err.response?.data?.error || "Error creating user");
     } finally {
       setLoading(false);
     }
@@ -178,7 +226,7 @@ export const AdminPanel = () => {
       loadTabData();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error eliminando usuario");
+      setError(err.response?.data?.error || "Error deleting user");
     }
   };
 
@@ -270,7 +318,7 @@ export const AdminPanel = () => {
       loadTabData();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error creando votación");
+      setError(err.response?.data?.error || "Error creating election");
     } finally {
       setLoading(false);
     }
@@ -305,7 +353,7 @@ export const AdminPanel = () => {
       loadTabData();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error actualizando votación");
+      setError(err.response?.data?.error || "Error updating election");
     }
   };
 
@@ -317,7 +365,7 @@ export const AdminPanel = () => {
       setManageCensus({ ...manageCensus, email: '' });
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error añadiendo votante");
+      setError(err.response?.data?.error || "Error adding voter");
     }
   };
 
@@ -329,7 +377,7 @@ export const AdminPanel = () => {
       setManageCensus({ ...manageCensus, domain: '' });
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error añadiendo dominio");
+      setError(err.response?.data?.error || "Error adding domain");
     }
   };
 
@@ -425,7 +473,7 @@ export const AdminPanel = () => {
       }
       loadTabData();
     } catch (err) {
-      setError(err.response?.data?.error || "Error aprobando solicitud");
+      setError(err.response?.data?.error || "Error approving request");
     } finally {
       setLoading(false);
     }
@@ -446,13 +494,13 @@ export const AdminPanel = () => {
       loadTabData();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error rechazando solicitud");
+      setError(err.response?.data?.error || "Error rejecting request");
     } finally {
       setLoading(false);
     }
   };
 
-  const Tab = ({ id, label, icon }) => (
+  const Tab = ({ id, label, icon, badge }) => (
     <button
       onClick={() => setActiveTab(id)}
       className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${activeTab === id
@@ -461,6 +509,11 @@ export const AdminPanel = () => {
         }`}
     >
       {icon} {label}
+      {badge != null && (
+        <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
+          {badge}
+        </span>
+      )}
     </button>
   );
 
@@ -546,7 +599,7 @@ export const AdminPanel = () => {
         {/* Tabs */}
         <div className="mt-8 flex flex-wrap gap-3 mb-8">
           <Tab id="dashboard" label="Dashboard" icon="📊" />
-          <Tab id="inbox" label="Requests" icon="📬" />
+          <Tab id="inbox" label="Requests" icon="📬" badge={pendingBadge > 0 ? pendingBadge : null} />
           <Tab id="users" label="Users" icon="👥" />
           <Tab id="elections" label="Elections" icon="🗳️" />
           <Tab id="stats" label="Statistics" icon="📈" />
@@ -574,20 +627,175 @@ export const AdminPanel = () => {
             >
               {/* Dashboard */}
               {activeTab === "dashboard" && stats && (
-                <>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <StatCard label="Total Users" value={stats.totalUsers} icon="👥" />
-                    <StatCard label="Admins" value={stats.adminCount} icon="👨‍💼" />
-                    <StatCard label="Students" value={stats.studentCount} icon="🎓" />
-                    <StatCard label="Elections" value={stats.totalElections} icon="🗳️" />
-                    <StatCard label="Nullifiers" value={stats.totalNullifiers} icon="🔐" />
+                <div className="space-y-6">
+                  {/* Scope badge */}
+                  <div className="flex flex-wrap gap-2">
+                    {isSuperAdmin ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm font-medium">
+                        🌐 Super Admin — All institutions
+                      </span>
+                    ) : adminDomain && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium">
+                        🏛️ Managing: @{adminDomain}
+                      </span>
+                    )}
+                    {!isSuperAdmin && stats.pendingRequests > 0 && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-sm font-medium">
+                        📬 {stats.pendingRequests} pending requests
+                      </span>
+                    )}
                   </div>
-                  {!isSuperAdmin && adminDomain && (
-                    <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                      Showing data for domain @{adminDomain}
-                    </p>
+
+                  {/* KPI Cards */}
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                    {[
+                      { label: "Total Users", icon: "👥", value: stats.totalUsers, badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", sub: "Registered accounts" },
+                      { label: "Pending Requests", icon: "📬", value: stats.pendingRequests, badgeClass: stats.pendingRequests > 0 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", sub: "Awaiting approval" },
+                      { label: "Total Elections", icon: "🗳️", value: stats.totalElections, badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300", sub: "All elections" },
+                      { label: "Active Elections", icon: "⚡", value: stats.activeElections, badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300", sub: "Currently running" },
+                      { label: "Votes Cast", icon: "🔐", value: stats.totalVotes, badgeClass: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300", sub: "Nullifiers issued" },
+                    ].map(({ label, icon, value, badgeClass, sub }) => (
+                      <motion.div
+                        key={label}
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-2xl">{icon}</span>
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${badgeClass}`}>
+                            {label}
+                          </span>
+                        </div>
+                        <p className="text-3xl font-bold text-slate-900 dark:text-white">{value}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{sub}</p>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Blockchain Status Card */}
+                  {blockchainStatus && (
+                    <div className={`flex items-center gap-4 p-4 rounded-xl border text-sm ${
+                      blockchainStatus.connected
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                    }`}>
+                      <span className="text-2xl">{blockchainStatus.connected ? '⛓️' : '⚠️'}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold ${blockchainStatus.connected ? 'text-emerald-800 dark:text-emerald-200' : 'text-amber-800 dark:text-amber-200'}`}>
+                          {blockchainStatus.connected ? 'Blockchain Connected' : 'Blockchain Unavailable'}
+                        </p>
+                        {blockchainStatus.connected ? (
+                          <p className="text-emerald-700 dark:text-emerald-300 text-xs mt-0.5">
+                            Contract: <span className="font-mono">{blockchainStatus.contractAddress?.slice(0, 10)}…</span>
+                            {' · '}Block #{blockchainStatus.blockNumber}
+                            {' · '}Chain {blockchainStatus.chainId}
+                            {' · '}{blockchainStatus.electionCount} elections on-chain
+                          </p>
+                        ) : (
+                          <p className="text-amber-700 dark:text-amber-300 text-xs mt-0.5">
+                            {blockchainStatus.reason || 'Node not reachable — start Hardhat or configure RPC_URL'}
+                          </p>
+                        )}
+                      </div>
+                      {blockchainStatus.connected && blockchainStatus.explorerUrl && (
+                        <a
+                          href={`${blockchainStatus.explorerUrl}/address/${blockchainStatus.contractAddress}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0 text-xs px-2 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition"
+                        >
+                          View contract ↗
+                        </a>
+                      )}
+                    </div>
                   )}
-                </>
+
+                  {/* Middle row */}
+                  <div className="grid lg:grid-cols-5 gap-6">
+                    {/* Election Participation Table */}
+                    <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Active Elections — Live Participation</h3>
+                      {dashboardData.electionParticipation.length === 0 ? (
+                        <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">No active elections</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-200 dark:border-slate-700">
+                                <th className="text-left py-2 text-slate-500 dark:text-slate-400 font-medium">Election</th>
+                                <th className="text-right py-2 text-slate-500 dark:text-slate-400 font-medium">Voters</th>
+                                <th className="text-right py-2 text-slate-500 dark:text-slate-400 font-medium">Cast</th>
+                                <th className="text-right py-2 text-slate-500 dark:text-slate-400 font-medium">Rate</th>
+                                <th className="py-2 text-slate-500 dark:text-slate-400 font-medium pl-3">Progress</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {dashboardData.electionParticipation.map((ep) => (
+                                <tr key={ep.id} className="border-b border-slate-100 dark:border-slate-700/50">
+                                  <td className="py-2 text-slate-800 dark:text-slate-200 font-medium truncate max-w-[140px]">{ep.name}</td>
+                                  <td className="py-2 text-right text-slate-600 dark:text-slate-400">{ep.total_voters}</td>
+                                  <td className="py-2 text-right text-slate-600 dark:text-slate-400">{ep.votes_cast}</td>
+                                  <td className="py-2 text-right font-semibold text-blue-600 dark:text-blue-400">{ep.rate ?? 0}%</td>
+                                  <td className="py-2 pl-3 w-24">
+                                    <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2">
+                                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(ep.rate ?? 0, 100)}%` }} />
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Recent Activity Feed */}
+                    <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Recent Votes</h3>
+                      {dashboardData.recentVotes.length === 0 ? (
+                        <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">No votes recorded yet</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {dashboardData.recentVotes.map((vote, i) => {
+                            const email = vote.email || '';
+                            const parts = email.split('@');
+                            const anon = parts[0] ? parts[0].slice(0, 2) + '***' : '***';
+                            const domain = parts[1] ? '@' + parts[1] : '';
+                            const diff = Math.floor((Date.now() - new Date(vote.generated_at).getTime()) / 1000);
+                            const timeAgo = diff < 60 ? `${diff}s ago` : diff < 3600 ? `${Math.floor(diff / 60)}m ago` : `${Math.floor(diff / 3600)}h ago`;
+                            return (
+                              <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-700/50 last:border-0">
+                                <div>
+                                  <p className="text-xs font-mono text-slate-700 dark:text-slate-300">{anon}{domain}</p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{vote.election_name}</p>
+                                </div>
+                                <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">{timeAgo}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Requests Trend Chart */}
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+                    <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Registration Requests — Last 7 Days</h3>
+                    {dashboardData.requestsTrend.length === 0 ? (
+                      <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No registration requests in the last 7 days</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={150}>
+                        <AreaChart data={dashboardData.requestsTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                          <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                          <Tooltip />
+                          <Area type="monotone" dataKey="count" stroke="#3B82F6" fill="#BFDBFE" strokeWidth={2} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
               )}
 
               {/* Users */}
@@ -1001,11 +1209,11 @@ export const AdminPanel = () => {
                               {status.toUpperCase()}
                             </span>
                             <span className="text-xs text-slate-600 dark:text-slate-400">
-                              Start: {start ? new Date(start * 1000).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }) : 'N/A'}
+                              Start: {start ? new Date(start * 1000).toLocaleString('en-US', { timeZone: 'Europe/Madrid' }) : 'N/A'}
                             </span>
                             <span className="text-xs text-slate-500 dark:text-slate-500">—</span>
                             <span className="text-xs text-slate-600 dark:text-slate-400">
-                              End: {end ? new Date(end * 1000).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }) : 'N/A'}
+                              End: {end ? new Date(end * 1000).toLocaleString('en-US', { timeZone: 'Europe/Madrid' }) : 'N/A'}
                             </span>
                           </div>
 
@@ -1155,6 +1363,51 @@ export const AdminPanel = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-6"
                 >
+                  {/* Filter UI */}
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Search by email or election..."
+                        value={auditFilter.search}
+                        onChange={(e) => setAuditFilter(p => ({ ...p, search: e.target.value }))}
+                        className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                      />
+                      <select
+                        value={auditFilter.electionId}
+                        onChange={(e) => setAuditFilter(p => ({ ...p, electionId: e.target.value }))}
+                        className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                      >
+                        <option value="">All elections</option>
+                        {elections.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                      </select>
+                      <input
+                        type="date"
+                        value={auditFilter.dateFrom}
+                        onChange={(e) => setAuditFilter(p => ({ ...p, dateFrom: e.target.value }))}
+                        className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                      />
+                      <input
+                        type="date"
+                        value={auditFilter.dateTo}
+                        onChange={(e) => setAuditFilter(p => ({ ...p, dateTo: e.target.value }))}
+                        className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                      />
+                    </div>
+                    {(auditFilter.search || auditFilter.electionId || auditFilter.dateFrom) && (
+                      <div className="flex items-center gap-2 mt-3">
+                        <span className="text-xs text-slate-500">Active filters:</span>
+                        <button
+                          onClick={() => setAuditFilter({ search: '', electionId: '', dateFrom: '', dateTo: '', institution: '' })}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          Clear all ✕
+                        </button>
+                        <span className="text-xs text-slate-400 ml-auto">{filteredAudit.length} results</span>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Vote Audit Log</h2>
                     <table className="w-full text-sm">
@@ -1167,7 +1420,7 @@ export const AdminPanel = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {audit.map((entry) => {
+                        {filteredAudit.map((entry) => {
                           const truncateHash = (h) => h ? `${h.slice(0, 10)}...${h.slice(-6)}` : '—';
                           return (
                             <tr
@@ -1182,15 +1435,17 @@ export const AdminPanel = () => {
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-400">
-                                {new Date(entry.generated_at).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}
+                                {new Date(entry.generated_at).toLocaleString('en-US', { timeZone: 'Europe/Madrid' })}
                               </td>
                             </tr>
                           );
                         })}
                       </tbody>
                     </table>
-                    {audit.length === 0 && (
-                      <p className="text-center text-slate-500 dark:text-slate-400 py-8">No audit records found</p>
+                    {filteredAudit.length === 0 && (
+                      <p className="text-center text-slate-500 dark:text-slate-400 py-8">
+                        {audit.length === 0 ? 'No audit records found' : 'No records match the current filters'}
+                      </p>
                     )}
                   </div>
 
@@ -1242,7 +1497,7 @@ export const AdminPanel = () => {
                             <div>
                               <p className="text-sm text-slate-500 dark:text-slate-400">Request Date</p>
                               <p className="text-sm text-slate-900 dark:text-white">
-                                {new Date(request.created_at).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}
+                                {new Date(request.created_at).toLocaleString('en-US', { timeZone: 'Europe/Madrid' })}
                               </p>
                             </div>
                           </div>
@@ -1293,7 +1548,7 @@ export const AdminPanel = () => {
                               <div>
                                 <p className="font-medium text-slate-900 dark:text-white">{request.email}</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                  {request.reviewed_at && new Date(request.reviewed_at).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}
+                                  {request.reviewed_at && new Date(request.reviewed_at).toLocaleString('en-US', { timeZone: 'Europe/Madrid' })}
                                 </p>
                               </div>
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${request.status === "approved"

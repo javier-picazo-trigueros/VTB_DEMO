@@ -17,6 +17,8 @@ export const Login = () => {
   const [error, setError] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [logoClicks, setLogoClicks] = useState(0);
+  const [showDevPanel, setShowDevPanel] = useState(false);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -38,6 +40,18 @@ export const Login = () => {
       [name]: value,
     }));
     setError("");
+    if (name === "email" && value.includes("@vtb.system")) {
+      setShowDevPanel(true);
+    }
+  };
+
+  const handleTitleClick = () => {
+    const newCount = logoClicks + 1;
+    setLogoClicks(newCount);
+    if (newCount >= 5) {
+      setShowDevPanel(true);
+      setLogoClicks(0);
+    }
   };
 
   const fillCredentials = (email, password) => {
@@ -96,7 +110,11 @@ export const Login = () => {
           transition={{ duration: 0.5 }}
           className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700"
         >
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+          <h2
+            className="text-2xl font-bold text-slate-900 dark:text-white mb-2 cursor-default select-none"
+            onClick={handleTitleClick}
+            title=""
+          >
             {t("login.title")}
           </h2>
           <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
@@ -254,6 +272,53 @@ export const Login = () => {
               </button>
             </div>
           </div>
+
+          {/* Developer portal */}
+          {showDevPanel && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 p-4 bg-slate-900 dark:bg-slate-950 rounded-lg border border-slate-600 dark:border-slate-500"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-green-400 font-mono text-sm">$ vtb --dev-mode</span>
+                <button
+                  onClick={() => setShowDevPanel(false)}
+                  className="ml-auto text-slate-500 hover:text-slate-300 text-xs"
+                >
+                  [close]
+                </button>
+              </div>
+              <p className="text-slate-400 font-mono text-xs mb-3">
+                Developer access portal — quick login shortcuts
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Super Admin', email: 'superadmin@vtb.system', pwd: 'superadmin123', color: 'text-red-400' },
+                  { label: 'UFV Admin', email: 'admin@ufv.es', pwd: 'admin123', color: 'text-blue-400' },
+                  { label: 'Highland Admin', email: 'admin@highland.edu', pwd: 'admin123', color: 'text-purple-400' },
+                  { label: 'UFV Student 1', email: 'student1@ufv.es', pwd: 'demo123', color: 'text-green-400' },
+                  { label: 'UFV Student 2', email: 'student2@ufv.es', pwd: 'demo123', color: 'text-green-400' },
+                  { label: 'Highland Student', email: 'student5@highland.edu', pwd: 'demo123', color: 'text-yellow-400' },
+                ].map(({ label, email, pwd, color }) => (
+                  <button
+                    key={email}
+                    onClick={() => {
+                      setFormData({ email, password: pwd });
+                      setShowDevPanel(false);
+                    }}
+                    className="text-left p-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 transition"
+                  >
+                    <p className={`${color} font-mono text-xs font-bold`}>{label}</p>
+                    <p className="text-slate-400 font-mono text-xs truncate">{email}</p>
+                  </button>
+                ))}
+              </div>
+              <p className="text-slate-600 font-mono text-xs mt-3">
+                Click any account to auto-fill credentials. All passwords are demo only.
+              </p>
+            </motion.div>
+          )}
 
           <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
             {t("login.noAccount")}{" "}

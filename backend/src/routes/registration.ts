@@ -57,7 +57,53 @@ router.post("/request", async (req: Request, res: Response) => {
       return;
     }
 
-    // Hash the password and store it with the request
+    // Check if email is whitelisted for auto-approve
+    const emailDomain = email.split('@')[1];
+    const whitelisted = await db.get<any>(
+      `SELECT * FROM email_whitelist WHERE email = ? AND (admin_domain = ? OR admin_domain = '*') AND used = 0`,
+      [email.toLowerCase(), emailDomain]
+    );
+
+    if (whitelisted) {
+      const autoHash = await hashPassword(password);
+      try {
+        await db.exec(
+          `INSERT INTO users (email, password_hash, name, student_id, role, is_approved, is_eligible, created_at)
+           VALUES (?, ?, ?, ?, 'student', 1, 1, CURRENT_TIMESTAMP)`,
+          [email, autoHash, whitelisted.full_name || fullName, whitelisted.student_id || studentId]
+        );
+      } catch (insertErr: any) {
+        if (insertErr.message?.includes('UNIQUE')) {
+          res.status(409).json({ error: "This email already has an active account" });
+          return;
+        }
+        throw insertErr;
+      }
+
+      await db.exec("UPDATE email_whitelist SET used = 1 WHERE id = ?", [whitelisted.id]);
+
+      const elections = await db.run<{ election_id: number }>(
+        "SELECT election_id FROM election_access WHERE email_domain = ? OR email_domain = '*'",
+        [emailDomain]
+      );
+      const newUser = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]);
+      if (newUser) {
+        for (const elec of elections) {
+          await db.exec(
+            "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
+            [elec.election_id, newUser.id]
+          ).catch(() => {});
+        }
+      }
+
+      res.status(201).json({
+        message: "Your account has been automatically approved! You can log in now with the password you chose.",
+        autoApproved: true,
+      });
+      return;
+    }
+
+    // Not whitelisted — normal pending flow
     const passwordHash = await hashPassword(password);
 
     await db.exec(

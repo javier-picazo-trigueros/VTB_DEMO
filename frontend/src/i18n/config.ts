@@ -33,7 +33,7 @@ const resources = {
       lightMode: "Light Mode",
       language: "Language",
       english: "English",
-      spanish: "Español",
+      spanish: "Spanish",
 
       // LANDING PAGE
       landing: {
@@ -224,7 +224,7 @@ const resources = {
       // VOTING BOOTH
       votingBooth: {
         title: "Voting Booth",
-        selectOption: "Select an option",
+        selectOption: "Select a candidate to vote",
         selectYourOption: "Select your option",
         confirm: "Confirm Vote",
         cancel: "Cancel",
@@ -241,20 +241,20 @@ const resources = {
         alreadyVotedDesc: "Your vote has been recorded on the blockchain.",
         viewResults: "View Results",
         retryVote: "Retry Vote",
-        calculateProof: "Calculating proof...",
-        sendingVote: "Sending vote...",
-        confirmingTx: "Confirming transaction...",
+        calculateProof: "Generating proof",
+        sendingVote: "Sending to blockchain",
+        confirmingTx: "Confirming",
         preparingData: "Preparing data...",
         connectingBlockchain: "Connecting to blockchain...",
         waitingConfirmation: "Waiting for network confirmation...",
-        voteRegistered: "Vote registered on blockchain!",
+        voteRegistered: "Vote registered on the blockchain!",
         copyTxHash: "Copy TxHash",
         viewExplorer: "View in Explorer",
         backToDashboard: "Back to Dashboard",
         voteFailed: "Could not register vote",
         retry: "Retry",
         back: "Back",
-        blockchainUnavailable: "Blockchain node not available",
+        blockchainUnavailable: "Blockchain node unavailable",
         blockchainUnavailableDetail: "Make sure Hardhat is running: npx hardhat node",
         privacyTitle: "Privacy Guaranteed",
         privacyEncrypted: "Your vote is encrypted locally before being sent",
@@ -359,8 +359,8 @@ const resources = {
         loadingElections: "Error loading elections",
         invalidElection: "Invalid election ID",
         electionNotFound: "Election not found",
-        notInCensus: "You are not in the census for this election",
-        electionNotActive: "This election is not active",
+        notInCensus: "You are not in the voter census for this election",
+        electionNotActive: "This election is not currently active",
       },
     },
   },
@@ -717,6 +717,7 @@ const resources = {
 
 i18n.use(LanguageDetector).use(initReactI18next).init({
   resources,
+  lng: "en",
   fallbackLng: "en",
   interpolation: {
     escapeValue: false,

@@ -416,21 +416,33 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       return;
     }
 
-    // Obtener todos los nullifiers registrados (información de auditoría pública)
+    const explorerUrl = process.env.EXPLORER_URL || "";
+
     const auditRecords = await db.run<{
       nullifier_hash: string;
       generated_at: string;
+      tx_hash: string | null;
+      block_number: number | null;
     }>(
-      "SELECT nullifier_hash, generated_at FROM nullifier_audit WHERE election_id = ? ORDER BY generated_at DESC",
+      "SELECT nullifier_hash, generated_at, tx_hash, block_number FROM nullifier_audit WHERE election_id = ? ORDER BY generated_at DESC",
       [id]
     );
 
-    // Generar txHash estable basado en el nullifier (determinístico, no aleatorio)
-    const auditData = auditRecords.map((record) => ({
-      nullifier: record.nullifier_hash,
-      txHash: `0x${createHash('sha256').update(record.nullifier_hash || '').digest('hex')}`,
-      timestamp: record.generated_at,
-    }));
+    const auditData = auditRecords.map((record) => {
+      const txHash = record.tx_hash ||
+        `0x${createHash('sha256').update(record.nullifier_hash || '').digest('hex')}`;
+      const explorerLink = explorerUrl && record.tx_hash
+        ? `${explorerUrl.replace(/\/$/, "")}/tx/${record.tx_hash}`
+        : null;
+      return {
+        nullifier: record.nullifier_hash,
+        txHash,
+        blockNumber: record.block_number,
+        timestamp: record.generated_at,
+        explorerLink,
+        onChain: !!record.tx_hash,
+      };
+    });
 
     res.json(auditData);
 
@@ -574,11 +586,19 @@ router.post("/register-vote", async (req: Request, res: Response) => {
 
       console.log(`✓✓íƒ¢í¢â€š¬í…â€œ✓ Voto registrado en transacción: ${tx.hash}`);
 
-      // Registrar en auditoría que el usuario votó en esta elección (con candidateId)
+      // Record audit entry with real txHash and block number
       try {
         await db.exec(
-          'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, generated_at) VALUES (?, ?, ?, ?, datetime("now"))',
-          [decoded.userId, electionId, nullifier, candidateId ? String(candidateId) : null]
+          'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, generated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))',
+          [
+            decoded.userId,
+            electionId,
+            nullifier,
+            candidateId ? String(candidateId) : null,
+            tx.hash,
+            receipt?.blockNumber ?? null,
+            candidateId ?? null,
+          ]
         );
       } catch (auditError) {
         console.warn('Warning al registrar auditoría:', auditError);

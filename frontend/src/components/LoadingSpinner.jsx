@@ -8,8 +8,8 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 
-export default function LoadingSpinner({ 
-  message = 'Cargando...', 
+export default function LoadingSpinner({
+  message = 'Loading...',
   fullScreen = false,
   timeout = 10000  // 10 segundos por defecto
 }) {
@@ -50,8 +50,8 @@ export default function LoadingSpinner({
           animate={{ opacity: 1, y: 0 }}
           className="mt-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm text-center"
         >
-          ⏱️ La carga está tardando más de lo esperado.<br />
-          La conexión podría ser lenta.
+          ⏱️ Loading is taking longer than expected.<br />
+          The connection may be slow.
         </motion.div>
       )}
     </motion.div>

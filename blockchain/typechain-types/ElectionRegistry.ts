@@ -53,19 +53,21 @@ export interface ElectionRegistryInterface extends Interface {
       | "elections"
       | "getElection"
       | "getElectionCount"
+      | "getTotalVotes"
       | "getVoteCount"
       | "getVoteHash"
       | "getVoteHistory"
       | "hasVoted"
       | "owner"
+      | "setElectionStatus"
       | "voteHistory"
       | "votes"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
-      | "DoubleVoteAttempted"
       | "ElectionCreated"
+      | "ElectionStatusChanged"
       | "VoteCast"
   ): EventFragment;
 
@@ -98,6 +100,10 @@ export interface ElectionRegistryInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "getTotalVotes",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "getVoteCount",
     values: [BigNumberish]
   ): string;
@@ -114,6 +120,10 @@ export interface ElectionRegistryInterface extends Interface {
     values: [BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "setElectionStatus",
+    values: [BigNumberish, boolean]
+  ): string;
   encodeFunctionData(
     functionFragment: "voteHistory",
     values: [BigNumberish, BigNumberish]
@@ -146,6 +156,10 @@ export interface ElectionRegistryInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "getTotalVotes",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "getVoteCount",
     data: BytesLike
   ): Result;
@@ -160,32 +174,14 @@ export interface ElectionRegistryInterface extends Interface {
   decodeFunctionResult(functionFragment: "hasVoted", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
+    functionFragment: "setElectionStatus",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "voteHistory",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "votes", data: BytesLike): Result;
-}
-
-export namespace DoubleVoteAttemptedEvent {
-  export type InputTuple = [
-    electionId: BigNumberish,
-    nullifier: BytesLike,
-    timestamp: BigNumberish
-  ];
-  export type OutputTuple = [
-    electionId: bigint,
-    nullifier: string,
-    timestamp: bigint
-  ];
-  export interface OutputObject {
-    electionId: bigint;
-    nullifier: string;
-    timestamp: bigint;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace ElectionCreatedEvent {
@@ -206,6 +202,19 @@ export namespace ElectionCreatedEvent {
     name: string;
     startTime: bigint;
     endTime: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace ElectionStatusChangedEvent {
+  export type InputTuple = [electionId: BigNumberish, active: boolean];
+  export type OutputTuple = [electionId: bigint, active: boolean];
+  export interface OutputObject {
+    electionId: bigint;
+    active: boolean;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -287,11 +296,7 @@ export interface ElectionRegistry extends BaseContract {
     "nonpayable"
   >;
 
-  closeElection: TypedContractMethod<
-    [_electionId: BigNumberish],
-    [void],
-    "nonpayable"
-  >;
+  closeElection: TypedContractMethod<[_id: BigNumberish], [void], "nonpayable">;
 
   createElection: TypedContractMethod<
     [_name: string, _startTime: BigNumberish, _endTime: BigNumberish],
@@ -316,7 +321,7 @@ export interface ElectionRegistry extends BaseContract {
   >;
 
   getElection: TypedContractMethod<
-    [_electionId: BigNumberish],
+    [_id: BigNumberish],
     [
       [string, bigint, bigint, boolean, bigint] & {
         name: string;
@@ -331,31 +336,35 @@ export interface ElectionRegistry extends BaseContract {
 
   getElectionCount: TypedContractMethod<[], [bigint], "view">;
 
-  getVoteCount: TypedContractMethod<
-    [_electionId: BigNumberish],
-    [bigint],
-    "view"
-  >;
+  getTotalVotes: TypedContractMethod<[_id: BigNumberish], [bigint], "view">;
+
+  getVoteCount: TypedContractMethod<[_id: BigNumberish], [bigint], "view">;
 
   getVoteHash: TypedContractMethod<
-    [_electionId: BigNumberish, _nullifier: BytesLike],
+    [_id: BigNumberish, _nullifier: BytesLike],
     [string],
     "view"
   >;
 
   getVoteHistory: TypedContractMethod<
-    [_electionId: BigNumberish],
+    [_id: BigNumberish],
     [ElectionRegistry.VoteRecordStructOutput[]],
     "view"
   >;
 
   hasVoted: TypedContractMethod<
-    [_electionId: BigNumberish, _nullifier: BytesLike],
+    [_id: BigNumberish, _nullifier: BytesLike],
     [boolean],
     "view"
   >;
 
   owner: TypedContractMethod<[], [string], "view">;
+
+  setElectionStatus: TypedContractMethod<
+    [_id: BigNumberish, _active: boolean],
+    [void],
+    "nonpayable"
+  >;
 
   voteHistory: TypedContractMethod<
     [arg0: BigNumberish, arg1: BigNumberish],
@@ -389,7 +398,7 @@ export interface ElectionRegistry extends BaseContract {
   >;
   getFunction(
     nameOrSignature: "closeElection"
-  ): TypedContractMethod<[_electionId: BigNumberish], [void], "nonpayable">;
+  ): TypedContractMethod<[_id: BigNumberish], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "createElection"
   ): TypedContractMethod<
@@ -418,7 +427,7 @@ export interface ElectionRegistry extends BaseContract {
   getFunction(
     nameOrSignature: "getElection"
   ): TypedContractMethod<
-    [_electionId: BigNumberish],
+    [_id: BigNumberish],
     [
       [string, bigint, bigint, boolean, bigint] & {
         name: string;
@@ -434,32 +443,42 @@ export interface ElectionRegistry extends BaseContract {
     nameOrSignature: "getElectionCount"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
+    nameOrSignature: "getTotalVotes"
+  ): TypedContractMethod<[_id: BigNumberish], [bigint], "view">;
+  getFunction(
     nameOrSignature: "getVoteCount"
-  ): TypedContractMethod<[_electionId: BigNumberish], [bigint], "view">;
+  ): TypedContractMethod<[_id: BigNumberish], [bigint], "view">;
   getFunction(
     nameOrSignature: "getVoteHash"
   ): TypedContractMethod<
-    [_electionId: BigNumberish, _nullifier: BytesLike],
+    [_id: BigNumberish, _nullifier: BytesLike],
     [string],
     "view"
   >;
   getFunction(
     nameOrSignature: "getVoteHistory"
   ): TypedContractMethod<
-    [_electionId: BigNumberish],
+    [_id: BigNumberish],
     [ElectionRegistry.VoteRecordStructOutput[]],
     "view"
   >;
   getFunction(
     nameOrSignature: "hasVoted"
   ): TypedContractMethod<
-    [_electionId: BigNumberish, _nullifier: BytesLike],
+    [_id: BigNumberish, _nullifier: BytesLike],
     [boolean],
     "view"
   >;
   getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "setElectionStatus"
+  ): TypedContractMethod<
+    [_id: BigNumberish, _active: boolean],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "voteHistory"
   ): TypedContractMethod<
@@ -483,18 +502,18 @@ export interface ElectionRegistry extends BaseContract {
   >;
 
   getEvent(
-    key: "DoubleVoteAttempted"
-  ): TypedContractEvent<
-    DoubleVoteAttemptedEvent.InputTuple,
-    DoubleVoteAttemptedEvent.OutputTuple,
-    DoubleVoteAttemptedEvent.OutputObject
-  >;
-  getEvent(
     key: "ElectionCreated"
   ): TypedContractEvent<
     ElectionCreatedEvent.InputTuple,
     ElectionCreatedEvent.OutputTuple,
     ElectionCreatedEvent.OutputObject
+  >;
+  getEvent(
+    key: "ElectionStatusChanged"
+  ): TypedContractEvent<
+    ElectionStatusChangedEvent.InputTuple,
+    ElectionStatusChangedEvent.OutputTuple,
+    ElectionStatusChangedEvent.OutputObject
   >;
   getEvent(
     key: "VoteCast"
@@ -505,17 +524,6 @@ export interface ElectionRegistry extends BaseContract {
   >;
 
   filters: {
-    "DoubleVoteAttempted(uint256,bytes32,uint256)": TypedContractEvent<
-      DoubleVoteAttemptedEvent.InputTuple,
-      DoubleVoteAttemptedEvent.OutputTuple,
-      DoubleVoteAttemptedEvent.OutputObject
-    >;
-    DoubleVoteAttempted: TypedContractEvent<
-      DoubleVoteAttemptedEvent.InputTuple,
-      DoubleVoteAttemptedEvent.OutputTuple,
-      DoubleVoteAttemptedEvent.OutputObject
-    >;
-
     "ElectionCreated(uint256,string,uint256,uint256)": TypedContractEvent<
       ElectionCreatedEvent.InputTuple,
       ElectionCreatedEvent.OutputTuple,
@@ -525,6 +533,17 @@ export interface ElectionRegistry extends BaseContract {
       ElectionCreatedEvent.InputTuple,
       ElectionCreatedEvent.OutputTuple,
       ElectionCreatedEvent.OutputObject
+    >;
+
+    "ElectionStatusChanged(uint256,bool)": TypedContractEvent<
+      ElectionStatusChangedEvent.InputTuple,
+      ElectionStatusChangedEvent.OutputTuple,
+      ElectionStatusChangedEvent.OutputObject
+    >;
+    ElectionStatusChanged: TypedContractEvent<
+      ElectionStatusChangedEvent.InputTuple,
+      ElectionStatusChangedEvent.OutputTuple,
+      ElectionStatusChangedEvent.OutputObject
     >;
 
     "VoteCast(uint256,bytes32,bytes32,uint256)": TypedContractEvent<

@@ -51,7 +51,11 @@ export function ThemeProvider({ children }) {
   };
 
   if (!mounted) {
-    return <>{children}</>;
+    return (
+      <ThemeContext.Provider value={{ theme, toggleTheme }}>
+        {children}
+      </ThemeContext.Provider>
+    );
   }
 
   return (
@@ -64,7 +68,7 @@ export function ThemeProvider({ children }) {
 export function useTheme() {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error("useTheme debe ser usado dentro de ThemeProvider");
+    throw new Error("useTheme must be used within ThemeProvider");
   }
   return context;
 }

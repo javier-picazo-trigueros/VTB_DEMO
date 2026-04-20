@@ -68,7 +68,7 @@ const Countdown = ({ endTime }) => {
     return () => clearInterval(ref.current);
   }, [endTime]);
 
-  if (remaining <= 0) return <span className="text-slate-400 text-xs">Cerrando…</span>;
+  if (remaining <= 0) return <span className="text-slate-400 text-xs">Closing...</span>;
 
   const d = Math.floor(remaining / 86400);
   const h = Math.floor((remaining % 86400) / 3600);
@@ -99,7 +99,7 @@ const ElectionCard = ({ election, eligibility, index, t, navigate }) => {
 
   const formatDate = (ts) =>
     ts
-      ? new Date(ts * 1000).toLocaleDateString("es-ES", {
+      ? new Date(ts * 1000).toLocaleDateString("en-US", {
           day: "2-digit",
           month: "short",
           year: "numeric",
@@ -177,7 +177,7 @@ const ElectionCard = ({ election, eligibility, index, t, navigate }) => {
             <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
             </svg>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400 mr-1">Cierra en</span>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 mr-1">Closes in</span>
             <Countdown endTime={election.endTime} />
           </div>
         )}
