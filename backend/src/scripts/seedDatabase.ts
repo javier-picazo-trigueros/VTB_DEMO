@@ -10,6 +10,23 @@ import { hashPassword, generateNullifier } from "../utils/auth.js";
 export async function seedDemoData(): Promise<void> {
   const db = getDatabase();
 
+  // Seed org units always (idempotent)
+  const orgUnits = [
+    { name: 'UFV', domain: 'ufv.es', parent_domain: null, unit_type: 'institution' },
+    { name: 'School of Engineering', domain: 'eps.ufv.es', parent_domain: 'ufv.es', unit_type: 'school' },
+    { name: 'Computer Science', domain: 'cs.eps.ufv.es', parent_domain: 'eps.ufv.es', unit_type: 'degree' },
+    { name: 'CS Year 1', domain: 'cs1.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year' },
+    { name: 'CS Year 2', domain: 'cs2.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year' },
+    { name: 'Highland School', domain: 'highland.edu', parent_domain: null, unit_type: 'institution' },
+    { name: 'Highland Secondary', domain: 'secondary.highland.edu', parent_domain: 'highland.edu', unit_type: 'school' },
+  ];
+  for (const ou of orgUnits) {
+    await db.exec(
+      "INSERT OR IGNORE INTO org_units (name, domain, parent_domain, unit_type) VALUES (?, ?, ?, ?)",
+      [ou.name, ou.domain, ou.parent_domain, ou.unit_type]
+    ).catch(() => {});
+  }
+
   // Comprobar si ya hay datos
   const existing = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users");
   if (existing && existing.count > 0) {
@@ -22,7 +39,9 @@ export async function seedDemoData(): Promise<void> {
            'andres@ufv.es','patricia@ufv.es',
            'juan@universidad.edu','maria@universidad.edu',
            'elena@universidad.edu','roberto@universidad.edu',
-           'admin@ufv.es','admin@universidad.edu','superadmin@vtb.system'
+           'admin@ufv.es','admin@universidad.edu','superadmin@vtb.system',
+           'admin@highland.edu','admin@eps.ufv.es',
+           'student5@highland.edu','student6@highland.edu','student7@highland.edu'
          )`
     );
     console.log("ℹ️  Base de datos ya tiene datos, omitiendo seed completo.");
@@ -42,6 +61,8 @@ export async function seedDemoData(): Promise<void> {
     // ADMINS
     { email: "admin@ufv.es",           name: "Admin UFV",             student_id: "ADMIN-UFV-001",  password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
     { email: "admin@universidad.edu",  name: "Admin Universidad",     student_id: "ADMIN-EDU-001",  password: "admin123",      role: "admin",      admin_domain: "universidad.edu" },
+    { email: "admin@highland.edu",     name: "Admin Highland",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highland.edu" },
+    { email: "admin@eps.ufv.es",       name: "Admin EPS UFV",         student_id: "ADMIN-EPS-001",  password: "admin123",      role: "admin",      admin_domain: "eps.ufv.es" },
     // UFV STUDENTS
     { email: "carlos@ufv.es",          name: "Carlos López Fernández",   student_id: "UFV-2024-001", password: "demo123", role: "student", admin_domain: null },
     { email: "laura@ufv.es",           name: "Laura Martínez García",    student_id: "UFV-2024-002", password: "demo123", role: "student", admin_domain: null },
@@ -49,6 +70,10 @@ export async function seedDemoData(): Promise<void> {
     { email: "sofia@ufv.es",           name: "Sofía Rodríguez Pérez",    student_id: "UFV-2024-004", password: "demo123", role: "student", admin_domain: null },
     { email: "andres@ufv.es",          name: "Andrés Navarro Gil",       student_id: "UFV-2024-005", password: "demo123", role: "student", admin_domain: null },
     { email: "patricia@ufv.es",        name: "Patricia Vega Moreno",     student_id: "UFV-2024-006", password: "demo123", role: "student", admin_domain: null },
+    // HIGHLAND STUDENTS
+    { email: "student5@highland.edu",  name: "James Wilson",             student_id: "HLD-001",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student6@highland.edu",  name: "Emma Thompson",            student_id: "HLD-002",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student7@highland.edu",  name: "Oliver Davis",             student_id: "HLD-003",      password: "demo123", role: "student", admin_domain: null },
     // EDU STUDENTS
     { email: "juan@universidad.edu",   name: "Juan García Martín",       student_id: "EDU-2024-001", password: "demo123", role: "student", admin_domain: null },
     { email: "maria@universidad.edu",  name: "María López Díaz",         student_id: "EDU-2024-002", password: "demo123", role: "student", admin_domain: null },
@@ -174,6 +199,19 @@ export async function seedDemoData(): Promise<void> {
         { name: "Claudia Fernández", description: "Establecer convenios para prácticas de estudiantes" },
         { name: "Daniel Morales",    description: "Centro de bienestar y salud mental para el campus" },
         { name: "Sara Ibáñez",       description: "Ampliación de la oferta de transporte universitario" },
+      ],
+    },
+    // ── HIGHLAND SCHOOL ──────────────────────────────────────────────
+    {
+      election_id_blockchain: 8,
+      name: "Highland School Council Election 2026",
+      description: "Vote for your student council representatives",
+      start_time: past(3), end_time: future(365), is_active: 1,
+      domains: ["highland.edu"],
+      candidates: [
+        { name: "Alice Johnson",  description: "Student welfare and activities coordinator" },
+        { name: "Bob Martinez",   description: "Academic support and resources" },
+        { name: "Carol White",    description: "Sports and extracurriculars" },
       ],
     },
     // ── INTER-UNIVERSITARIA ──────────────────────────────────────────
@@ -340,6 +378,11 @@ export async function seedDemoData(): Promise<void> {
   console.log("  🎓 sofia@ufv.es              / demo123  (ha votado en alguna)");
   console.log("  🎓 juan@universidad.edu      / demo123  (ha votado en alguna)");
   console.log("  🎓 elena@universidad.edu     / demo123  (puede votar)");
+  console.log("  👨‍💼 admin@highland.edu        / admin123");
+  console.log("  👨‍💼 admin@eps.ufv.es          / admin123");
+  console.log("  🎓 student5@highland.edu     / demo123");
+  console.log("  🎓 student6@highland.edu     / demo123");
+  console.log("  🎓 student7@highland.edu     / demo123");
   console.log("\n🗳️  Estado de las elecciones:");
   console.log("  ✔  Delegado UFV              → 3/6 votos emitidos");
   console.log("  ✔  Mejora Campus UFV         → 0/6 votos (nadie ha votado aún)");

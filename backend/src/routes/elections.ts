@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import { ethers } from "ethers";
+import { createHash } from "crypto";
 import { getDatabase } from "../config/database.js";
 import { verifyToken, generateNullifier } from "../utils/auth.js";
 
@@ -62,6 +63,8 @@ router.get("/", async (req: Request, res: Response) => {
       start_time: number;
       end_time: number;
       is_active: boolean;
+      image_url: string | null;
+      banner_color: string | null;
     }>(
       `SELECT e.* FROM elections e
        INNER JOIN election_voters ev ON e.id = ev.election_id
@@ -84,6 +87,8 @@ router.get("/", async (req: Request, res: Response) => {
           endTime: e.end_time,
           isActive,
           status,
+          imageUrl: e.image_url || null,
+          bannerColor: e.banner_color || '#1E3A5F',
         };
       }),
     });
@@ -113,6 +118,8 @@ router.get("/:id", async (req: Request, res: Response) => {
       end_time: number;
       is_active: boolean;
       created_at: string;
+      image_url: string | null;
+      banner_color: string | null;
     }>("SELECT * FROM elections WHERE id = ?", [id]);
 
     if (!election) {
@@ -169,9 +176,11 @@ router.get("/:id", async (req: Request, res: Response) => {
         isActive, // Estado actual en tiempo real
         title: election.name, // Alias para frontend
         status: isActive ? "active" : (now < election.start_time ? "pending" : "closed"),
-        candidates: candidates || [], // CAMBIO: Ahora retorna candidatos
-        eligible: true, // TODO: Verificar contra censo
-        hasVoted: false, // TODO: Verificar if user already voted
+        candidates: candidates || [],
+        eligible: true,
+        hasVoted: false,
+        imageUrl: election.image_url || null,
+        bannerColor: election.banner_color || '#1E3A5F',
         blockchainInfo,
       },
     });
@@ -346,16 +355,22 @@ router.get("/:id/results", async (req: Request, res: Response) => {
     const totalVotes = allVotes?.length || 0;
     const participationRate = totalVoters > 0 ? (totalVotes / totalVoters) * 100 : 0;
 
-    // Simular conteo por candidato (en producción, leer del smart contract)
-    const votesPerCandidate = candidates.map((c, i) => {
-      const v = i === 0 ? Math.ceil(totalVotes * 0.5) : i === 1 ? Math.ceil(totalVotes * 0.3) : Math.max(0, totalVotes - Math.ceil(totalVotes*0.5) - Math.ceil(totalVotes*0.3));
-      return { ...c, votes: v };
-    });
-    const totalDistributed = votesPerCandidate.reduce((s, c) => s + c.votes, 0);
-    const candidatesWithVotes = votesPerCandidate.map(candidate => {
-      const percentage = totalDistributed > 0 ? Math.round((candidate.votes / totalDistributed) * 1000) / 10 : 0;
-      return { id: candidate.id, name: candidate.name, votes: candidate.votes, percentage };
-    });
+    // Contar votos reales por candidato usando vote_choice almacenado
+    const voteCounts = await db.run<{ vote_choice: string; count: number }>(
+      "SELECT vote_choice, COUNT(*) as count FROM nullifier_audit WHERE election_id = ? AND vote_choice IS NOT NULL GROUP BY vote_choice",
+      [election.id]
+    );
+
+    const voteMap: Record<string, number> = {};
+    for (const vc of voteCounts) {
+      if (vc.vote_choice) voteMap[String(vc.vote_choice)] = vc.count;
+    }
+
+    const candidatesWithVotes = candidates.map(c => {
+      const votes = voteMap[String(c.id)] || 0;
+      const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 1000) / 10 : 0;
+      return { id: c.id, name: c.name, votes, percentage };
+    }).sort((a, b) => b.votes - a.votes);
 
 
 
@@ -410,11 +425,10 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       [id]
     );
 
-    // En producción, también obtener txHashes del blockchain
-    // Para ahora, simular con hashes ficticios basados en nullifier
+    // Generar txHash estable basado en el nullifier (determinístico, no aleatorio)
     const auditData = auditRecords.map((record) => ({
       nullifier: record.nullifier_hash,
-      txHash: `0x${Math.random().toString(16).substring(2).padEnd(64, '0')}`, // Simulado
+      txHash: `0x${createHash('sha256').update(record.nullifier_hash || '').digest('hex')}`,
       timestamp: record.generated_at,
     }));
 
@@ -560,17 +574,14 @@ router.post("/register-vote", async (req: Request, res: Response) => {
 
       console.log(`✓✓íƒ¢í¢â€š¬í…â€œ✓ Voto registrado en transacción: ${tx.hash}`);
 
-      // Registrar en auditoría que el usuario votó en esta elección
+      // Registrar en auditoría que el usuario votó en esta elección (con candidateId)
       try {
         await db.exec(
-          `
-          INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, generated_at)
-          VALUES (?, ?, ?, datetime('now'))
-        `,
-          [decoded.userId, electionId, nullifier]
+          'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, generated_at) VALUES (?, ?, ?, ?, datetime("now"))',
+          [decoded.userId, electionId, nullifier, candidateId ? String(candidateId) : null]
         );
       } catch (auditError) {
-        console.warn("✓✓¯✓¸✓  Warning al registrar auditoría:", auditError);
+        console.warn('Warning al registrar auditoría:', auditError);
       }
 
       res.json({

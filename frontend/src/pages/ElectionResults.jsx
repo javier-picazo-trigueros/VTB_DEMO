@@ -11,12 +11,24 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const BAR_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#14b8a6'];
 
+const formatDateES = (value) => {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('es-ES', {
+    timeZone: 'Europe/Madrid',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+};
+
 const ElectionResults = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const token = localStorage.getItem('vtb-token');
-  const locale = i18n.language === 'es' ? 'es-ES' : 'en-US';
 
   const [activeTab, setActiveTab] = useState('results');
   const [loading, setLoading] = useState(true);
@@ -25,6 +37,28 @@ const ElectionResults = () => {
   const [auditData, setAuditData] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [lastUpdatedSec, setLastUpdatedSec] = useState(0);
+
+  // Detect dark mode for chart colors
+  const [isDark, setIsDark] = useState(() =>
+    document.documentElement.classList.contains('dark')
+  );
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  const chartColors = {
+    grid: isDark ? '#334155' : '#e2e8f0',
+    axis: isDark ? '#94a3b8' : '#64748b',
+    tooltipBg: isDark ? '#1e293b' : '#ffffff',
+    tooltipBorder: isDark ? '#334155' : '#e2e8f0',
+    tooltipText: isDark ? '#f8fafc' : '#0f172a',
+  };
 
   useEffect(() => {
     fetchResults();
@@ -41,11 +75,8 @@ const ElectionResults = () => {
         }
       );
       setResults(response.data);
+      setLastUpdatedSec(0);
       setError(null);
-
-      if (response.data.election?.status === 'active') {
-        loadAudit();
-      }
     } catch (err) {
       console.error('Error loading results:', err);
       setError(err.response?.data?.error || t('results.loadError'));
@@ -59,7 +90,10 @@ const ElectionResults = () => {
       setAuditLoading(true);
       const response = await axios.get(
         `${API_URL}/api/elections/${id}/audit`,
-        { timeout: 10000 }
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000,
+        }
       );
       setAuditData(response.data || []);
     } catch (err) {
@@ -86,15 +120,16 @@ const ElectionResults = () => {
     document.body.removeChild(link);
   };
 
-  // Auto-refresh for active elections
+  // Auto-refresh for active elections + last-updated counter
   useEffect(() => {
     if (!results?.election || results.election.status !== 'active') return;
-    const interval = setInterval(async () => {
+    const counter = setInterval(() => setLastUpdatedSec(s => s + 1), 1000);
+    const refresher = setInterval(async () => {
       setRefreshing(true);
       await fetchResults();
       setRefreshing(false);
     }, 30000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(counter); clearInterval(refresher); };
   }, [results?.election?.status]);
 
   // ── Loading ──
@@ -142,7 +177,8 @@ const ElectionResults = () => {
 
   if (!results) return null;
 
-  const { election, candidates = [], totalVotes = 0, participationRate = 0 } = results;
+  const { election, candidates = [], totalVotes = 0, participationRate: rawRate = 0 } = results;
+  const participationRate = isNaN(rawRate) ? 0 : rawRate;
   const isActive = election?.status === 'active';
 
   const statusInfo = {
@@ -179,6 +215,9 @@ const ElectionResults = () => {
                 {refreshing && (
                   <p className="text-xs text-slate-400 mt-1">{t('results.refreshing')}</p>
                 )}
+                {isActive && !refreshing && lastUpdatedSec > 0 && (
+                  <p className="text-xs text-slate-400 mt-1">Last updated {lastUpdatedSec}s ago</p>
+                )}
               </div>
               <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full ${si.badge}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${si.dot}`} />
@@ -210,19 +249,19 @@ const ElectionResults = () => {
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{t('results.participation')}</p>
-              <p className="text-3xl font-bold text-slate-900 dark:text-white">{participationRate.toFixed(1)}%</p>
+              <p className="text-3xl font-bold text-slate-900 dark:text-white">{(isNaN(participationRate) ? 0 : participationRate).toFixed(1)}%</p>
               {election?.totalVoters > 0 && (
                 <>
                   <div className="mt-2 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${participationRate}%` }}
+                      animate={{ width: `${Math.min(participationRate, 100)}%` }}
                       transition={{ duration: 0.6, ease: 'easeOut' }}
                       className="h-full bg-blue-500 rounded-full"
                     />
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {totalVotes} / {election.totalVoters}
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                    {totalVotes} / {election.totalVoters} voters
                   </p>
                 </>
               )}
@@ -251,7 +290,7 @@ const ElectionResults = () => {
               <button
                 onClick={() => {
                   setActiveTab('audit');
-                  if (auditData.length === 0) loadAudit();
+                  loadAudit();
                 }}
                 className={`px-5 py-2.5 text-sm font-semibold transition border-b-2 -mb-px ${
                   activeTab === 'audit'
@@ -282,31 +321,29 @@ const ElectionResults = () => {
                       <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">
                         {t('results.votesByCandidate')}
                       </h2>
-                      <ResponsiveContainer width="100%" height={280}>
+                      <ResponsiveContainer width="100%" height={300}>
                         <BarChart
                           data={candidates}
                           margin={{ top: 8, right: 16, left: 0, bottom: 48 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
+                          <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                           <XAxis
                             dataKey="name"
-                            tick={{ fontSize: 11, fill: 'currentColor' }}
-                            className="text-slate-500 dark:text-slate-400"
+                            tick={{ fontSize: 11, fill: chartColors.axis }}
                             angle={-35}
                             textAnchor="end"
                             height={72}
                           />
                           <YAxis
-                            tick={{ fontSize: 11, fill: 'currentColor' }}
-                            className="text-slate-500 dark:text-slate-400"
+                            tick={{ fontSize: 11, fill: chartColors.axis }}
                             allowDecimals={false}
                           />
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: 'var(--tooltip-bg, #1e293b)',
-                              border: '1px solid #334155',
+                              backgroundColor: chartColors.tooltipBg,
+                              border: `1px solid ${chartColors.tooltipBorder}`,
                               borderRadius: '0.75rem',
-                              color: '#f8fafc',
+                              color: chartColors.tooltipText,
                               fontSize: 13,
                             }}
                             formatter={(value) => [value, t('results.votes')]}
@@ -368,7 +405,7 @@ const ElectionResults = () => {
                                 {candidate.votes}
                               </td>
                               <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">
-                                {candidate.percentage.toFixed(1)}%
+                                {(isNaN(candidate.percentage) ? 0 : candidate.percentage).toFixed(1)}%
                               </td>
                               <td className="px-4 py-3 hidden sm:table-cell">
                                 <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
@@ -437,7 +474,7 @@ const ElectionResults = () => {
                       <thead className="bg-slate-50 dark:bg-slate-700/50">
                         <tr>
                           <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                            Nullifier
+                            Nullifier Hash
                           </th>
                           <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                             Tx Hash
@@ -451,23 +488,13 @@ const ElectionResults = () => {
                         {auditData.slice(0, 50).map((record, idx) => (
                           <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
                             <td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">
-                              {record.nullifier?.slice(0, 10)}...{record.nullifier?.slice(-6)}
+                              {record.nullifier?.slice(0, 12)}...{record.nullifier?.slice(-8)}
                             </td>
-                            <td className="px-4 py-3">
-                              <a
-                                href={`${import.meta.env.VITE_EXPLORER_URL || 'http://localhost:8545'}/tx/${record.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                              >
-                                {record.txHash?.slice(0, 10)}...{record.txHash?.slice(-6)}
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                                </svg>
-                              </a>
+                            <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
+                              {record.txHash?.slice(0, 12)}...{record.txHash?.slice(-8)}
                             </td>
-                            <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                              {new Date(record.timestamp).toLocaleString(locale)}
+                            <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                              {formatDateES(record.timestamp)}
                             </td>
                           </tr>
                         ))}

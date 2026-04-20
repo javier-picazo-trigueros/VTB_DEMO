@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(xargs ls *)",
+      "Bash(node -e ' *)",
+      "Bash(python3 -c ' *)",
+      "Bash(npm install *)"
     ]
   }
 }

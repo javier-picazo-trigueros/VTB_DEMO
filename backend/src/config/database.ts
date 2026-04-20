@@ -137,6 +137,18 @@ export class Database {
             FOREIGN KEY (election_id) REFERENCES elections (id),
             UNIQUE(election_id, email_domain)
           )
+        `);
+
+        // Tabla de unidades organizativas (jerarquía de dominios)
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS org_units (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            domain TEXT NOT NULL UNIQUE,
+            parent_domain TEXT DEFAULT NULL,
+            unit_type TEXT DEFAULT 'institution',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
         `, (err) => {
           if (err) reject(err);
           else resolve();
@@ -151,6 +163,12 @@ export class Database {
     await this.exec("ALTER TABLE users ADD COLUMN approved_at DATETIME DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN approved_password TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN password_hash TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE nullifier_audit ADD COLUMN vote_choice TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN org_unit_domain TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE elections ADD COLUMN image_url TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE elections ADD COLUMN banner_color TEXT DEFAULT '#1E3A5F'").catch(() => {});
+    await this.exec("ALTER TABLE elections ADD COLUMN target_type TEXT DEFAULT 'domain'").catch(() => {});
+    await this.exec("ALTER TABLE elections ADD COLUMN target_description TEXT DEFAULT NULL").catch(() => {});
 
     // Los superadmin y admin creados directamente en BD ya están aprobados
     await this.exec(

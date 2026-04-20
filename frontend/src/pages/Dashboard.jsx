@@ -113,6 +113,20 @@ const ElectionCard = ({ election, eligibility, index, t, navigate }) => {
       transition={{ delay: index * 0.07 }}
       className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow flex flex-col overflow-hidden"
     >
+      {/* Election banner image or color strip */}
+      {election.imageUrl ? (
+        <div
+          className="h-24 w-full overflow-hidden rounded-t-2xl"
+          style={{ backgroundColor: election.bannerColor || '#1E3A5F' }}
+        >
+          <img src={election.imageUrl} className="w-full h-full object-cover opacity-80" alt="" />
+        </div>
+      ) : (
+        <div
+          className="h-2 w-full rounded-t-2xl"
+          style={{ backgroundColor: election.bannerColor || '#1E3A5F' }}
+        />
+      )}
       <div className="p-6 flex-1">
         {/* Top row */}
         <div className="flex items-start justify-between gap-3 mb-3">
