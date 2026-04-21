@@ -16,6 +16,7 @@ router.post("/request", async (req: Request, res: Response) => {
     const email = req.body.email;
     const studentId = req.body.studentId || req.body.student_id;
     const password = req.body.password;
+    const orgUnit: string | null = req.body.orgUnit || req.body.org_unit || null;
 
     // Validate required fields
     if (!fullName?.trim() || !email?.trim() || !studentId?.trim() || !password?.trim()) {
@@ -68,9 +69,9 @@ router.post("/request", async (req: Request, res: Response) => {
       const autoHash = await hashPassword(password);
       try {
         await db.exec(
-          `INSERT INTO users (email, password_hash, name, student_id, role, is_approved, is_eligible, created_at)
-           VALUES (?, ?, ?, ?, 'student', 1, 1, CURRENT_TIMESTAMP)`,
-          [email, autoHash, whitelisted.full_name || fullName, whitelisted.student_id || studentId]
+          `INSERT INTO users (email, password_hash, name, student_id, role, org_unit, is_approved, is_eligible, created_at)
+           VALUES (?, ?, ?, ?, 'student', ?, 1, 1, CURRENT_TIMESTAMP)`,
+          [email, autoHash, whitelisted.full_name || fullName, whitelisted.student_id || studentId, orgUnit]
         );
       } catch (insertErr: any) {
         if (insertErr.message?.includes('UNIQUE')) {
@@ -107,9 +108,9 @@ router.post("/request", async (req: Request, res: Response) => {
     const passwordHash = await hashPassword(password);
 
     await db.exec(
-      `INSERT INTO registration_requests (full_name, email, student_id, password_hash, status, created_at)
-       VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)`,
-      [fullName, email, studentId, passwordHash]
+      `INSERT INTO registration_requests (full_name, email, student_id, org_unit, password_hash, status, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)`,
+      [fullName, email, studentId, orgUnit, passwordHash]
     );
 
     res.json({

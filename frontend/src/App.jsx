@@ -24,15 +24,20 @@ import { VotingBooth } from './pages/VotingBooth'
  */
 const ProtectedRoute = ({ element, requiredRole = null }) => {
   const { isAuthenticated, hasRole, loading } = useAuth()
-  if (loading) return null
+  if (loading) return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-slate-400 text-sm">Loading...</p>
+      </div>
+    </div>
+  )
   if (!isAuthenticated) {
-    return <Navigate to="/login" />
+    return <Navigate to="/login?reason=expired" replace />
   }
-  
   if (requiredRole && !hasRole(requiredRole)) {
-    return <Navigate to="/dashboard" />
+    return <Navigate to="/dashboard" replace />
   }
-  
   return element
 }
 

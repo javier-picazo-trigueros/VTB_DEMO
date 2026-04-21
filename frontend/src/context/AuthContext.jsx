@@ -26,20 +26,55 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  const clearAuth = () => {
+    const keys = ['vtb-token', 'vtb-user', 'vtb-role', 'vtb-user-id', 'vtb-email', 'vtb-name', 'vtb-admin-domain'];
+    keys.forEach(k => localStorage.removeItem(k));
+    setUser(null);
+  };
+
   useEffect(() => {
-    const token = localStorage.getItem('vtb-token')
-    if (token && !isTokenValid(token)) {
-      logout()
-      setLoading(false)
-      return
-    }
-    const storedUser = localStorage.getItem('vtb-user')
-    if (token && storedUser && isTokenValid(token)) {
+    const validateToken = async () => {
+      const token = localStorage.getItem('vtb-token')
+      if (!token) {
+        setLoading(false)
+        return
+      }
+      if (!isTokenValid(token)) {
+        clearAuth()
+        setLoading(false)
+        return
+      }
       try {
-        setUser(JSON.parse(storedUser))
-      } catch(e) {}
+        const response = await fetch(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          const userData = {
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.name,
+            role: data.user.role,
+            adminDomain: data.user.adminDomain || '',
+          }
+          setUser(userData)
+          localStorage.setItem('vtb-user', JSON.stringify(userData))
+        } else {
+          // 401 or 404 — user no longer exists in DB (e.g. after backend restart)
+          clearAuth()
+        }
+      } catch (err) {
+        // Network error — fall back to stored user so offline sessions survive
+        const storedUser = localStorage.getItem('vtb-user')
+        if (storedUser) {
+          try { setUser(JSON.parse(storedUser)) } catch (e) {}
+        }
+      } finally {
+        setLoading(false)
+      }
     }
-    setLoading(false)
+
+    validateToken()
   }, [])
 
   const login = async (email, password) => {
@@ -64,9 +99,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   const logout = () => {
-    setUser(null)
-    localStorage.removeItem('vtb-token')
-    localStorage.removeItem('vtb-user')
+    clearAuth()
   }
 
   const setAuthUser = (userData) => {

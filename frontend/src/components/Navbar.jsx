@@ -40,13 +40,10 @@ export const Navbar = () => {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("vtb-token");
-    localStorage.removeItem("vtb-email");
-    localStorage.removeItem("vtb-name");
-    localStorage.removeItem("vtb-role");
-    localStorage.removeItem("vtb-user-id");
+    const keys = ['vtb-token', 'vtb-user', 'vtb-role', 'vtb-user-id', 'vtb-email', 'vtb-name', 'vtb-admin-domain'];
+    keys.forEach(k => localStorage.removeItem(k));
     setUser(null);
-    navigate("/");
+    navigate("/landing");
   };
 
   // Obtener inicial del nombre para el avatar
@@ -71,13 +68,7 @@ export const Navbar = () => {
         <div className="flex justify-between items-center py-4">
           {/* Logo */}
           <button
-            onClick={() => {
-              if (user) {
-                navigate("/dashboard");
-              } else {
-                navigate("/");
-              }
-            }}
+            onClick={() => navigate("/landing")}
             className="flex items-center space-x-2 hover:opacity-80 transition"
           >
             <motion.div
@@ -172,7 +163,7 @@ export const Navbar = () => {
                     </p>
                   </div>
 
-                  {user.role === "admin" && (
+                  {(user.role === "admin" || user.role === "superadmin") && (
                     <Link to="/admin">
                       <button className="block w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
                         👨‍💼 Admin Panel

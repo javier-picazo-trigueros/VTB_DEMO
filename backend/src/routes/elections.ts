@@ -70,6 +70,7 @@ router.get("/", async (req: Request, res: Response) => {
       is_active: boolean;
       image_url: string | null;
       banner_color: string | null;
+      voter_role: string | null;
     }>(
       `SELECT e.* FROM elections e
        INNER JOIN election_voters ev ON e.id = ev.election_id
@@ -94,6 +95,7 @@ router.get("/", async (req: Request, res: Response) => {
           status,
           imageUrl: e.image_url || null,
           bannerColor: e.banner_color || '#1E3A5F',
+          voterRole: e.voter_role || 'student',
         };
       }),
     });
@@ -242,6 +244,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       created_at: string;
       image_url: string | null;
       banner_color: string | null;
+      voter_role: string | null;
     }>("SELECT * FROM elections WHERE id = ?", [id]);
 
     if (!election) {
@@ -304,6 +307,7 @@ router.get("/:id", async (req: Request, res: Response) => {
         hasVoted: false,
         imageUrl: election.image_url || null,
         bannerColor: election.banner_color || '#1E3A5F',
+        voterRole: election.voter_role || 'student',
         blockchainInfo,
       },
     });

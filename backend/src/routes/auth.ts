@@ -262,6 +262,49 @@ router.post("/admin/register", async (req: Request, res: Response) => {
 });
 
 /**
+ * @route GET /auth/me
+ * @desc Validates JWT and returns current user — used for session persistence check
+ * Headers: Authorization: Bearer <token>
+ */
+router.get("/me", async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Token no proporcionado" });
+      return;
+    }
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token) as any;
+    if (!decoded || !decoded.userId) {
+      res.status(401).json({ error: "Token inválido o expirado" });
+      return;
+    }
+    const user = await db.get<{
+      id: number; email: string; name: string;
+      role: string; admin_domain: string | null;
+    }>(
+      "SELECT id, email, name, role, admin_domain FROM users WHERE id = ?",
+      [decoded.userId]
+    );
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        adminDomain: user.admin_domain || null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
  * @route GET /auth/user/:id
  * @desc Obtiene información de usuario (sin datos sensibles)
  */

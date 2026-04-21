@@ -205,6 +205,30 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Public org-units endpoint (used by registration form)
+app.get("/api/org-units", async (req: any, res: Response) => {
+  try {
+    const db = getDatabase();
+    const domain = req.query.domain as string | undefined;
+    let units;
+    if (domain) {
+      units = await db.run(
+        `SELECT * FROM org_units WHERE institution_domain = ? OR domain = ?
+         ORDER BY unit_type, name`,
+        [domain, domain]
+      );
+    } else {
+      units = await db.run(
+        'SELECT * FROM org_units ORDER BY institution_domain, unit_type, name'
+      );
+    }
+    res.json({ units: units || [] });
+  } catch (error) {
+    console.error("Error getting public org units:", error);
+    res.status(500).json({ error: "Error getting org units" });
+  }
+});
+
 // Rutas de autenticación
 // Aplicar rate limit al login
 app.post("/auth/login", loginLimiter);

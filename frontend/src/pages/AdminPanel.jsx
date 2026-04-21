@@ -5,6 +5,7 @@ import axios from "axios";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Navbar } from "../components/Navbar";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { clearAuthAndRedirect } from "../utils/auth";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -49,17 +50,20 @@ export const AdminPanel = () => {
   // Elections
   const [elections, setElections] = useState([]);
   const [availableDomains, setAvailableDomains] = useState([]);
+  const [orgUnits, setOrgUnits] = useState([]);
   const [newElection, setNewElection] = useState({
     name: "",
     description: "",
     start_time: "",
     end_time: "",
+    target_type: 'all',
+    target_values: [],
+    domains: adminDomain || '',
     selectedDomains: adminDomain ? [adminDomain] : [],
     candidates: [{ name: "", description: "" }],
     image: null,
     banner_color: '#1E3A5F',
-    target_type: 'domain',
-    target_description: '',
+    voter_role: 'student',
   });
 
   // Audit
@@ -166,6 +170,14 @@ export const AdminPanel = () => {
           } catch {
             // ignore
           }
+          try {
+            const orgRes = await axios.get(`${API_URL}/admin/org-units`, {
+              headers: getAuthHeader(),
+            });
+            setOrgUnits(orgRes.data.units || []);
+          } catch {
+            // ignore
+          }
           break;
         }
         case "audit": {
@@ -195,6 +207,10 @@ export const AdminPanel = () => {
         }
       }
     } catch (err) {
+      if (err.response?.status === 401) {
+        clearAuthAndRedirect(navigate);
+        return;
+      }
       setError(err.response?.data?.error || "Error loading data");
     } finally {
       setLoading(false);
@@ -265,23 +281,19 @@ export const AdminPanel = () => {
         start_time: startUnix,
         end_time: endUnix,
         banner_color: newElection.banner_color,
+        voter_role: newElection.voter_role || 'student',
         target_type: newElection.target_type,
-        target_description: newElection.target_description || null,
+        target_values: newElection.target_type === 'all'
+          ? [adminDomain || '*']
+          : newElection.target_type === 'domain'
+            ? (newElection.domains || '').split(',').map(d => d.trim()).filter(Boolean)
+            : newElection.target_values || [],
       };
 
       const res = await axios.post(`${API_URL}/admin/elections`, electionPayload, {
         headers: getAuthHeader(),
       });
       const newElectionId = res.data.electionId;
-
-      // Add selected domains
-      for (const domain of newElection.selectedDomains) {
-        try {
-          await axios.post(`${API_URL}/admin/elections/${newElectionId}/domains`, { domain }, { headers: getAuthHeader() });
-        } catch (e) {
-          console.error(`Error adding domain ${domain}:`, e);
-        }
-      }
 
       // Add candidates
       const validCandidates = newElection.candidates.filter(c => c.name.trim() !== "");
@@ -312,12 +324,14 @@ export const AdminPanel = () => {
         description: "",
         start_time: "",
         end_time: "",
+        target_type: 'all',
+        target_values: [],
+        domains: adminDomain || '',
         selectedDomains: adminDomain ? [adminDomain] : [],
         candidates: [{ name: "", description: "" }],
         image: null,
         banner_color: '#1E3A5F',
-        target_type: 'domain',
-        target_description: '',
+        voter_role: 'student',
       });
       loadTabData();
       setTimeout(() => setSuccess(""), 3000);
@@ -1048,93 +1062,146 @@ export const AdminPanel = () => {
                         </div>
                       </div>
 
-                      {/* Domains - multi-select list */}
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                          Allowed Domains
-                          {newElection.selectedDomains.length > 0 && (
-                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                              ({newElection.selectedDomains.length} selected)
-                            </span>
-                          )}
+                      {/* Who can vote? */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Who can vote?
                         </label>
-                        {availableDomains.length === 0 ? (
-                          <p className="text-sm text-slate-500 dark:text-slate-400 italic">
-                            No domains available. Add users first or type a domain below.
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { value: 'student', label: 'Students', desc: 'Enrolled students and voters' },
+                            { value: 'admin', label: 'Admins only', desc: 'Administrators and staff' },
+                            { value: 'both', label: 'Everyone', desc: 'Students and administrators' },
+                          ].map(({ value, label, desc }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setNewElection(p => ({ ...p, voter_role: value }))}
+                              className={`p-3 rounded-lg border text-left transition ${
+                                newElection.voter_role === value
+                                  ? 'bg-blue-600 border-blue-600 text-white'
+                                  : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-blue-400'
+                              }`}
+                            >
+                              <p className="font-medium text-sm">{label}</p>
+                              <p className={`text-xs mt-0.5 ${
+                                newElection.voter_role === value
+                                  ? 'text-blue-100'
+                                  : 'text-slate-500 dark:text-slate-400'
+                              }`}>{desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                        {newElection.voter_role === 'admin' && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 mt-2">
+                            This election will be visible to administrators whose domain is under yours. Their votes are recorded anonymously on the blockchain.
                           </p>
-                        ) : (
-                          <div className="border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700/50 p-3 max-h-48 overflow-y-auto space-y-2">
-                            {/* Select All */}
-                            <label className="flex items-center gap-3 cursor-pointer p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 select-none">
-                              <input
-                                type="checkbox"
-                                checked={availableDomains.length > 0 && newElection.selectedDomains.length === availableDomains.length}
-                                onChange={handleSelectAllDomains}
-                                className="w-4 h-4 rounded accent-emerald-500"
-                              />
-                              <span className="text-sm font-medium text-slate-800 dark:text-slate-200">All domains</span>
-                            </label>
-                            <div className="border-t border-slate-200 dark:border-slate-600 pt-2 space-y-1">
-                              {availableDomains.map(domain => (
-                                <label key={domain} className="flex items-center gap-3 cursor-pointer p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 select-none">
-                                  <input
-                                    type="checkbox"
-                                    checked={newElection.selectedDomains.includes(domain)}
-                                    onChange={() => handleToggleDomain(domain)}
-                                    disabled={!isSuperAdmin && adminDomain === domain}
-                                    className="w-4 h-4 rounded accent-emerald-500"
-                                  />
-                                  <span className="text-sm text-slate-700 dark:text-slate-300">@{domain}</span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
                         )}
                       </div>
 
-                      {/* Target Type */}
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Target Type</label>
-                          <select
-                            value={newElection.target_type}
-                            onChange={(e) => setNewElection({ ...newElection, target_type: e.target.value })}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                          >
-                            <option value="domain">Email Domain</option>
-                            <option value="org_unit">Org Unit (School/Degree/Year)</option>
-                            <option value="csv">Custom List (CSV)</option>
-                            <option value="course">Course/Subject</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            Banner Color
-                          </label>
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="color"
-                              value={newElection.banner_color}
-                              onChange={(e) => setNewElection({ ...newElection, banner_color: e.target.value })}
-                              className="h-10 w-20 rounded cursor-pointer border border-slate-300 dark:border-slate-600"
-                            />
-                            <span className="text-sm text-slate-600 dark:text-slate-400">{newElection.banner_color}</span>
-                          </div>
-                        </div>
-                      </div>
+                      {/* Target Audience */}
+                      <div className="border border-slate-300 dark:border-slate-600 p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50">
+                        <h3 className="font-bold text-slate-900 dark:text-white mb-3">Target Audience</h3>
 
-                      {newElection.target_type !== 'domain' && (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Target Description</label>
+                        {/* Target type buttons */}
+                        <div className="flex gap-2 mb-3 flex-wrap">
+                          {[
+                            { value: 'all', label: '🌐 Everyone in my domain' },
+                            { value: 'org_unit', label: '🏛️ Specific org unit' },
+                            { value: 'domain', label: '📧 Email domain' },
+                          ].map(({ value, label }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setNewElection(p => ({ ...p, target_type: value, target_values: [] }))}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                                newElection.target_type === value
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {newElection.target_type === 'all' && (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            All users in your domain will be eligible to vote.
+                          </p>
+                        )}
+
+                        {newElection.target_type === 'org_unit' && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-2">
+                              Select one or more org units (school, degree, year):
+                            </p>
+                            {orgUnits.length === 0 ? (
+                              <p className="text-xs text-slate-400 italic">No org units found. Add org units first.</p>
+                            ) : (
+                              <div className="space-y-1 max-h-48 overflow-y-auto">
+                                {orgUnits.map(unit => (
+                                  <label key={unit.domain} className="flex items-center gap-2 p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-600/30 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={(newElection.target_values || []).includes(unit.domain)}
+                                      onChange={(e) => {
+                                        const vals = newElection.target_values || [];
+                                        setNewElection(p => ({
+                                          ...p,
+                                          target_values: e.target.checked
+                                            ? [...vals, unit.domain]
+                                            : vals.filter(v => v !== unit.domain)
+                                        }));
+                                      }}
+                                      className="rounded"
+                                    />
+                                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium mr-1 ${
+                                      unit.unit_type === 'institution' ? 'bg-blue-100 text-blue-700' :
+                                      unit.unit_type === 'school' ? 'bg-purple-100 text-purple-700' :
+                                      unit.unit_type === 'degree' ? 'bg-green-100 text-green-700' :
+                                      'bg-amber-100 text-amber-700'
+                                    }`}>
+                                      {unit.unit_type}
+                                    </span>
+                                    <span className="text-sm text-slate-700 dark:text-slate-300">{unit.name}</span>
+                                    <span className="text-xs text-slate-400 ml-auto">@{unit.domain}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {(newElection.target_values || []).length > 0 && (
+                              <p className="text-xs text-blue-600 mt-2">
+                                {newElection.target_values.length} unit(s) selected
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {newElection.target_type === 'domain' && (
                           <input
                             type="text"
-                            placeholder="e.g. Computer Science Year 2, or course code CS201"
-                            value={newElection.target_description}
-                            onChange={(e) => setNewElection({ ...newElection, target_description: e.target.value })}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
+                            placeholder="Email domains e.g. ufv.es, highland.edu"
+                            value={newElection.domains || ''}
+                            onChange={(e) => setNewElection(p => ({ ...p, domains: e.target.value }))}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                           />
+                        )}
+                      </div>
+
+                      {/* Banner Color */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Banner Color</label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={newElection.banner_color}
+                            onChange={(e) => setNewElection({ ...newElection, banner_color: e.target.value })}
+                            className="h-10 w-20 rounded cursor-pointer border border-slate-300 dark:border-slate-600"
+                          />
+                          <span className="text-sm text-slate-600 dark:text-slate-400">{newElection.banner_color}</span>
                         </div>
-                      )}
+                      </div>
 
                       {/* Image Upload */}
                       <div>
@@ -1241,11 +1308,28 @@ export const AdminPanel = () => {
                                   <span className="px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 font-medium">
                                     {election.candidates?.length || "N/A"} candidates
                                   </span>
-                                  {election.domains && election.domains.map((d, i) => (
-                                    <span key={i} className="px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200 font-medium">
-                                      @{d}
+                                  {election.voter_role === 'admin' && (
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium">
+                                      ⚙️ Admins only
                                     </span>
-                                  ))}
+                                  )}
+                                  {election.voter_role === 'both' && (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium">
+                                      👥 Everyone
+                                    </span>
+                                  )}
+                                  {election.targets && election.targets.length > 0
+                                    ? election.targets.map((t, i) => (
+                                        <span key={i} className="px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
+                                          {t.target_value === '*' ? 'Everyone' : `@${t.target_value}`}
+                                        </span>
+                                      ))
+                                    : election.domains && election.domains.map((d, i) => (
+                                        <span key={i} className="px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200 font-medium">
+                                          @{d}
+                                        </span>
+                                      ))
+                                  }
                                 </div>
                                 <p className="text-sm text-slate-600 dark:text-slate-400">{election.description}</p>
                               </div>

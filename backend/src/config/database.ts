@@ -147,7 +147,20 @@ export class Database {
             domain TEXT NOT NULL UNIQUE,
             parent_domain TEXT DEFAULT NULL,
             unit_type TEXT DEFAULT 'institution',
+            institution_domain TEXT NOT NULL DEFAULT '',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Tabla de objetivos de elección (reemplaza el uso simple de election_access)
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS election_targets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            election_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL,
+            target_value TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (election_id) REFERENCES elections(id)
           )
         `, (err) => {
           if (err) reject(err);
@@ -172,6 +185,10 @@ export class Database {
     await this.exec("ALTER TABLE elections ADD COLUMN banner_color TEXT DEFAULT '#1E3A5F'").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN target_type TEXT DEFAULT 'domain'").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN target_description TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE org_units ADD COLUMN institution_domain TEXT NOT NULL DEFAULT ''").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN org_unit TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE registration_requests ADD COLUMN org_unit TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE elections ADD COLUMN voter_role TEXT DEFAULT 'student'").catch(() => {});
 
     await this.exec(`
       CREATE TABLE IF NOT EXISTS email_whitelist (

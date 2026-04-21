@@ -508,6 +508,12 @@ router.get("/elections", authAdminMiddleware, async (req: Request, res: Response
         [election.id]
       );
       election.candidates = candidates;
+
+      const targets = await db.run<any>(
+        "SELECT target_type, target_value FROM election_targets WHERE election_id = ?",
+        [election.id]
+      );
+      election.targets = targets || [];
     }
 
     res.json({ elections: electionList });
@@ -522,7 +528,13 @@ router.get("/elections", authAdminMiddleware, async (req: Request, res: Response
  */
 router.post("/elections", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
-    const { name, description, start_time, end_time, banner_color, target_type, target_description } = req.body;
+    const {
+      name, description, start_time, end_time, banner_color,
+      target_type = 'all',
+      target_values = [] as string[],
+      target_description,
+      voter_role = 'student',
+    } = req.body;
 
     if (!name || !start_time || !end_time) {
       res.status(400).json({
@@ -540,21 +552,86 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
 
     const result = await db.exec(
       `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active,
-                              banner_color, target_type, target_description)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+                              banner_color, target_type, target_description, voter_role)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       [election_id_blockchain, name, description, start_time, end_time,
-       banner_color || '#1E3A5F', target_type || 'domain', target_description || null]
+       banner_color || '#1E3A5F', target_type, target_description || null, voter_role]
     );
 
     const adminDomain = getAdminDomain(req);
-    if (adminDomain) {
-      try {
-        await db.exec(
-          "INSERT INTO election_access (election_id, email_domain) VALUES (?, ?)",
-          [result.lastID, adminDomain]
+
+    // Build targets array
+    const targets: { type: string; value: string }[] =
+      target_type === 'all'
+        ? [{ type: 'all', value: adminDomain || '*' }]
+        : (target_values as string[]).map((v: string) => ({ type: target_type, value: v }));
+
+    // Insert election_targets and maintain election_access for backward compat
+    for (const target of targets) {
+      await db.exec(
+        'INSERT INTO election_targets (election_id, target_type, target_value) VALUES (?, ?, ?)',
+        [result.lastID, target.type, target.value]
+      ).catch(() => {});
+      await db.exec(
+        'INSERT OR IGNORE INTO election_access (election_id, email_domain) VALUES (?, ?)',
+        [result.lastID, target.value]
+      ).catch(() => {});
+    }
+
+    // Build student/voter census (skip when voter_role === 'admin')
+    if (voter_role === 'student' || voter_role === 'both') {
+      if (target_type === 'all' || targets.some(t => t.value === '*')) {
+        if (adminDomain) {
+          await autoAssignUsersByDomain(result.lastID, adminDomain);
+        }
+      } else {
+        for (const target of targets) {
+          const targetUsers = await db.run<{ id: number }>(
+            `SELECT DISTINCT u.id FROM users u
+             WHERE (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ? OR u.org_unit = ?)
+               AND u.is_approved = 1 AND u.role IN ('student','voter')`,
+            [target.value, target.value, target.value]
+          );
+          for (const user of targetUsers) {
+            await db.exec(
+              'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+              [result.lastID, user.id]
+            ).catch(() => {});
+          }
+        }
+      }
+    }
+
+    // Build admin census
+    if (voter_role === 'admin' || voter_role === 'both') {
+      if (adminDomain) {
+        const subAdmins = await db.run<{ id: number }>(
+          `SELECT id FROM users
+           WHERE role IN ('admin', 'superadmin')
+             AND (admin_domain = ? OR admin_domain LIKE ?)
+             AND is_approved = 1`,
+          [adminDomain, '%.' + adminDomain]
         );
-      } catch (e: any) { /* ignore UNIQUE */ }
-      await autoAssignUsersByDomain(result.lastID, adminDomain);
+        for (const user of subAdmins) {
+          await db.exec(
+            'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+            [result.lastID, user.id]
+          ).catch(() => {});
+        }
+        // Also add the creating admin themselves
+        await db.exec(
+          'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+          [result.lastID, req.user.userId]
+        ).catch(() => {});
+      }
+    }
+
+    // Legacy: ensure election_access entry for backward compat
+    if (adminDomain && (target_type === 'all' || voter_role === 'admin')) {
+      await db.exec(
+        'INSERT OR IGNORE INTO election_access (election_id, email_domain) VALUES (?, ?)',
+        [result.lastID, adminDomain]
+      ).catch(() => {});
     }
 
     // Best-effort on-chain election registration
@@ -878,6 +955,7 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
       student_id: string;
       status: string;
       password_hash: string | null;
+      org_unit: string | null;
     }>(
       "SELECT * FROM registration_requests WHERE id = ?",
       [id]
@@ -906,11 +984,13 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
         passwordHash = await hashPassword(tempPassword);
       }
 
+      const orgUnit = request.org_unit || null;
+
       const insertResult = await db.exec(
-        `INSERT INTO users (email, password_hash, name, student_id, role,
+        `INSERT INTO users (email, password_hash, name, student_id, role, org_unit,
                            is_approved, approved_by, approved_at, is_eligible, created_at)
-         VALUES (?, ?, ?, ?, 'student', 1, ?, CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP)`,
-        [request.email, passwordHash, request.full_name, request.student_id, req.user.userId]
+         VALUES (?, ?, ?, ?, 'student', ?, 1, ?, CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP)`,
+        [request.email, passwordHash, request.full_name, request.student_id, orgUnit, req.user.userId]
       );
 
       const newUserId = insertResult.lastID;
@@ -930,7 +1010,7 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
         for (const election of elections) {
           try {
             await db.exec(
-              'INSERT INTO election_voters (election_id, user_id) VALUES (?, ?)',
+              'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
               [election.election_id, newUserId]
             );
           } catch (e: any) {
@@ -938,6 +1018,21 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
               console.error(`Error auto-assigning user ${newUserId} to election ${election.election_id}:`, e);
             }
           }
+        }
+      }
+
+      // Also auto-assign to elections targeting user's org_unit
+      if (orgUnit) {
+        const targetedElections = await db.run<{ election_id: number }>(
+          `SELECT DISTINCT election_id FROM election_targets
+           WHERE target_value = ? OR target_value = '*'`,
+          [orgUnit]
+        );
+        for (const election of targetedElections) {
+          await db.exec(
+            'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+            [election.election_id, newUserId]
+          ).catch(() => {});
         }
       }
 
@@ -1096,17 +1191,21 @@ router.post("/elections/:id/candidates", authAdminMiddleware, async (req: Reques
  */
 router.get("/org-units", authAdminMiddleware, async (req: Request, res: Response) => {
   try {
-    let orgUnits;
+    let units;
     if (isSuperAdmin(req)) {
-      orgUnits = await db.run<any>("SELECT * FROM org_units ORDER BY domain ASC");
+      units = await db.run<any>(
+        "SELECT * FROM org_units ORDER BY institution_domain, unit_type, name"
+      );
     } else {
       const adminDomain = getAdminDomain(req);
-      orgUnits = await db.run<any>(
-        "SELECT * FROM org_units WHERE (domain = ? OR domain LIKE '%.' || ?) ORDER BY domain ASC",
-        [adminDomain, adminDomain]
+      units = await db.run<any>(
+        `SELECT * FROM org_units
+         WHERE institution_domain = ? OR domain = ? OR domain LIKE ?
+         ORDER BY unit_type, name`,
+        [adminDomain, adminDomain, '%.' + adminDomain]
       );
     }
-    res.json({ orgUnits: orgUnits || [] });
+    res.json({ units: units || [] });
   } catch (error) {
     console.error("Error getting org units:", error);
     res.status(500).json({ error: "Error getting org units" });
@@ -1120,12 +1219,11 @@ router.post("/org-units", authAdminMiddleware, async (req: Request, res: Respons
   try {
     const { name, domain, parent_domain, unit_type } = req.body;
 
-    if (!name || !domain) {
-      res.status(400).json({ error: "name and domain are required" });
+    if (!name || !domain || !unit_type) {
+      res.status(400).json({ error: "name, domain and unit_type are required" });
       return;
     }
 
-    // Only superadmin or parent domain admin can create
     if (!isSuperAdmin(req)) {
       const adminDomain = getAdminDomain(req);
       if (!adminDomain || !isSubDomain(domain, adminDomain)) {
@@ -1134,9 +1232,17 @@ router.post("/org-units", authAdminMiddleware, async (req: Request, res: Respons
       }
     }
 
+    const adminDomain = getAdminDomain(req);
+    const parentUnit = parent_domain
+      ? await db.get<{ institution_domain: string }>(
+          'SELECT institution_domain FROM org_units WHERE domain = ?', [parent_domain]
+        )
+      : null;
+    const institution_domain = parentUnit?.institution_domain || adminDomain || domain;
+
     const result = await db.exec(
-      "INSERT INTO org_units (name, domain, parent_domain, unit_type) VALUES (?, ?, ?, ?)",
-      [name, domain, parent_domain || null, unit_type || 'institution']
+      "INSERT INTO org_units (name, domain, parent_domain, unit_type, institution_domain) VALUES (?, ?, ?, ?, ?)",
+      [name, domain, parent_domain || null, unit_type, institution_domain]
     );
 
     res.json({ success: true, id: result.lastID, message: `Org unit ${name} created` });

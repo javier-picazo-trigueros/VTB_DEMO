@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "../components/Navbar";
+import { useAuth } from "../context/AuthContext";
 
 /**
  * @title Landing Page - VTB Frontend
@@ -38,6 +39,15 @@ const itemVariants = {
 export const Landing = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { isAuthenticated, hasRole } = useAuth();
+
+  const handleStartVoting = () => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    } else {
+      navigate('/login');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -81,11 +91,19 @@ export const Landing = () => {
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
             <button
-              onClick={() => navigate("/login")}
+              onClick={handleStartVoting}
               className="px-8 py-4 rounded-lg bg-gradient-hero text-white font-semibold text-lg hover:shadow-lg transition"
             >
               {t("landing.cta")}
             </button>
+            {isAuthenticated && (hasRole('admin') || hasRole('superadmin')) && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="px-8 py-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-lg hover:shadow-lg transition"
+              >
+                Admin Panel
+              </button>
+            )}
             <button
               onClick={() => {}}
               className="px-8 py-4 rounded-lg border-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-semibold text-lg hover:border-slate-400 dark:hover:border-slate-500 transition"

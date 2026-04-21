@@ -12,18 +12,32 @@ export async function seedDemoData(): Promise<void> {
 
   // Seed org units always (idempotent)
   const orgUnits = [
-    { name: 'UFV', domain: 'ufv.es', parent_domain: null, unit_type: 'institution' },
-    { name: 'School of Engineering', domain: 'eps.ufv.es', parent_domain: 'ufv.es', unit_type: 'school' },
-    { name: 'Computer Science', domain: 'cs.eps.ufv.es', parent_domain: 'eps.ufv.es', unit_type: 'degree' },
-    { name: 'CS Year 1', domain: 'cs1.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year' },
-    { name: 'CS Year 2', domain: 'cs2.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year' },
-    { name: 'Highland School', domain: 'highland.edu', parent_domain: null, unit_type: 'institution' },
-    { name: 'Highland Secondary', domain: 'secondary.highland.edu', parent_domain: 'highland.edu', unit_type: 'school' },
+    // UFV
+    { name: 'UFV', domain: 'ufv.es', parent_domain: null, unit_type: 'institution', institution_domain: 'ufv.es' },
+    { name: 'School of Engineering', domain: 'eps.ufv.es', parent_domain: 'ufv.es', unit_type: 'school', institution_domain: 'ufv.es' },
+    { name: 'Computer Science', domain: 'cs.eps.ufv.es', parent_domain: 'eps.ufv.es', unit_type: 'degree', institution_domain: 'ufv.es' },
+    { name: 'CS Year 1', domain: 'cs1.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
+    { name: 'CS Year 2', domain: 'cs2.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
+    { name: 'CS Year 3', domain: 'cs3.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
+    { name: 'Business Administration', domain: 'ba.ufv.es', parent_domain: 'ufv.es', unit_type: 'degree', institution_domain: 'ufv.es' },
+    { name: 'BA Year 1', domain: 'ba1.ufv.es', parent_domain: 'ba.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
+    { name: 'BA Year 2', domain: 'ba2.ufv.es', parent_domain: 'ba.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
+    // Highland
+    { name: 'Highland School', domain: 'highland.edu', parent_domain: null, unit_type: 'institution', institution_domain: 'highland.edu' },
+    { name: 'Highland Secondary', domain: 'secondary.highland.edu', parent_domain: 'highland.edu', unit_type: 'school', institution_domain: 'highland.edu' },
+    { name: 'Year 10', domain: 'y10.secondary.highland.edu', parent_domain: 'secondary.highland.edu', unit_type: 'year', institution_domain: 'highland.edu' },
+    { name: 'Year 11', domain: 'y11.secondary.highland.edu', parent_domain: 'secondary.highland.edu', unit_type: 'year', institution_domain: 'highland.edu' },
   ];
   for (const ou of orgUnits) {
     await db.exec(
-      "INSERT OR IGNORE INTO org_units (name, domain, parent_domain, unit_type) VALUES (?, ?, ?, ?)",
-      [ou.name, ou.domain, ou.parent_domain, ou.unit_type]
+      `INSERT OR IGNORE INTO org_units (name, domain, parent_domain, unit_type, institution_domain)
+       VALUES (?, ?, ?, ?, ?)`,
+      [ou.name, ou.domain, ou.parent_domain, ou.unit_type, ou.institution_domain]
+    ).catch(() => {});
+    // Update institution_domain for pre-existing rows that were seeded without it
+    await db.exec(
+      `UPDATE org_units SET institution_domain = ? WHERE domain = ? AND (institution_domain = '' OR institution_domain IS NULL)`,
+      [ou.institution_domain, ou.domain]
     ).catch(() => {});
   }
 
@@ -137,6 +151,7 @@ export async function seedDemoData(): Promise<void> {
     start_time: number;
     end_time: number;
     is_active: number;
+    voter_role?: string;
     domains: string[];
     candidates: CandidateDef[];
   };
@@ -348,16 +363,31 @@ export async function seedDemoData(): Promise<void> {
         { name: "Biomedical Computing",   description: "Medical imaging, genomics and health data" },
       ],
     },
+    // ── ADMIN-TO-ADMIN ELECTION ─────────────────────────────────
+    {
+      election_id_blockchain: 17,
+      name: "EPS Department Heads Vote 2026",
+      description: "School of Engineering administrators vote on academic priorities for 2026-2027",
+      start_time: past(7), end_time: future(365), is_active: 1,
+      voter_role: 'admin',
+      domains: ["ufv.es"],
+      candidates: [
+        { name: "Increase industry partnerships",  description: "Strengthen links between EPS and tech companies" },
+        { name: "Expand research programs",        description: "Grow funded research groups and PhD positions" },
+        { name: "Improve student mentorship",      description: "Structured mentoring by faculty and alumni" },
+      ],
+    },
   ];
 
   const electionIdMap: Record<string, number> = {};
 
   for (const e of electionsToCreate) {
     try {
+      const voterRole = e.voter_role || 'student';
       const result = await db.exec(
-        `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [e.election_id_blockchain, e.name, e.description, e.start_time, e.end_time, e.is_active]
+        `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active, voter_role)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [e.election_id_blockchain, e.name, e.description, e.start_time, e.end_time, e.is_active, voterRole]
       );
       electionIdMap[e.name] = result.lastID;
 
@@ -376,7 +406,8 @@ export async function seedDemoData(): Promise<void> {
       }
 
       const status = e.is_active ? "activa" : "cerrada";
-      console.log(`  ✅ [${status.padEnd(7)}] ${e.name} — dominios: ${e.domains.join(", ")}`);
+      const roleLabel = voterRole !== 'student' ? ` [${voterRole}]` : '';
+      console.log(`  ✅ [${status.padEnd(7)}] ${e.name} — dominios: ${e.domains.join(", ")}${roleLabel}`);
     } catch (err: any) {
       console.error(`  ❌ Error creando elección "${e.name}": ${err.message}`);
     }
@@ -410,6 +441,33 @@ export async function seedDemoData(): Promise<void> {
     }
   }
   console.log(`  ✅ ${assigned} asignaciones creadas`);
+
+  // Assign admins to admin-role elections
+  console.log("\n👔 Asignando admins a elecciones de admins...");
+  const adminElectionAccess = await db.run<{ election_id: number; email_domain: string }>(
+    `SELECT ea.election_id, ea.email_domain FROM election_access ea
+     JOIN elections e ON ea.election_id = e.id
+     WHERE e.voter_role = 'admin'`
+  );
+  const allAdmins = await db.run<{ id: number; email: string; admin_domain: string | null }>(
+    "SELECT id, email, admin_domain FROM users WHERE role IN ('admin', 'superadmin')"
+  );
+  let adminAssigned = 0;
+  for (const admin of allAdmins) {
+    for (const access of adminElectionAccess) {
+      const adminDomain = admin.admin_domain || '';
+      if (adminDomain === access.email_domain || adminDomain.endsWith('.' + access.email_domain)) {
+        try {
+          await db.exec(
+            "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
+            [access.election_id, admin.id]
+          );
+          adminAssigned++;
+        } catch { /* ya asignado */ }
+      }
+    }
+  }
+  console.log(`  ✅ ${adminAssigned} asignaciones de admin creadas`);
 
   // ============================================================
   // 4. SIMULAR VOTOS YA EMITIDOS (nullifier_audit)

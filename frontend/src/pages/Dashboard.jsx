@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
 import { Navbar } from "../components/Navbar";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { clearAuthAndRedirect } from "../utils/auth";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -51,7 +52,7 @@ const Countdown = ({ endTime }) => {
   return <span className="font-mono text-xs font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{parts}</span>;
 };
 
-const ElectionCard = ({ election, eligibility, index, navigate }) => {
+const ElectionCard = ({ election, eligibility, index, navigate, isAdminElection }) => {
   const status = getRealStatus(election);
   const isReallyActive = status === "active";
   const alreadyVoted = eligibility?.reason === "already_voted";
@@ -65,7 +66,11 @@ const ElectionCard = ({ election, eligibility, index, navigate }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07 }}
-      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow flex flex-col overflow-hidden"
+      className={`bg-white dark:bg-slate-800 rounded-2xl border shadow-sm hover:shadow-md transition-shadow flex flex-col overflow-hidden ${
+        isAdminElection
+          ? 'border-amber-200 dark:border-amber-800'
+          : 'border-slate-200 dark:border-slate-700'
+      }`}
     >
       {election.imageUrl ? (
         <div className="h-24 w-full overflow-hidden rounded-t-2xl" style={{ backgroundColor: election.bannerColor || '#1E3A5F' }}>
@@ -86,6 +91,11 @@ const ElectionCard = ({ election, eligibility, index, navigate }) => {
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
                   Voted
+                </span>
+              )}
+              {isAdminElection && (
+                <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                  ⚙️ Admin election
                 </span>
               )}
             </div>
@@ -175,7 +185,7 @@ export const Dashboard = () => {
     if (!token) { navigate("/login"); return; }
     try {
       const res = await fetch(`${API_URL}/api/elections`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.status === 401) { navigate("/login"); return; }
+      if (res.status === 401) { clearAuthAndRedirect(navigate); return; }
       if (!res.ok) throw new Error("Failed to load elections");
       const data = await res.json();
       const list = Array.isArray(data) ? data : data.elections || [];
@@ -201,6 +211,8 @@ export const Dashboard = () => {
   if (!isAuthenticated) return null;
 
   const userName = user?.name || user?.email || "";
+  const userRole = localStorage.getItem('vtb-role') || 'student';
+  const isAdminUser = userRole === 'admin' || userRole === 'superadmin';
 
   // Filter + sort
   const filteredElections = elections.filter(e => {
@@ -217,6 +229,11 @@ export const Dashboard = () => {
       ? (a.endTime || 0) - (b.endTime || 0)
       : (b.id || 0) - (a.id || 0)
   );
+
+  const adminElections = isAdminUser
+    ? sortedElections.filter(e => e.voterRole === 'admin')
+    : [];
+  const regularElections = sortedElections.filter(e => e.voterRole !== 'admin');
 
   return (
     <>
@@ -340,16 +357,50 @@ export const Dashboard = () => {
 
           {/* Elections grid */}
           {!isLoading && sortedElections.length > 0 && (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {sortedElections.map((election, idx) => (
-                <ElectionCard
-                  key={election.id}
-                  election={election}
-                  eligibility={eligibilityMap[election.id]}
-                  index={idx}
-                  navigate={navigate}
-                />
-              ))}
+            <div>
+              {isAdminUser && adminElections.length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    ⚙️ Administrative Elections
+                    <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-normal">
+                      {adminElections.length}
+                    </span>
+                  </h2>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {adminElections.map((election, idx) => (
+                      <ElectionCard
+                        key={election.id}
+                        election={election}
+                        eligibility={eligibilityMap[election.id]}
+                        index={idx}
+                        navigate={navigate}
+                        isAdminElection={true}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {regularElections.length > 0 && (
+                <div>
+                  {isAdminUser && adminElections.length > 0 && (
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
+                      🎓 Student Elections
+                    </h2>
+                  )}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {regularElections.map((election, idx) => (
+                      <ElectionCard
+                        key={election.id}
+                        election={election}
+                        eligibility={eligibilityMap[election.id]}
+                        index={idx}
+                        navigate={navigate}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>
