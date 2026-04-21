@@ -219,7 +219,7 @@ export async function seedDemoData(): Promise<void> {
     },
     // ── HIGHLAND SCHOOL ──────────────────────────────────────────────
     {
-      election_id_blockchain: 8,
+      election_id_blockchain: 7,
       name: "Highland School Council Election 2026",
       description: "Vote for your student council representatives",
       start_time: past(3), end_time: future(365), is_active: 1,
@@ -232,7 +232,7 @@ export async function seedDemoData(): Promise<void> {
     },
     // ── INTER-UNIVERSITARIA ──────────────────────────────────────────
     {
-      election_id_blockchain: 7,
+      election_id_blockchain: 8,
       name: "Formato Debate Interuniversitario",
       description: "Ambas comunidades votan el formato del próximo debate interuniversitario.",
       start_time: past(1), end_time: future(14), is_active: 1,

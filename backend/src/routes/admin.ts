@@ -536,6 +536,7 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
       "SELECT MAX(election_id_blockchain) as id FROM elections"
     );
     const election_id_blockchain = (lastElection?.id || 0) + 1;
+    let blockchainId = election_id_blockchain;
 
     const result = await db.exec(
       `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active,
@@ -563,20 +564,29 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
     const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
     if (contractAddress && privateKey) {
       try {
-        const now = Math.floor(Date.now() / 1000);
-        // Only attempt if start_time is in the future (on-chain contract requires it)
-        if (Number(start_time) > now) {
-          const provider = new ethers.JsonRpcProvider(rpcUrl);
-          const wallet = new ethers.Wallet(privateKey, provider);
-          const abi = [
-            "function createElection(string memory _name, uint256 _startTime, uint256 _endTime) external",
-          ];
-          const contract = new ethers.Contract(contractAddress, abi, wallet);
-          const tx = await contract.createElection(name, start_time, end_time);
-          const receipt = await tx.wait();
-          onChainTx = tx.hash;
-          console.log(`Election "${name}" registered on-chain: ${tx.hash} (block ${receipt?.blockNumber})`);
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        const wallet = new ethers.Wallet(privateKey, provider);
+        const abi = [
+          "function createElection(string memory _name, uint256 _startTime, uint256 _endTime) external",
+          "function electionCount() view returns (uint256)",
+        ];
+        const contract = new ethers.Contract(contractAddress, abi, wallet);
+
+        const onChainStart = Math.max(Number(start_time), Math.floor(Date.now() / 1000) + 120);
+        const tx = await contract.createElection(name, onChainStart, Number(end_time));
+        const receipt = await tx.wait();
+        onChainTx = tx.hash;
+
+        const createdOnChainId = Number(await contract.electionCount());
+        if (createdOnChainId > 0) {
+          blockchainId = createdOnChainId;
+          await db.exec(
+            "UPDATE elections SET election_id_blockchain = ? WHERE id = ?",
+            [blockchainId, result.lastID]
+          );
         }
+
+        console.log(`Election "${name}" registered on-chain: ${tx.hash} (block ${receipt?.blockNumber})`);
       } catch (bcErr: any) {
         console.warn(`Could not register election on-chain (best-effort): ${bcErr.message}`);
       }
@@ -585,7 +595,7 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
     res.json({
       success: true,
       electionId: result.lastID,
-      blockchainId: election_id_blockchain,
+      blockchainId,
       onChainTx,
       message: `Elección "${name}" creada exitosamente`,
     });

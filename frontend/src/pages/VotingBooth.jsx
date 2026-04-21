@@ -146,7 +146,7 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         </motion.div>
       </div>
       <h2 className="text-center text-xl font-bold text-slate-900 dark:text-white mb-1">
-        Vote registered on the blockchain!
+        Vote registered on blockchain!
       </h2>
       <p className="text-center text-sm text-slate-500 dark:text-slate-400 mb-5">
         Transaction hash
@@ -474,19 +474,45 @@ export const VotingBoothContent = () => {
         return;
       }
 
-      const isBlockchainErr =
-        err.response?.status === 500 &&
-        (err.response?.data?.error?.toLowerCase().includes("blockchain") ||
-         err.response?.data?.error?.toLowerCase().includes("provider"));
+      const responseError = err.response?.data;
+      const errMsg = [
+        responseError?.error,
+        responseError?.details,
+        err.message,
+      ].filter(Boolean).join(" ") || "Vote could not be registered.";
+      const errMsgLower = errMsg.toLowerCase();
+      const isConnectionError =
+        errMsg.includes("ECONNREFUSED") ||
+        errMsgLower.includes("could not detect network") ||
+        errMsgLower.includes("no configurado") ||
+        errMsgLower.includes("not configured") ||
+        (err.response?.status === 500 && errMsg.includes("CONTRACT_ADDRESS"));
 
-      if (isBlockchainErr) {
+      const isContractError =
+        errMsgLower.includes("election does not exist") ||
+        errMsgLower.includes("already voted") ||
+        errMsgLower.includes("not active") ||
+        errMsgLower.includes("out of time window") ||
+        errMsgLower.includes("nullifier already used");
+
+      if (isConnectionError) {
         setVoteError({
           type: "blockchain_unavailable",
-          message: "Blockchain node unavailable",
-          detail: "Make sure the blockchain node is configured correctly.",
+          message: "Blockchain node unavailable.",
+          detail: "The blockchain connection is not configured. Contact the administrator.",
+        });
+      } else if (isContractError) {
+        setVoteError({
+          type: "contract_error",
+          message: "Transaction failed",
+          detail: errMsg,
         });
       } else {
-        setVoteError(err.response?.data?.error || err.message || "Error registering vote");
+        setVoteError({
+          type: "unknown_error",
+          message: "Vote could not be registered.",
+          detail: errMsg,
+        });
       }
       setVoteStatus("error");
       if (err.response?.status === 401) setTimeout(() => navigate("/login"), 2000);
@@ -606,8 +632,8 @@ export const VotingBoothContent = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
               </svg>
               <div>
-                <p className="font-semibold text-amber-800 dark:text-amber-300">Blockchain node unavailable</p>
-                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1 font-mono">Make sure Hardhat is running: npx hardhat node</p>
+                <p className="font-semibold text-amber-800 dark:text-amber-300">{voteError.message}</p>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">{voteError.detail}</p>
                 <button
                   onClick={() => { setVoteError(null); setVoteStatus(null); handleVote(); }}
                   className="mt-3 px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition"
@@ -616,6 +642,46 @@ export const VotingBoothContent = () => {
                 </button>
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {voteError?.type === "contract_error" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center"
+          >
+            <div className="text-4xl mb-3">⚠️</div>
+            <h3 className="font-bold text-red-800 dark:text-red-300 mb-1">
+              {voteError.message}
+            </h3>
+            <p className="text-sm text-red-700 dark:text-red-400 mb-4 break-words">
+              {voteError.detail}
+            </p>
+            <button
+              onClick={() => { setVoteError(null); setVoteStatus(null); }}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition"
+            >
+              Try again
+            </button>
+          </motion.div>
+        )}
+
+        {voteError?.type === "unknown_error" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center"
+          >
+            <div className="flex justify-center mb-3"><XCircleIcon /></div>
+            <h3 className="font-bold text-red-800 dark:text-red-300 mb-1">
+              {voteError.message}
+            </h3>
+            <p className="text-sm text-red-700 dark:text-red-400 mb-4 break-words">
+              {voteError.detail}
+            </p>
+            <button
+              onClick={() => { setVoteError(null); setVoteStatus(null); }}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition"
+            >
+              Try again
+            </button>
           </motion.div>
         )}
 

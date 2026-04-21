@@ -19,9 +19,6 @@ const db = getDatabase();
  * - Escucha eventos del Smart Contract para auditoría
  */
 
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "";
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
-
 function getProvider() {
   const rpcUrl = process.env.RPC_URL || 'http://localhost:8545';
   return new ethers.JsonRpcProvider(rpcUrl);
@@ -107,6 +104,123 @@ router.get("/", async (req: Request, res: Response) => {
 });
 
 /**
+ * @route GET /elections/blockchain-sync-status
+ * @desc Compares local election blockchain ids with the live on-chain range.
+ */
+router.get("/blockchain-sync-status", async (_req: Request, res: Response) => {
+  try {
+    const elections = await db.run<{
+      id: number;
+      name: string;
+      election_id_blockchain: number;
+    }>(
+      "SELECT id, name, election_id_blockchain FROM elections ORDER BY id ASC"
+    );
+
+    let onChainCount = 0;
+    let blockchainAvailable = false;
+
+    const contractAddress = process.env.CONTRACT_ADDRESS || "";
+
+    if (contractAddress) {
+      try {
+        const provider = getProvider();
+        const abi = ["function electionCount() view returns (uint256)"];
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+        onChainCount = Number(await contract.electionCount());
+        blockchainAvailable = true;
+      } catch (e: any) {
+        console.warn("Could not check on-chain election count:", e.message);
+      }
+    }
+
+    const sync = elections.map((e, index) => {
+      const expectedBlockchainId = index + 1;
+      const existsOnChain = blockchainAvailable && e.election_id_blockchain <= onChainCount;
+      const sequentialMismatch = e.election_id_blockchain !== expectedBlockchainId;
+      const missingOnChain = !existsOnChain;
+
+      return {
+        sqliteId: e.id,
+        name: e.name,
+        blockchainId: e.election_id_blockchain,
+        expectedBlockchainId,
+        existsOnChain,
+        sequentialMismatch,
+        missingOnChain,
+        mismatch: sequentialMismatch || missingOnChain,
+      };
+    });
+
+    res.json({
+      onChainCount,
+      blockchainAvailable,
+      elections: sync,
+      mismatches: sync.filter(e => e.mismatch),
+    });
+  } catch (err) {
+    console.error("Failed to check blockchain sync status:", err);
+    res.status(500).json({ error: "Failed to check sync status" });
+  }
+});
+
+/**
+ * @route PATCH /elections/fix-blockchain-ids
+ * @desc Resets local blockchain ids to sequential on-chain ids in SQLite order.
+ */
+router.patch("/fix-blockchain-ids", async (req: Request, res: Response) => {
+  try {
+    const isDevelopment = process.env.NODE_ENV === "development";
+
+    if (!isDevelopment) {
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith("Bearer ")) {
+        res.status(401).json({ error: "Auth required" });
+        return;
+      }
+
+      const decoded = verifyToken(authHeader.substring(7));
+      if (!decoded?.userId) {
+        res.status(401).json({ error: "Invalid token" });
+        return;
+      }
+
+      const admin = await db.get<{ role: string }>(
+        "SELECT role FROM users WHERE id = ?",
+        [decoded.userId]
+      );
+
+      if (!admin || !["admin", "superadmin"].includes(admin.role)) {
+        res.status(403).json({ error: "Admin required" });
+        return;
+      }
+    }
+
+    const elections = await db.run<{ id: number }>(
+      "SELECT id FROM elections ORDER BY id ASC"
+    );
+
+    for (let i = 0; i < elections.length; i++) {
+      await db.exec(
+        "UPDATE elections SET election_id_blockchain = ? WHERE id = ?",
+        [i + 1, elections[i].id]
+      );
+    }
+
+    res.json({
+      message: `Fixed ${elections.length} elections`,
+      mapping: elections.map((e, i) => ({
+        sqliteId: e.id,
+        newBlockchainId: i + 1,
+      })),
+    });
+  } catch (err) {
+    console.error("Failed to fix blockchain ids:", err);
+    res.status(500).json({ error: "Failed to fix blockchain ids" });
+  }
+});
+
+/**
  * @route GET /elections/:id
  * @desc Obtiene detalles de una elección específica CON CANDIDATOS
  * 
@@ -148,14 +262,15 @@ router.get("/:id", async (req: Request, res: Response) => {
 
     // Obtener información del blockchain si está disponible
     let blockchainInfo = null;
-    if (CONTRACT_ADDRESS) {
+    const contractAddress = process.env.CONTRACT_ADDRESS || "";
+    if (contractAddress) {
       try {
         // ABI minimal del contrato ElectionRegistry
         const abi = [
           "function getElection(uint256) public view returns (string, uint256, uint256, bool, uint256)",
         ];
 
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, getProvider());
+        const contract = new ethers.Contract(contractAddress, abi, getProvider());
         const onchainData = await contract.getElection(
           election.election_id_blockchain
         );
