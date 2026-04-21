@@ -19,13 +19,21 @@ const db = getDatabase();
  * - Escucha eventos del Smart Contract para auditoría
  */
 
-// Configuración de Hardhat Local Node
-const RPC_URL = process.env.RPC_URL || "http://localhost:8545";
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "";
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 
-// Provedor a nodo local
-const provider = new ethers.JsonRpcProvider(RPC_URL);
+function getProvider() {
+  const rpcUrl = process.env.RPC_URL || 'http://localhost:8545';
+  return new ethers.JsonRpcProvider(rpcUrl);
+}
+
+function getWallet() {
+  const rpcUrl = process.env.RPC_URL || 'http://localhost:8545';
+  const privateKey = process.env.PRIVATE_KEY || '';
+  if (!privateKey) return null;
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  return new ethers.Wallet(privateKey, provider);
+}
 
 /**
  * @route GET /elections
@@ -147,7 +155,7 @@ router.get("/:id", async (req: Request, res: Response) => {
           "function getElection(uint256) public view returns (string, uint256, uint256, bool, uint256)",
         ];
 
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, getProvider());
         const onchainData = await contract.getElection(
           election.election_id_blockchain
         );
@@ -564,11 +572,12 @@ router.post("/register-vote", async (req: Request, res: Response) => {
 
 
 
-    // PREPARAR TRANSACCI✓íƒâ€¦í¢â‚¬Å“N EN BLOCKCHAIN
-    const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
+    // PREPARAR TRANSACCI✓íƒâ€¦í¢â‚¬Å”N EN BLOCKCHAIN
     try {
-      const provider = new ethers.JsonRpcProvider(RPC_URL);
-      const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+      const wallet = getWallet();
+      if (!wallet) {
+        return res.status(500).json({ error: "Blockchain no configurado. Asegurate de que PRIVATE_KEY este definida." });
+      }
       // ABI del contrato ElectionRegistry
       const contractAbi = [
         "function castVote(uint256 _electionId, bytes32 _nullifier, bytes32 _voteHash) public",

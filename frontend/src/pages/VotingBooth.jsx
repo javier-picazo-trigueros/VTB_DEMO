@@ -355,7 +355,10 @@ export const VotingBoothContent = () => {
     const setupListener = async () => {
       try {
         if (disposed) return;
-        provider = new ethers.JsonRpcProvider(RPC_URL);
+        const isWebSocket = RPC_URL.startsWith('wss://') || RPC_URL.startsWith('ws://');
+        provider = isWebSocket
+          ? new ethers.WebSocketProvider(RPC_URL)
+          : new ethers.JsonRpcProvider(RPC_URL);
         await provider.getBlockNumber();
         const contractAbi = ["event VoteCast(uint256 indexed electionId, bytes32 nullifier, bytes32 voteHash)"];
         contract = new ethers.Contract(CONTRACT_ADDRESS, contractAbi, provider);
@@ -394,7 +397,11 @@ export const VotingBoothContent = () => {
 
     return () => {
       disposed = true;
+      if (contract) contract.removeAllListeners('VoteCast');
       removeListeners();
+      if (provider && typeof provider.destroy === 'function') {
+        provider.destroy();
+      }
       clearInterval(interval);
       clearInterval(heartbeat);
       clearTimeout(reconnectTimer);
@@ -476,7 +483,7 @@ export const VotingBoothContent = () => {
         setVoteError({
           type: "blockchain_unavailable",
           message: "Blockchain node unavailable",
-          detail: "Make sure Hardhat is running: npx hardhat node",
+          detail: "Make sure the blockchain node is configured correctly.",
         });
       } else {
         setVoteError(err.response?.data?.error || err.message || "Error registering vote");

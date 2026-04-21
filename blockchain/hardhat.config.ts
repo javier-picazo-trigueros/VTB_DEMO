@@ -37,7 +37,8 @@ const config: HardhatUserConfig = {
 
     // Sepolia testnet — set SEPOLIA_RPC_URL and DEPLOYER_PRIVATE_KEY in .env
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || "",
+      url: process.env.SEPOLIA_RPC_URL ||
+           `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY || ''}`,
       accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
       chainId: 11155111,
     },

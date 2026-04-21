@@ -41,7 +41,10 @@ export async function seedDemoData(): Promise<void> {
            'elena@universidad.edu','roberto@universidad.edu',
            'admin@ufv.es','admin@universidad.edu','superadmin@vtb.system',
            'admin@highland.edu','admin@eps.ufv.es',
-           'student5@highland.edu','student6@highland.edu','student7@highland.edu'
+           'student5@highland.edu','student6@highland.edu','student7@highland.edu',
+           'student8@ufv.es','student9@ufv.es','student10@ufv.es','student11@ufv.es','student12@ufv.es',
+           'student8@highland.edu','student9@highland.edu','student10@highland.edu',
+           'student8@universidad.edu','student9@universidad.edu'
          )`
     );
     console.log("ℹ️  Base de datos ya tiene datos, omitiendo seed completo.");
@@ -79,6 +82,19 @@ export async function seedDemoData(): Promise<void> {
     { email: "maria@universidad.edu",  name: "María López Díaz",         student_id: "EDU-2024-002", password: "demo123", role: "student", admin_domain: null },
     { email: "elena@universidad.edu",  name: "Elena Castro Ruiz",        student_id: "EDU-2024-003", password: "demo123", role: "student", admin_domain: null },
     { email: "roberto@universidad.edu",name: "Roberto Sánchez Leal",     student_id: "EDU-2024-004", password: "demo123", role: "student", admin_domain: null },
+    // NEW UFV STUDENTS
+    { email: "student8@ufv.es",   name: "María José García",       student_id: "UFV-2024-008", password: "demo123", role: "student", admin_domain: null },
+    { email: "student9@ufv.es",   name: "Carlos Alberto López",    student_id: "UFV-2024-009", password: "demo123", role: "student", admin_domain: null },
+    { email: "student10@ufv.es",  name: "Ana Belén Martínez",      student_id: "UFV-2024-010", password: "demo123", role: "student", admin_domain: null },
+    { email: "student11@ufv.es",  name: "David Fernández Ruiz",    student_id: "UFV-2024-011", password: "demo123", role: "student", admin_domain: null },
+    { email: "student12@ufv.es",  name: "Laura González Torres",   student_id: "UFV-2024-012", password: "demo123", role: "student", admin_domain: null },
+    // NEW HIGHLAND STUDENTS
+    { email: "student8@highland.edu",  name: "William Johnson",    student_id: "HLD-008",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student9@highland.edu",  name: "Charlotte Williams", student_id: "HLD-009",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student10@highland.edu", name: "George Taylor",      student_id: "HLD-010",      password: "demo123", role: "student", admin_domain: null },
+    // NEW UNIVERSIDAD STUDENTS
+    { email: "student8@universidad.edu", name: "Roberto Sánchez",  student_id: "EDU-2024-008", password: "demo123", role: "student", admin_domain: null },
+    { email: "student9@universidad.edu", name: "Carmen Díaz",      student_id: "EDU-2024-009", password: "demo123", role: "student", admin_domain: null },
   ];
 
   const userIdMap: Record<string, number> = {};
@@ -225,6 +241,111 @@ export async function seedDemoData(): Promise<void> {
         { name: "Formato Oxford",         description: "Debate estructurado tradicional entre dos equipos" },
         { name: "Lincoln-Douglas",        description: "Debate uno-a-uno basado en valores" },
         { name: "Estilo Parlamentario",   description: "Gobierno vs. Oposición con múltiples oradores" },
+      ],
+    },
+    // ── NEW UFV ELECTIONS ────────────────────────────────────────────
+    {
+      election_id_blockchain: 9,
+      name: "Faculty Representative Election — Engineering 2026",
+      description: "Choose your faculty representative for the School of Engineering academic committee",
+      start_time: past(7), end_time: future(365), is_active: 1,
+      domains: ["ufv.es"],
+      candidates: [
+        { name: "Dr. Carlos Mendoza",    description: "Research & innovation advocate" },
+        { name: "Prof. Ana Ruiz",        description: "Student welfare and curriculum reform" },
+        { name: "Dr. Luis Fernández",    description: "Industry partnerships coordinator" },
+      ],
+    },
+    {
+      election_id_blockchain: 10,
+      name: "VTB Platform Feedback Survey 2026",
+      description: "Rate your experience with the VTB voting platform and suggest improvements",
+      start_time: past(7), end_time: future(365), is_active: 1,
+      domains: ["ufv.es"],
+      candidates: [
+        { name: "Excellent — No changes needed",  description: "The platform meets all our needs" },
+        { name: "Good — Minor improvements",      description: "Small UX tweaks would help" },
+        { name: "Needs significant work",         description: "Major features are missing" },
+      ],
+    },
+    {
+      election_id_blockchain: 11,
+      name: "Campus Sustainability Initiative Vote",
+      description: "Vote for the sustainability project you want implemented on campus this semester",
+      start_time: past(7), end_time: future(365), is_active: 1,
+      domains: ["ufv.es"],
+      candidates: [
+        { name: "Solar Panel Installation",           description: "Renewable energy for campus buildings" },
+        { name: "Bike Sharing Program",               description: "Green transport between campus zones" },
+        { name: "Campus Food Garden",                 description: "Community organic garden project" },
+        { name: "Electric Vehicle Charging Stations", description: "EV infrastructure for students and staff" },
+      ],
+    },
+    {
+      election_id_blockchain: 12,
+      name: "Student Union Budget Allocation 2026",
+      description: "Help decide how the student union budget should be allocated this academic year",
+      start_time: past(7), end_time: future(365), is_active: 1,
+      domains: ["ufv.es"],
+      candidates: [
+        { name: "Sports & Recreation (40%)",  description: "Facilities, equipment and sports events" },
+        { name: "Cultural Events (40%)",      description: "Concerts, exhibitions and cultural trips" },
+        { name: "Academic Resources (40%)",   description: "Books, software licences and tutoring" },
+        { name: "Social Spaces (40%)",        description: "Common areas and study lounges" },
+      ],
+    },
+    {
+      election_id_blockchain: 13,
+      name: "Best Professor Award — Engineering Faculty",
+      description: "Nominate and vote for the best professor in the School of Engineering",
+      start_time: past(7), end_time: future(365), is_active: 1,
+      domains: ["ufv.es"],
+      candidates: [
+        { name: "Prof. García (Web Development)", description: "Innovative teaching and real-world projects" },
+        { name: "Prof. Martínez (Algorithms)",    description: "Clear explanations and student support" },
+        { name: "Prof. López (Networks)",         description: "Industry experience and practical labs" },
+        { name: "Prof. Sánchez (Databases)",      description: "Research-driven and always available" },
+      ],
+    },
+    // ── NEW HIGHLAND ELECTIONS ───────────────────────────────────────
+    {
+      election_id_blockchain: 14,
+      name: "Highland School Prefect Election 2026",
+      description: "Vote for your school prefect representatives for the 2026 academic year",
+      start_time: past(7), end_time: future(365), is_active: 1,
+      domains: ["highland.edu"],
+      candidates: [
+        { name: "James Wilson",    description: "Student welfare and inclusion champion" },
+        { name: "Sophie Clarke",   description: "Academic excellence and peer support" },
+        { name: "Oliver Brown",    description: "Sports and extra-curricular activities" },
+        { name: "Emma Thompson",   description: "Environmental and sustainability lead" },
+      ],
+    },
+    {
+      election_id_blockchain: 15,
+      name: "Highland School Trip Destination Vote",
+      description: "Choose where the school trip should go this year",
+      start_time: past(7), end_time: future(365), is_active: 1,
+      domains: ["highland.edu"],
+      candidates: [
+        { name: "Paris, France",         description: "Art, culture and the Eiffel Tower" },
+        { name: "Rome, Italy",           description: "History, cuisine and the Colosseum" },
+        { name: "Barcelona, Spain",      description: "Gaudí architecture and beach culture" },
+        { name: "Amsterdam, Netherlands", description: "Canals, museums and cycling" },
+      ],
+    },
+    // ── NEW UNIVERSIDAD ELECTIONS ────────────────────────────────────
+    {
+      election_id_blockchain: 16,
+      name: "Research Department Priority Vote 2026",
+      description: "Help the faculty board decide which research area receives additional funding",
+      start_time: past(7), end_time: future(365), is_active: 1,
+      domains: ["universidad.edu"],
+      candidates: [
+        { name: "Machine Learning & AI",  description: "Neural networks, LLMs and applied AI systems" },
+        { name: "Cybersecurity",          description: "Threat detection, cryptography and secure systems" },
+        { name: "Blockchain & Web3",      description: "Decentralised protocols and smart contracts" },
+        { name: "Biomedical Computing",   description: "Medical imaging, genomics and health data" },
       ],
     },
   ];
@@ -383,6 +504,16 @@ export async function seedDemoData(): Promise<void> {
   console.log("  🎓 student5@highland.edu     / demo123");
   console.log("  🎓 student6@highland.edu     / demo123");
   console.log("  🎓 student7@highland.edu     / demo123");
+  console.log("  🎓 student8@ufv.es           / demo123  (María José García)");
+  console.log("  🎓 student9@ufv.es           / demo123  (Carlos Alberto López)");
+  console.log("  🎓 student10@ufv.es          / demo123  (Ana Belén Martínez)");
+  console.log("  🎓 student11@ufv.es          / demo123  (David Fernández Ruiz)");
+  console.log("  🎓 student12@ufv.es          / demo123  (Laura González Torres)");
+  console.log("  🎓 student8@highland.edu     / demo123  (William Johnson)");
+  console.log("  🎓 student9@highland.edu     / demo123  (Charlotte Williams)");
+  console.log("  🎓 student10@highland.edu    / demo123  (George Taylor)");
+  console.log("  🎓 student8@universidad.edu  / demo123  (Roberto Sánchez)");
+  console.log("  🎓 student9@universidad.edu  / demo123  (Carmen Díaz)");
   console.log("\n🗳️  Estado de las elecciones:");
   console.log("  ✔  Delegado UFV              → 3/6 votos emitidos");
   console.log("  ✔  Mejora Campus UFV         → 0/6 votos (nadie ha votado aún)");
