@@ -7,7 +7,11 @@
       "Bash(node -e ' *)",
       "Bash(python3 -c ' *)",
       "Bash(npm install *)",
-      "Bash(npx hardhat *)"
+      "Bash(npx hardhat *)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const c=fs.readFileSync\\('elections.ts','utf8'\\); const i=c.indexOf\\('participationRate: Math.round\\(participationRate'\\); console.log\\('found at:', i\\); console.log\\(JSON.stringify\\(c.slice\\(i,i+100\\)\\)\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const c=fs.readFileSync\\('elections.ts','utf8'\\); const i=c.indexOf\\('Math.round\\(participationRate'\\); console.log\\(i\\); if\\(i>0\\) console.log\\(JSON.stringify\\(c.slice\\(i-10,i+80\\)\\)\\);\")",
+      "Bash(node patch_elections.js)",
+      "Bash(node patch_admin.js)"
     ]
   }
 }

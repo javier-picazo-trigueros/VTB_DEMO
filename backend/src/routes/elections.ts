@@ -311,10 +311,11 @@ router.get("/:id/results", async (req: Request, res: Response) => {
     const election = await db.get<{
       id: number;
       name: string;
+      description: string;
       start_time: number;
       end_time: number;
       is_active: boolean;
-    }>("SELECT id, name, start_time, end_time, is_active FROM elections WHERE id = ?", [id]);
+    }>("SELECT id, name, description, start_time, end_time, is_active FROM elections WHERE id = ?", [id]);
 
     if (!election) {
       res.status(404).json({ error: 'Elección no encontrada' });
@@ -345,48 +346,58 @@ router.get("/:id/results", async (req: Request, res: Response) => {
       [election.id]
     );
 
-    // Obtener votos del blockchain (o de auditoría si se guardan ahí)
-    // Por ahora, contar nullifiers para esta elección
-    const allVotes = await db.run<{ id: number }>(  
-      "SELECT id FROM nullifier_audit WHERE election_id = ?",
+    // Get real per-candidate vote counts from candidate_id column
+    const candidateVoteCounts = await db.run<{ candidate_id: number; votes: number }>(
+      `SELECT candidate_id, COUNT(*) as votes
+       FROM nullifier_audit
+       WHERE election_id = ? AND candidate_id IS NOT NULL
+       GROUP BY candidate_id`,
       [election.id]
     );
 
-    const totalVotes = allVotes?.length || 0;
-    const participationRate = totalVoters > 0 ? (totalVotes / totalVoters) * 100 : 0;
-
-    // Contar votos reales por candidato usando vote_choice almacenado
-    const voteCounts = await db.run<{ vote_choice: string; count: number }>(
-      "SELECT vote_choice, COUNT(*) as count FROM nullifier_audit WHERE election_id = ? AND vote_choice IS NOT NULL GROUP BY vote_choice",
-      [election.id]
-    );
-
-    const voteMap: Record<string, number> = {};
-    for (const vc of voteCounts) {
-      if (vc.vote_choice) voteMap[String(vc.vote_choice)] = vc.count;
+    const voteMap: Record<number, number> = {};
+    for (const cv of candidateVoteCounts) {
+      voteMap[cv.candidate_id] = cv.votes;
     }
 
-    const candidatesWithVotes = candidates.map(c => {
-      const votes = voteMap[String(c.id)] || 0;
-      const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 1000) / 10 : 0;
-      return { id: c.id, name: c.name, votes, percentage };
-    }).sort((a, b) => b.votes - a.votes);
+    const candidatesWithVotes = candidates.map(c => ({
+      id: c.id,
+      name: c.name,
+      description: c.description || '',
+      votes: voteMap[c.id] || 0,
+      percentage: 0,
+    }));
 
+    const realTotalVotes = candidatesWithVotes.reduce((s, c) => s + c.votes, 0);
+    candidatesWithVotes.forEach(c => {
+      c.percentage = realTotalVotes > 0
+        ? Math.round((c.votes / realTotalVotes) * 1000) / 10
+        : 0;
+    });
+    candidatesWithVotes.sort((a, b) => b.votes - a.votes);
 
-
-
+    const totalVoterCount = voterCount?.count || 0;
+    const onChainCount = await db.get<{ count: number }>(
+      'SELECT COUNT(*) as count FROM nullifier_audit WHERE election_id = ? AND tx_hash IS NOT NULL',
+      [election.id]
+    );
 
     res.json({
       election: {
         id: election.id,
         name: election.name,
+        description: election.description || '',
         status,
+        startDate: new Date(election.start_time * 1000).toISOString(),
         endDate: new Date(election.end_time * 1000).toISOString(),
-        totalVoters,
+        totalVoters: totalVoterCount,
       },
       candidates: candidatesWithVotes,
-      totalVotes,
-      participationRate: Math.round(participationRate * 10) / 10,
+      totalVotes: realTotalVotes,
+      participationRate: totalVoterCount > 0
+        ? Math.round((realTotalVotes / totalVoterCount) * 1000) / 10
+        : 0,
+      onChainVerified: (onChainCount?.count || 0) > 0,
     });
 
   } catch (error) {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Navbar } from "../components/Navbar";
 import LoadingSpinner from "../components/LoadingSpinner";
 
@@ -73,6 +73,10 @@ export const AdminPanel = () => {
   // Student Votes
   const [studentVotes, setStudentVotes] = useState([]);
   const [selectedElectionForVotes, setSelectedElectionForVotes] = useState(null);
+
+  // Election stats drill-down
+  const [selectedElectionStats, setSelectedElectionStats] = useState(null);
+  const [loadingElectionStats, setLoadingElectionStats] = useState(false);
 
   // Registration Requests
   const [registrationRequests, setRegistrationRequests] = useState([]);
@@ -497,6 +501,18 @@ export const AdminPanel = () => {
       setError(err.response?.data?.error || "Error rejecting request");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadElectionStats = async (electionId) => {
+    setLoadingElectionStats(true);
+    try {
+      const res = await axios.get(`${API_URL}/admin/elections/${electionId}/stats`, { headers: getAuthHeader() });
+      setSelectedElectionStats(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || "Error loading election stats");
+    } finally {
+      setLoadingElectionStats(false);
     }
   };
 
@@ -1323,26 +1339,45 @@ export const AdminPanel = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-4"
                 >
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Voters by Election</h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Voters by Election</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Click any election to see detailed stats</p>
+                  </div>
                   {stats2.map((stat) => (
                     <div
                       key={stat.id}
-                      className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"
+                      onClick={() => loadElectionStats(stat.id)}
+                      className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all"
                     >
                       <div className="flex items-center justify-between">
-                        <div>
+                        <div className="flex-1">
                           <h3 className="font-bold text-slate-900 dark:text-white">{stat.election_name}</h3>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                            {stat.total_voters} voters participated
-                          </p>
+                          <div className="flex flex-wrap gap-4 mt-1">
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{stat.total_voters}</span> votes cast
+                            </p>
+                            {stat.total_voters_assigned != null && (
+                              <p className="text-sm text-slate-600 dark:text-slate-400">
+                                of <span className="font-semibold">{stat.total_voters_assigned}</span> assigned
+                              </p>
+                            )}
+                            {stat.participation_rate != null && (
+                              <p className="text-sm text-slate-600 dark:text-slate-400">
+                                <span className="font-semibold text-blue-600 dark:text-blue-400">{stat.participation_rate}%</span> participation
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{stat.total_voters}</span>
+                        <div className="text-right ml-4">
+                          <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stat.participation_rate ?? 0}%</span>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">participation</p>
+                        </div>
                       </div>
-                      {stat.total_voters > 0 && (
+                      {stat.total_voters_assigned > 0 && (
                         <div className="mt-3 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-emerald-500 rounded-full"
-                            style={{ width: `${Math.min((stat.total_voters / 100) * 100, 100)}%` }}
+                            className="h-full bg-emerald-500 rounded-full transition-all"
+                            style={{ width: `${Math.min(stat.participation_rate ?? 0, 100)}%` }}
                           />
                         </div>
                       )}
@@ -1581,6 +1616,206 @@ export const AdminPanel = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Election Stats Modal */}
+      <AnimatePresence>
+        {(selectedElectionStats || loadingElectionStats) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setSelectedElectionStats(null); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl my-8 overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 z-10 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {selectedElectionStats?.election?.name || 'Loading...'}
+                  </h2>
+                  {selectedElectionStats?.election && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                      {new Date(selectedElectionStats.election.startDate).toLocaleDateString('en-US')} — {new Date(selectedElectionStats.election.endDate).toLocaleDateString('en-US')}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedElectionStats(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl font-bold w-10 h-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  ×
+                </button>
+              </div>
+
+              {loadingElectionStats ? (
+                <div className="p-12 text-center">
+                  <LoadingSpinner message="Loading election statistics..." />
+                </div>
+              ) : selectedElectionStats && (
+                <div className="p-6 space-y-6">
+                  {/* KPI Row */}
+                  <div className="grid grid-cols-3 gap-4">
+                    {[
+                      { label: 'Census', value: selectedElectionStats.stats.totalVoters, icon: '👥', color: 'blue' },
+                      { label: 'Votes Cast', value: selectedElectionStats.stats.totalVotes, icon: '🗳️', color: 'emerald' },
+                      { label: 'Participation', value: `${selectedElectionStats.stats.participationRate}%`, icon: '📊', color: 'purple' },
+                    ].map(({ label, value, icon, color }) => (
+                      <div key={label} className={`bg-${color}-50 dark:bg-${color}-900/20 border border-${color}-200 dark:border-${color}-800 rounded-xl p-4 text-center`}>
+                        <p className="text-2xl mb-1">{icon}</p>
+                        <p className={`text-2xl font-bold text-${color}-700 dark:text-${color}-300`}>{value}</p>
+                        <p className={`text-xs text-${color}-600 dark:text-${color}-400 mt-0.5`}>{label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Candidate Chart */}
+                  {selectedElectionStats.candidates?.length > 0 && (
+                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-sm">Votes by Candidate</h3>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={selectedElectionStats.candidates} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                          <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                          <Tooltip formatter={(v) => [v, 'Votes']} />
+                          <Bar dataKey="votes" radius={[4, 4, 0, 0]}>
+                            {selectedElectionStats.candidates.map((_, i) => (
+                              <Cell key={i} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'][i % 6]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {/* Candidate Table */}
+                  {selectedElectionStats.candidates?.length > 0 && (
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 dark:bg-slate-700/50">
+                          <tr>
+                            <th className="text-left py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">#</th>
+                            <th className="text-left py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">Candidate</th>
+                            <th className="text-right py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">Votes</th>
+                            <th className="text-right py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">%</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedElectionStats.candidates.map((c, i) => {
+                            const maxVotes = selectedElectionStats.candidates[0]?.votes || 0;
+                            const isWinner = i === 0 && c.votes > 0;
+                            return (
+                              <tr key={c.id} className="border-t border-slate-100 dark:border-slate-700">
+                                <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-xs">#{i + 1}</td>
+                                <td className="py-3 px-4 text-slate-900 dark:text-white font-medium">
+                                  {isWinner && <span className="mr-1.5">👑</span>}
+                                  {c.name}
+                                  {c.description && <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{c.description}</span>}
+                                </td>
+                                <td className="py-3 px-4 text-right font-semibold text-slate-800 dark:text-slate-200">{c.votes}</td>
+                                <td className="py-3 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${c.percentage}%` }} />
+                                    </div>
+                                    <span className="text-blue-600 dark:text-blue-400 font-medium text-xs w-10 text-right">{c.percentage}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Voter List */}
+                  {selectedElectionStats.voters?.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
+                        Voter Participation ({selectedElectionStats.voters.filter(v => v.has_voted).length} / {selectedElectionStats.voters.length} voted)
+                      </h3>
+                      <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {selectedElectionStats.voters.map((v, i) => (
+                              <tr key={i} className="border-b border-slate-100 dark:border-slate-700/50 last:border-0">
+                                <td className="py-2 px-4 font-mono text-slate-700 dark:text-slate-300">{v.email}</td>
+                                <td className="py-2 px-4 text-right">
+                                  {v.has_voted ? (
+                                    <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full font-medium">Voted</span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full">Pending</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Domains */}
+                  {selectedElectionStats.domains?.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-2 text-sm">Allowed Domains</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedElectionStats.domains.map((d) => (
+                          <span key={d} className="px-3 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium">
+                            @{d}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                      onClick={() => { setSelectedElectionStats(null); navigate(`/results/${selectedElectionStats.election.id}`); }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
+                    >
+                      View Public Results
+                    </button>
+                    {selectedElectionStats.election.is_active && (
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm('Close this election? This will deactivate it.')) return;
+                          try {
+                            await axios.put(`${API_URL}/admin/elections/${selectedElectionStats.election.id}`, { is_active: false }, { headers: getAuthHeader() });
+                            setSuccess('Election closed');
+                            setSelectedElectionStats(null);
+                            loadTabData();
+                            setTimeout(() => setSuccess(''), 3000);
+                          } catch (err) {
+                            setError(err.response?.data?.error || 'Error closing election');
+                          }
+                        }}
+                        className="px-4 py-2 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium transition"
+                      >
+                        Close Election
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setSelectedElectionStats(null)}
+                      className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition ml-auto"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
