@@ -114,7 +114,7 @@ app.use(cors({
     
     // En producción, rechazar requests sin origin
     if (!origin) {
-      return callback(new Error('CORS: origen requerido en producción'));
+     return callback(null, true);
     }
     
     // Validar que el origin está permitido
