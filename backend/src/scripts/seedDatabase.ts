@@ -41,26 +41,51 @@ export async function seedDemoData(): Promise<void> {
     ).catch(() => {});
   }
 
+  // Always upsert critical demo accounts so production DB stays consistent
+  const criticalAccounts = [
+    { email: "superadmin@vtb.system", name: "Super Admin",           student_id: "SUPERADMIN-001", password: "superadmin123", role: "superadmin", admin_domain: null },
+    { email: "admin@ufv.es",           name: "Admin UFV",             student_id: "ADMIN-UFV-001",  password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
+    { email: "admin@universidad.edu",  name: "Admin Universidad",     student_id: "ADMIN-EDU-001",  password: "admin123",      role: "admin",      admin_domain: "universidad.edu" },
+    { email: "admin@highland.edu",     name: "Admin Highland",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highland.edu" },
+    { email: "admin@eps.ufv.es",       name: "Admin EPS UFV",         student_id: "ADMIN-EPS-001",  password: "admin123",      role: "admin",      admin_domain: "eps.ufv.es" },
+    { email: "carlos@ufv.es",          name: "Carlos López Fernández", student_id: "UFV-2024-001", password: "demo123",       role: "student",    admin_domain: null },
+    { email: "laura@ufv.es",           name: "Laura Martínez García",  student_id: "UFV-2024-002", password: "demo123",       role: "student",    admin_domain: null },
+    { email: "miguel@ufv.es",          name: "Miguel Torres Sánchez",  student_id: "UFV-2024-003", password: "demo123",       role: "student",    admin_domain: null },
+    { email: "sofia@ufv.es",           name: "Sofía Rodríguez Pérez",  student_id: "UFV-2024-004", password: "demo123",       role: "student",    admin_domain: null },
+    { email: "andres@ufv.es",          name: "Andrés Navarro Gil",      student_id: "UFV-2024-005", password: "demo123",       role: "student",    admin_domain: null },
+    { email: "patricia@ufv.es",        name: "Patricia Vega Moreno",    student_id: "UFV-2024-006", password: "demo123",       role: "student",    admin_domain: null },
+    { email: "student5@highland.edu",  name: "James Wilson",            student_id: "HLD-001",      password: "demo123",       role: "student",    admin_domain: null },
+    { email: "student6@highland.edu",  name: "Emma Thompson",           student_id: "HLD-002",      password: "demo123",       role: "student",    admin_domain: null },
+    { email: "juan@universidad.edu",   name: "Juan García Martín",      student_id: "EDU-2024-001", password: "demo123",       role: "student",    admin_domain: null },
+    { email: "elena@universidad.edu",  name: "Elena Castro Ruiz",       student_id: "EDU-2024-003", password: "demo123",       role: "student",    admin_domain: null },
+  ];
+
+  console.log("🔄 Ensuring critical demo accounts exist with correct passwords...");
+  for (const account of criticalAccounts) {
+    try {
+      const hash = await hashPassword(account.password);
+      const row = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [account.email]);
+      if (row) {
+        await db.exec(
+          "UPDATE users SET password_hash = ?, role = ?, admin_domain = ?, is_approved = 1, approved_at = CURRENT_TIMESTAMP WHERE email = ?",
+          [hash, account.role, account.admin_domain, account.email]
+        );
+      } else {
+        await db.exec(
+          `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain, is_approved, approved_at, is_eligible)
+           VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, 1)`,
+          [account.email, hash, account.name, account.student_id, account.role, account.admin_domain]
+        );
+      }
+    } catch (err: any) {
+      console.error(`  ❌ Failed to upsert ${account.email}: ${err.message}`);
+    }
+  }
+  console.log("✅ Demo accounts ensured (upserted)");
+
   // Comprobar si ya hay datos
   const existing = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users");
   if (existing && existing.count > 0) {
-    // Asegurarse de que los usuarios demo estén aprobados aunque ya existan
-    await db.exec(
-      `UPDATE users SET is_approved = 1, approved_at = CURRENT_TIMESTAMP
-       WHERE is_approved = 0
-         AND email IN (
-           'carlos@ufv.es','laura@ufv.es','miguel@ufv.es','sofia@ufv.es',
-           'andres@ufv.es','patricia@ufv.es',
-           'juan@universidad.edu','maria@universidad.edu',
-           'elena@universidad.edu','roberto@universidad.edu',
-           'admin@ufv.es','admin@universidad.edu','superadmin@vtb.system',
-           'admin@highland.edu','admin@eps.ufv.es',
-           'student5@highland.edu','student6@highland.edu','student7@highland.edu',
-           'student8@ufv.es','student9@ufv.es','student10@ufv.es','student11@ufv.es','student12@ufv.es',
-           'student8@highland.edu','student9@highland.edu','student10@highland.edu',
-           'student8@universidad.edu','student9@universidad.edu'
-         )`
-    );
     console.log("ℹ️  Base de datos ya tiene datos, omitiendo seed completo.");
     return;
   }

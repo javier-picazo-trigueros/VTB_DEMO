@@ -101,34 +101,43 @@ const PORT = process.env.PORT || 3001;
 // CORS CONFIGURATION (BLOQUE 2.4)
 // ============================================================
 
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:5173', 'http://localhost:3000']; // Default para desarrollo
-
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir requests sin origin (Postman, curl) solo en desarrollo
-    if (!origin && process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
-    }
-    
-    // En producción, rechazar requests sin origin
+    // Always allow requests without origin (curl, Render health checks, etc.)
     if (!origin) {
-     return callback(null, true);
-    }
-    
-    // Validar que el origin está permitido
-    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    
-    // Rechazar origin no permitido
-    callback(new Error(`CORS: origen no permitido: ${origin}`));
+
+    const configuredOrigins = process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+      : [];
+
+    const defaultOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:4173',
+    ];
+
+    const allowedOrigins = [...configuredOrigins, ...defaultOrigins];
+
+    // In development allow everything
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+
+    // In production check against list
+    if (allowedOrigins.some(allowed => origin.startsWith(allowed) || allowed === '*')) {
+      return callback(null, true);
+    }
+
+    console.warn(`CORS rejected origin: ${origin}`);
+    console.warn(`Allowed origins: ${allowedOrigins.join(', ')}`);
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400 // 24 horas
+  maxAge: 86400
 }));
 
 // Middleware

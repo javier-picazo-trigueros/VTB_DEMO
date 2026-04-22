@@ -334,4 +334,19 @@ router.get("/user/:id", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @route GET /auth/debug-users
+ * @desc TEMPORARY — lists first 20 users for production debugging. Remove after fix.
+ */
+router.get("/debug-users", async (req: Request, res: Response) => {
+  try {
+    const users = await db.run<{ id: number; email: string; role: string; is_approved: number; created_at: string }>(
+      "SELECT id, email, role, is_approved, created_at FROM users ORDER BY id LIMIT 20"
+    );
+    res.json({ count: users.length, users });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
