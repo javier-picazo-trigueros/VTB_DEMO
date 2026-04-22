@@ -134,8 +134,8 @@ router.post("/login", async (req: Request, res: Response) => {
         adminDomain: user.admin_domain,
       },
     });
-  } catch (error) {
-    console.error("Error en login:", error);
+  } catch (error: any) {
+    console.error("Login error for", req.body?.email, ":", error.message);
     res.status(500).json({ error: "Error al iniciar sesión" });
   }
 });
@@ -331,21 +331,6 @@ router.get("/user/:id", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error al obtener usuario:", error);
     res.status(500).json({ error: "Error al obtener información del usuario" });
-  }
-});
-
-/**
- * @route GET /auth/debug-users
- * @desc TEMPORARY — lists first 20 users for production debugging. Remove after fix.
- */
-router.get("/debug-users", async (req: Request, res: Response) => {
-  try {
-    const users = await db.run<{ id: number; email: string; role: string; is_approved: number; created_at: string }>(
-      "SELECT id, email, role, is_approved, created_at FROM users ORDER BY id LIMIT 20"
-    );
-    res.json({ count: users.length, users });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
   }
 });
 

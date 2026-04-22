@@ -43,7 +43,7 @@ export const Navbar = () => {
     const keys = ['vtb-token', 'vtb-user', 'vtb-role', 'vtb-user-id', 'vtb-email', 'vtb-name', 'vtb-admin-domain'];
     keys.forEach(k => localStorage.removeItem(k));
     setUser(null);
-    navigate("/landing");
+    navigate("/login");
   };
 
   // Obtener inicial del nombre para el avatar

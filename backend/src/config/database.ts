@@ -17,7 +17,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATABASE_PATH = path.join(__dirname, "../../vtb.db");
+const DATABASE_PATH = process.env.DATABASE_PATH || path.join(__dirname, "../../vtb.db");
 
 export class Database {
   private db: sqlite3.Database;
