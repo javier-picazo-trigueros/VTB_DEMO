@@ -1,6 +1,7 @@
 {
   "name": "vtb-backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "VTB Backend - Express + SQLite + Web3 Relayer",
   "main": "src/index.ts",
   "scripts": {
