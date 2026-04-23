@@ -133,8 +133,8 @@ export const Navbar = () => {
               </div>
             </div>
 
-            {/* User Profile / Login */}
-            {user ? (
+            {/* User Profile (only shown when authenticated) */}
+            {user && (
               <div className="relative group">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -179,16 +179,6 @@ export const Navbar = () => {
                   </button>
                 </div>
               </div>
-            ) : (
-              <Link to="/login">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-4 py-2 rounded-lg bg-gradient-hero text-white font-medium text-sm hover:shadow-lg transition"
-                >
-                  {t("login.login")}
-                </motion.button>
-              </Link>
             )}
           </div>
         </div>

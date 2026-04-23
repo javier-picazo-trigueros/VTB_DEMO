@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -41,12 +42,31 @@ export const Landing = () => {
   const navigate = useNavigate();
   const { isAuthenticated, hasRole } = useAuth();
 
+  const [domainInput, setDomainInput] = useState("");
+  const [domainError, setDomainError] = useState("");
+
   const handleStartVoting = () => {
     if (isAuthenticated) {
       navigate('/dashboard');
     } else {
       navigate('/login');
     }
+  };
+
+  const handlePortalSubmit = (e) => {
+    e.preventDefault();
+    const trimmed = domainInput.trim().toLowerCase();
+    if (!trimmed) {
+      setDomainError("Please enter your institution domain.");
+      return;
+    }
+    // Basic domain format validation
+    if (!/^[a-z0-9-]+(\.([a-z0-9-]+))+$/.test(trimmed)) {
+      setDomainError("Please enter a valid domain (e.g. ufv.es or highland.edu).");
+      return;
+    }
+    setDomainError("");
+    navigate(`/portal/${trimmed}`);
   };
 
   return (
@@ -88,28 +108,66 @@ export const Landing = () => {
           {/* CTA Buttons */}
           <motion.div
             variants={itemVariants}
-            className="flex flex-col sm:flex-row gap-4 justify-center"
+            className="flex flex-col items-center gap-6"
           >
-            <button
-              onClick={handleStartVoting}
-              className="px-8 py-4 rounded-lg bg-gradient-hero text-white font-semibold text-lg hover:shadow-lg transition"
-            >
-              {t("landing.cta")}
-            </button>
-            {isAuthenticated && (hasRole('admin') || hasRole('superadmin')) && (
-              <button
-                onClick={() => navigate('/admin')}
-                className="px-8 py-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-lg hover:shadow-lg transition"
-              >
-                Admin Panel
-              </button>
+            {/* ── Institutional portal entry ── */}
+            {!isAuthenticated && (
+              <div className="w-full max-w-md">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3 text-center">
+                  Enter your institution's domain to access your voting portal:
+                </p>
+                <form
+                  onSubmit={handlePortalSubmit}
+                  className="flex gap-2"
+                  id="landing-portal-form"
+                >
+                  <input
+                    id="landing-domain-input"
+                    type="text"
+                    value={domainInput}
+                    onChange={(e) => { setDomainInput(e.target.value); setDomainError(""); }}
+                    placeholder="e.g. ufv.es or highland.edu"
+                    className="flex-1 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    id="landing-portal-submit"
+                    className="px-6 py-3 rounded-lg bg-gradient-hero text-white font-semibold text-sm hover:shadow-lg transition whitespace-nowrap"
+                  >
+                    Go to Portal →
+                  </button>
+                </form>
+                {domainError && (
+                  <p className="mt-2 text-xs text-red-500 dark:text-red-400 text-center">{domainError}</p>
+                )}
+              </div>
             )}
-            <button
-              onClick={() => {}}
-              className="px-8 py-4 rounded-lg border-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-semibold text-lg hover:border-slate-400 dark:hover:border-slate-500 transition"
-            >
-              {t("landing.documentation")}
-            </button>
+
+            {/* ── Dashboard shortcut for authenticated users ── */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              {isAuthenticated && (
+                <button
+                  onClick={handleStartVoting}
+                  className="px-8 py-4 rounded-lg bg-gradient-hero text-white font-semibold text-lg hover:shadow-lg transition"
+                >
+                  {t("landing.cta")}
+                </button>
+              )}
+              {isAuthenticated && (hasRole('admin') || hasRole('superadmin')) && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="px-8 py-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-lg hover:shadow-lg transition"
+                >
+                  Admin Panel
+                </button>
+              )}
+              <button
+                onClick={() => {}}
+                className="px-8 py-4 rounded-lg border-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-semibold text-lg hover:border-slate-400 dark:hover:border-slate-500 transition"
+              >
+                {t("landing.documentation")}
+              </button>
+            </div>
           </motion.div>
         </div>
       </motion.section>

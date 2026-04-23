@@ -148,6 +148,8 @@ export class Database {
             parent_domain TEXT DEFAULT NULL,
             unit_type TEXT DEFAULT 'institution',
             institution_domain TEXT NOT NULL DEFAULT '',
+            logo_url TEXT DEFAULT NULL,
+            primary_color TEXT DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `);
@@ -186,6 +188,8 @@ export class Database {
     await this.exec("ALTER TABLE elections ADD COLUMN target_type TEXT DEFAULT 'domain'").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN target_description TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE org_units ADD COLUMN institution_domain TEXT NOT NULL DEFAULT ''").catch(() => {});
+    await this.exec("ALTER TABLE org_units ADD COLUMN logo_url TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE org_units ADD COLUMN primary_color TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE users ADD COLUMN org_unit TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN org_unit TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN voter_role TEXT DEFAULT 'student'").catch(() => {});

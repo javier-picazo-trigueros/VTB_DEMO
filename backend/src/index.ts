@@ -9,6 +9,7 @@ import authRoutes from "./routes/auth.js";
 import electionRoutes from "./routes/elections.js";
 import adminRoutes from "./routes/admin.js";
 import registrationRoutes from "./routes/registration.js";
+import organizationRoutes from "./routes/organizations.js";
 
 /**
  * @title VTB Backend - Express Server
@@ -245,6 +246,9 @@ app.use("/auth", authRoutes);
 
 // Rutas de elecciones
 app.use("/api/elections", electionRoutes);
+
+// Rutas de organizaciones (multi-tenant portal)
+app.use("/api/organizations", organizationRoutes);
 
 // Rutas de administración
 app.use("/admin", adminRoutes);

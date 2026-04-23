@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Background circle -->
+  <circle cx="60" cy="60" r="58" fill="#1e3a8a"/>
+  <circle cx="60" cy="60" r="54" fill="#1d4ed8" opacity="0.3"/>
+
+  <!-- Hexagon chain links (stylised blockchain) -->
+  <g transform="translate(60,38)" fill="none" stroke="#93c5fd" stroke-width="2.5" stroke-linejoin="round">
+    <polygon points="0,-14 12,-7 12,7 0,14 -12,7 -12,-7" opacity="0.9"/>
+  </g>
+  <g transform="translate(40,60)" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round">
+    <polygon points="0,-11 9.5,-5.5 9.5,5.5 0,11 -9.5,5.5 -9.5,-5.5" opacity="0.7"/>
+  </g>
+  <g transform="translate(80,60)" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round">
+    <polygon points="0,-11 9.5,-5.5 9.5,5.5 0,11 -9.5,5.5 -9.5,-5.5" opacity="0.7"/>
+  </g>
+
+  <!-- Chain links between hexagons -->
+  <line x1="48" y1="45" x2="52" y2="52" stroke="#93c5fd" stroke-width="2" opacity="0.6"/>
+  <line x1="72" y1="45" x2="68" y2="52" stroke="#93c5fd" stroke-width="2" opacity="0.6"/>
+
+  <!-- VTB text -->
+  <text x="60" y="94" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif"
+        font-weight="800" font-size="20" letter-spacing="3" fill="#ffffff">VTB</text>
+  <text x="60" y="108" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif"
+        font-weight="400" font-size="7.5" letter-spacing="1" fill="#93c5fd">ADMINISTRATION</text>
+</svg>

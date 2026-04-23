@@ -11,34 +11,44 @@ export async function seedDemoData(): Promise<void> {
   const db = getDatabase();
 
   // Seed org units always (idempotent)
+  // logo_url and primary_color are only set for top-level institution entries
   const orgUnits = [
-    // UFV
-    { name: 'UFV', domain: 'ufv.es', parent_domain: null, unit_type: 'institution', institution_domain: 'ufv.es' },
-    { name: 'School of Engineering', domain: 'eps.ufv.es', parent_domain: 'ufv.es', unit_type: 'school', institution_domain: 'ufv.es' },
-    { name: 'Computer Science', domain: 'cs.eps.ufv.es', parent_domain: 'eps.ufv.es', unit_type: 'degree', institution_domain: 'ufv.es' },
-    { name: 'CS Year 1', domain: 'cs1.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
-    { name: 'CS Year 2', domain: 'cs2.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
-    { name: 'CS Year 3', domain: 'cs3.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
-    { name: 'Business Administration', domain: 'ba.ufv.es', parent_domain: 'ufv.es', unit_type: 'degree', institution_domain: 'ufv.es' },
-    { name: 'BA Year 1', domain: 'ba1.ufv.es', parent_domain: 'ba.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
-    { name: 'BA Year 2', domain: 'ba2.ufv.es', parent_domain: 'ba.ufv.es', unit_type: 'year', institution_domain: 'ufv.es' },
-    // Highland
-    { name: 'Highland School', domain: 'highland.edu', parent_domain: null, unit_type: 'institution', institution_domain: 'highland.edu' },
-    { name: 'Highland Secondary', domain: 'secondary.highland.edu', parent_domain: 'highland.edu', unit_type: 'school', institution_domain: 'highland.edu' },
-    { name: 'Year 10', domain: 'y10.secondary.highland.edu', parent_domain: 'secondary.highland.edu', unit_type: 'year', institution_domain: 'highland.edu' },
-    { name: 'Year 11', domain: 'y11.secondary.highland.edu', parent_domain: 'secondary.highland.edu', unit_type: 'year', institution_domain: 'highland.edu' },
+    // UFV — institution root
+    { name: 'Universidad Francisco de Vitoria', domain: 'ufv.es', parent_domain: null, unit_type: 'institution', institution_domain: 'ufv.es', logo_url: '/logos/ufv.png', primary_color: '#004b87' },
+    { name: 'School of Engineering', domain: 'eps.ufv.es', parent_domain: 'ufv.es', unit_type: 'school', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
+    { name: 'Computer Science', domain: 'cs.eps.ufv.es', parent_domain: 'eps.ufv.es', unit_type: 'degree', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
+    { name: 'CS Year 1', domain: 'cs1.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
+    { name: 'CS Year 2', domain: 'cs2.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
+    { name: 'CS Year 3', domain: 'cs3.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
+    { name: 'Business Administration', domain: 'ba.ufv.es', parent_domain: 'ufv.es', unit_type: 'degree', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
+    { name: 'BA Year 1', domain: 'ba1.ufv.es', parent_domain: 'ba.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
+    { name: 'BA Year 2', domain: 'ba2.ufv.es', parent_domain: 'ba.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
+    // Highland — institution root (dark navy brand)
+    { name: 'Highlands School', domain: 'highland.edu', parent_domain: null, unit_type: 'institution', institution_domain: 'highland.edu', logo_url: '/logos/highland.png', primary_color: '#0f204b' },
+    { name: 'Highland Secondary', domain: 'secondary.highland.edu', parent_domain: 'highland.edu', unit_type: 'school', institution_domain: 'highland.edu', logo_url: null, primary_color: null },
+    { name: 'Year 10', domain: 'y10.secondary.highland.edu', parent_domain: 'secondary.highland.edu', unit_type: 'year', institution_domain: 'highland.edu', logo_url: null, primary_color: null },
+    { name: 'Year 11', domain: 'y11.secondary.highland.edu', parent_domain: 'secondary.highland.edu', unit_type: 'year', institution_domain: 'highland.edu', logo_url: null, primary_color: null },
+    // VTB Administration — superadmin portal
+    { name: 'VTB Administration', domain: 'vtb.system', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.system', logo_url: '/logos/vtb.svg', primary_color: '#3b82f6' },
   ];
   for (const ou of orgUnits) {
     await db.exec(
-      `INSERT OR IGNORE INTO org_units (name, domain, parent_domain, unit_type, institution_domain)
-       VALUES (?, ?, ?, ?, ?)`,
-      [ou.name, ou.domain, ou.parent_domain, ou.unit_type, ou.institution_domain]
+      `INSERT OR IGNORE INTO org_units (name, domain, parent_domain, unit_type, institution_domain, logo_url, primary_color)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [ou.name, ou.domain, ou.parent_domain, ou.unit_type, ou.institution_domain, ou.logo_url, ou.primary_color]
     ).catch(() => {});
-    // Update institution_domain for pre-existing rows that were seeded without it
+    // Update columns for pre-existing rows that are missing data
     await db.exec(
       `UPDATE org_units SET institution_domain = ? WHERE domain = ? AND (institution_domain = '' OR institution_domain IS NULL)`,
       [ou.institution_domain, ou.domain]
     ).catch(() => {});
+    // Always keep name, logo_url, primary_color up to date for institution roots
+    if (ou.unit_type === 'institution') {
+      await db.exec(
+        `UPDATE org_units SET name = ?, logo_url = ?, primary_color = ? WHERE domain = ?`,
+        [ou.name, ou.logo_url, ou.primary_color, ou.domain]
+      ).catch(() => {});
+    }
   }
 
   // Always upsert critical demo accounts so production DB stays consistent

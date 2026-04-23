@@ -17,6 +17,7 @@ import { Dashboard } from './pages/Dashboard'
 import ElectionResults from './pages/ElectionResults'
 import { AdminPanel } from './pages/AdminPanel'
 import { VotingBooth } from './pages/VotingBooth'
+import { InstitutionPortal } from './pages/InstitutionPortal'
 
 /**
  * Componente ProtectedRoute:
@@ -52,6 +53,7 @@ const AppContent = () => {
       <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register-request" element={<RegisterRequest />} />
+      <Route path="/portal/:domain" element={<InstitutionPortal />} />
       
       {/* Rutas protegidas (votante) */}
       <Route
