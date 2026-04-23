@@ -1,544 +1,390 @@
 # VTB API Documentation
 
-## Base URL
-All endpoints start with: `http://localhost:5000/api`
+Base URL (desarrollo): `http://localhost:3001`
 
-## Authentication
-
-No está implementado JWT en esta demo. En producción usar:
-```
-Authorization: Bearer <token>
-```
+> Todos los endpoints de datos usan el prefijo `/api/` o `/auth/` o `/admin/` o `/registration/`.
+> Los endpoints marcados con 🔒 requieren `Authorization: Bearer <JWT>`.
 
 ---
 
-## Endpoints
+## Autenticación
 
-### 🔐 Authentication
-
-#### POST `/login`
-Autentica un usuario contra la BD SQL.
+### POST `/auth/login`
+Valida credenciales y devuelve un JWT de 24 horas.
 
 **Request:**
 ```json
-{
-  "email": "alumno@ufv.es",
-  "password": "alumno123"
-}
+{ "email": "carlos@ufv.es", "password": "demo123" }
 ```
 
-**Response (200 OK):**
+**Response 200:**
 ```json
 {
-  "success": true,
+  "token": "<JWT>",
   "user": {
-    "id": 2,
-    "email": "alumno@ufv.es",
-    "role": "votante"
+    "id": 3,
+    "email": "carlos@ufv.es",
+    "name": "Carlos López Fernández",
+    "role": "student",
+    "adminDomain": null
   }
 }
 ```
 
-**Response (401 Unauthorized):**
+**Errores:**
+| Código | Descripción |
+|--------|-------------|
+| 401 | Credenciales incorrectas |
+| 403 | `ACCOUNT_PENDING_APPROVAL` — cuenta no aprobada aún |
+| 429 | Rate limit (5 intentos en 15 min en producción) |
+
+---
+
+### POST `/auth/register`
+Crea un usuario directamente (pendiente de aprobación manual).
+
+**Request:**
 ```json
 {
-  "error": "Credenciales inválidas"
+  "email": "nuevo@ufv.es",
+  "password": "mipassword",
+  "name": "Nombre Completo",
+  "student_id": "UFV-2024-099"
+}
+```
+
+**Response 201:**
+```json
+{ "message": "Usuario registrado. Pendiente de aprobación." }
+```
+
+---
+
+### GET `/auth/verify` 🔒
+Verifica que el JWT sigue siendo válido.
+
+**Response 200:**
+```json
+{
+  "valid": true,
+  "user": { "id": 3, "email": "...", "role": "student" }
 }
 ```
 
 ---
 
-### 🗳️ Elections
+## Organizaciones (Multi-Tenant Portal)
 
-#### GET `/elections`
-Obtiene todas las elecciones.
+### GET `/api/organizations/:domain`
+**Público.** Devuelve la información de marca de una institución para renderizar el portal institucional.
 
-**Response (200 OK):**
+**Parámetro URL:** `domain` — p. ej. `ufv.es`, `highland.edu`, `vtb.system`
+
+**Response 200:**
+```json
+{
+  "name": "Universidad Francisco de Vitoria",
+  "logo_url": "/logos/ufv.png",
+  "primary_color": "#004b87"
+}
+```
+
+**Response 404:**
+```json
+{ "error": "Institution not found" }
+```
+
+**Uso:** El frontend lo llama al montar `/portal/:domain` para obtener el branding antes de mostrar el formulario de login.
+
+---
+
+## Elecciones
+
+### GET `/api/elections` 🔒
+Lista las elecciones asignadas al usuario autenticado (vía `election_voters`).
+
+**Response 200:**
 ```json
 [
   {
     "id": 1,
-    "title": "Delegado 3º Ingeniería Informática",
-    "description": "Elección del delegado de curso...",
-    "is_active": true,
+    "election_id_blockchain": 1,
+    "name": "Delegado UFV 2026-2027",
+    "description": "...",
+    "start_time": 1713000000,
+    "end_time": 1718000000,
+    "is_active": 1,
+    "voter_role": "student",
     "candidates": [
-      {
-        "name": "Alice García",
-        "description": "Propuesta: más recursos en laboratorios"
-      },
-      {
-        "name": "Bob López",
-        "description": "Propuesta: flexibilizar horarios"
-      },
-      {
-        "name": "Carol Martínez",
-        "description": "Propuesta: mejorar comunicación"
-      }
+      { "id": 1, "name": "Ana Beltrán", "description": "..." },
+      { "id": 2, "name": "Pablo Méndez", "description": "..." }
     ],
-    "created_at": "2025-02-13T10:00:00",
-    "closed_at": null,
-    "vote_count": 3
-  },
-  {
-    "id": 2,
-    "title": "Presupuestos 2025 - Aprobación",
-    "description": "Votación sobre presupuestos...",
-    "is_active": false,
-    "candidates": [
-      {
-        "name": "Opción A: Invertir en becas",
-        "description": "+40% en becas"
-      },
-      {
-        "name": "Opción B: Invertir en infraestructura",
-        "description": "+40% en equipos"
-      }
-    ],
-    "created_at": "2025-01-15T09:00:00",
-    "closed_at": "2025-02-01T17:00:00",
-    "vote_count": 0
+    "has_voted": false
   }
 ]
 ```
 
-#### GET `/elections/<id>`
-Obtiene una elección específica.
+---
 
-**Path Parameter:**
-- `id` (int): ID de la elección
+### GET `/api/elections/:id` 🔒
+Detalle de una elección con candidatos.
 
-**Response (200 OK):**
+**Response 200:** mismo esquema que el elemento de la lista anterior.
+
+**Response 404:** `{ "error": "Election not found" }`
+
+---
+
+### GET `/api/elections/:id/eligibility` 🔒
+Comprueba si el usuario puede votar en la elección dada.
+
+**Response 200:**
 ```json
 {
-  "id": 1,
-  "title": "Delegado 3º Ingeniería Informática",
-  "description": "...",
-  "is_active": true,
-  "candidates": [...],
-  "created_at": "...",
-  "closed_at": null,
-  "vote_count": 3
+  "eligible": true,
+  "reason": null,
+  "election": { "id": 1, "name": "...", "is_active": 1 }
 }
 ```
 
-**Response (404 Not Found):**
+Si no es elegible:
 ```json
 {
-  "error": "Elección no encontrada"
+  "eligible": false,
+  "reason": "You have already voted in this election"
+}
+```
+
+Posibles razones: `Election not found`, `Election is not active`, `You are not in the voter census`, `You have already voted in this election`.
+
+---
+
+### GET `/api/elections/:id/results` 🔒
+Resultados y participación de la elección.
+
+**Response 200:**
+```json
+{
+  "election": { "id": 1, "name": "...", "is_active": 1 },
+  "candidates": [
+    { "id": 1, "name": "Ana Beltrán", "votes": 12, "percentage": 48.0 },
+    { "id": 2, "name": "Pablo Méndez", "votes": 8, "percentage": 32.0 }
+  ],
+  "total_votes": 25,
+  "total_eligible": 40,
+  "participation_rate": 62.5
 }
 ```
 
 ---
 
-### 🗳️ Voting
-
-#### POST `/vote`
-Registra un voto en la blockchain.
+### POST `/api/elections/register-vote` 🔒
+Registra el voto del usuario en la blockchain (Ethereum Sepolia).
 
 **Request:**
 ```json
 {
-  "election_id": 1,
-  "candidate": "Alice García",
-  "user_id": 2
+  "electionId": 1,
+  "candidateId": 2,
+  "voteHash": "0xabc123..."
 }
 ```
 
-**Response (201 Created):**
+**Response 200:**
 ```json
 {
   "success": true,
-  "tx_hash": "a3c5e7d1f9b2c4e6a8d0f1c3e5g7i9k1m3n5",
-  "message": "Voto registrado en la blockchain",
-  "receipt": {
-    "timestamp": "2025-02-13T14:30:45.123456",
-    "election_id": 1,
-    "anonymous_credential": "a7c3f9d0",
-    "note": "Guarda este recibo para auditoría. Tu voto es anónimo."
-  }
+  "txHash": "0xdeadbeef...",
+  "blockNumber": 12345678,
+  "nullifierHash": "0xfeed..."
 }
 ```
 
-**Response (400 Bad Request):**
-```json
-{
-  "error": "Faltan campos requeridos"
-}
-```
-
-**Response (403 Forbidden):**
-```json
-{
-  "error": "Ya has votado en esta elección"
-}
-```
-
-oder
-
-```json
-{
-  "error": "Esta elección está cerrada"
-}
-```
+**Errores comunes:**
+| Error | Descripción |
+|-------|-------------|
+| `You have already voted` | Nullifier duplicado en el contrato |
+| `Election is not active` | Fuera de ventana temporal |
+| `You are not in the voter census` | No está en `election_voters` |
+| `insufficient funds` | Wallet relayer sin Sepolia ETH |
+| `ERR: election does not exist` | `election_id_blockchain` no existe on-chain |
 
 ---
 
-### 📊 Results
-
-#### GET `/results/<election_id>`
-Obtiene resultados de una elección DESDE LA BLOCKCHAIN.
-
-**Path Parameter:**
-- `election_id` (int): ID de la elección
-
-**Response (200 OK):**
-```json
-{
-  "election_id": 1,
-  "title": "Delegado 3º Ingeniería Informática",
-  "results": {
-    "election_id": 1,
-    "total_votes": 5,
-    "candidates": {
-      "Alice García": 2,
-      "Bob López": 2,
-      "Carol Martínez": 1
-    },
-    "blockchain_valid": true
-  },
-  "can_view": false
-}
-```
-
-**Nota importante:** Los resultados se leen de la blockchain, NO de SQL.
-Esto garantiza que la identidad del votante jamás está vinculada a su voto.
+### GET `/api/elections/:id/audit`
+**Público.** Devuelve los registros de auditoría de nullifiers para una elección (sin revelar identidades).
 
 ---
 
-### ⛓️ Blockchain
+### GET `/api/elections/blockchain-sync-status` 🔒
+Estado del mapeo entre SQLite y el contrato on-chain.
 
-#### GET `/chain`
-Obtiene detalles completos de la blockchain para auditoría.
-
-**Response (200 OK):**
+**Response 200:**
 ```json
 {
-  "length": 3,
-  "is_valid": true,
-  "difficulty": 2,
-  "pending_votes": 0,
-  "blocks": [
+  "elections": [
     {
-      "index": 0,
-      "timestamp": "2025-02-13T10:15:20.123456",
-      "votes": [],
-      "previous_hash": "0",
-      "nonce": 45,
-      "hash": "00a3c7e9f1b5d2c8e4a6f0g2i4k6m8o0"
-    },
-    {
-      "index": 1,
-      "timestamp": "2025-02-13T10:20:45.654321",
-      "votes": [
-        {
-          "election_id": 1,
-          "candidate": "Alice García",
-          "anonymous_id": "a7c3f9d0",
-          "timestamp": "2025-02-13T10:18:30.123456"
-        },
-        {
-          "election_id": 1,
-          "candidate": "Bob López",
-          "anonymous_id": "b8d4g0e2",
-          "timestamp": "2025-02-13T10:19:15.654321"
-        },
-        ...
-      ],
-      "previous_hash": "00a3c7e9f1b5d2c8e4a6f0g2i4k6m8o0",
-      "nonce": 127,
-      "hash": "00f2d4c6e8a0g2i4k6m8o0q2s4u6w8y0"
+      "local_id": 1,
+      "blockchain_id": 1,
+      "name": "Delegado UFV 2026-2027",
+      "synced": true
     }
   ]
 }
 ```
 
-#### GET `/chain/validate`
-Valida la integridad de la blockchain.
+---
 
-**Response (200 OK):**
-```json
-{
-  "is_valid": true,
-  "message": "La blockchain es íntegra"
-}
-```
-
-O si está manipulada:
-
-```json
-{
-  "is_valid": false,
-  "message": "La blockchain ha sido manipulada"
-}
-```
+### GET `/api/org-units`
+**Público.** Lista las unidades organizativas. Acepta `?domain=ufv.es` para filtrar por institución.
 
 ---
 
-### 👨‍💼 Admin
+## Solicitudes de Registro
 
-#### GET `/admin/stats`
-Estadísticas generales del sistema (solo admin).
+### POST `/registration/request`
+**Público.** Envía una solicitud de acceso (sin cuenta previa).
 
-**Response (200 OK):**
+**Request:**
 ```json
 {
-  "total_users": 2,
-  "total_elections": 2,
-  "total_votes_registered": 5,
-  "blockchain_blocks": 3,
-  "blockchain_pending_votes": 0,
-  "blockchain_valid": true
+  "full_name": "Nuevo Estudiante",
+  "email": "nuevo@ufv.es",
+  "student_id": "UFV-2025-099",
+  "password": "mipassword"
 }
 ```
+
+**Response 201:** `{ "message": "Solicitud recibida. Un admin la revisará pronto." }`
+
+Si el email está en `email_whitelist`, la cuenta se aprueba automáticamente al instante.
 
 ---
 
-### ⚙️ System
+## Panel Admin (requiere rol `admin` o `superadmin`) 🔒
 
-#### POST `/init`
-Inicializa la base de datos con seed data.
+Todos los endpoints de admin requieren JWT con `role: admin` o `role: superadmin`. Los admins de dominio solo ven y modifican recursos de su `admin_domain`.
 
-**Response (200 OK):**
-```json
-{
-  "message": "Base de datos inicializada"
-}
-```
+### Dashboard y Estado
 
-**Nota:** Solo funciona si BD está vacía.
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/admin/dashboard` | KPIs: usuarios, solicitudes, elecciones, votos |
+| GET | `/admin/blockchain-status` | Estado del nodo RPC y contrato |
 
----
+### Usuarios
 
-## Status Codes
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/admin/users` | Listar todos los usuarios del dominio |
+| POST | `/admin/users` | Crear usuario aprobado directamente |
+| PATCH | `/admin/users/:id` | Modificar usuario (aprobar, cambiar rol, etc.) |
+| POST | `/admin/users/import` | Importar usuarios desde CSV |
+| GET | `/admin/email-whitelist` | Ver whitelist de emails |
+| POST | `/admin/email-whitelist` | Añadir emails a whitelist |
 
-| Code | Meaning |
-|------|---------|
-| 200 | OK - Solicitud exitosa |
-| 201 | Created - Recurso creado |
-| 400 | Bad Request - Solicitud malformada |
-| 401 | Unauthorized - Credenciales inválidas |
-| 403 | Forbidden - Acceso denegado |
-| 404 | Not Found - Recurso no existe |
-| 500 | Server Error - Error interno del servidor |
+### Elecciones
 
----
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/admin/elections` | Listar elecciones administrables |
+| POST | `/admin/elections` | Crear elección (SQLite + best-effort on-chain) |
+| PUT | `/admin/elections/:id` | Editar elección |
+| POST | `/admin/elections/:id/domains` | Añadir dominio permitido |
+| DELETE | `/admin/elections/:id/domains/:domain` | Quitar dominio |
+| POST | `/admin/elections/:id/voters` | Añadir votante concreto |
+| DELETE | `/admin/elections/:id/voters/:userId` | Quitar votante |
+| POST | `/admin/elections/:id/candidates` | Añadir candidato |
+| DELETE | `/admin/elections/:id/candidates/:candidateId` | Quitar candidato |
+| GET | `/admin/elections/:id/stats` | Estadísticas detalladas de participación |
+| PATCH | `/api/elections/fix-blockchain-ids` | Corregir mapeo SQLite/on-chain |
 
-## Error Responses
+### Solicitudes de Registro
 
-### Formato estándar de error
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/admin/registration-requests` | Listar solicitudes (pending/approved/rejected) |
+| PATCH | `/admin/registration-requests/:id` | Aprobar o rechazar solicitud |
 
-```json
-{
-  "error": "Descripción del error"
-}
-```
+### Estadísticas
 
-### Errores comunes
-
-**Email o contraseña incorrectos:**
-```json
-{
-  "error": "Credenciales inválidas"
-}
-```
-
-**Ya votó en esta elección:**
-```json
-{
-  "error": "Ya has votado en esta elección"
-}
-```
-
-**Elección cerrada:**
-```json
-{
-  "error": "Esta elección está cerrada"
-}
-```
-
-**Elección no encontrada:**
-```json
-{
-  "error": "Elección no encontrada"
-}
-```
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/admin/stats/voters` | Estadísticas globales de votantes |
+| GET | `/admin/org-units` | Listar/gestionar unidades organizativas |
 
 ---
 
-## Ejemplos de uso (cURL)
+## Sistema
 
-### Ejemplo 1: Login
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/health` | Health check simple |
+| GET | `/api/health` | Health check con uptime |
+| GET | `/api/org-units` | Unidades organizativas (público) |
+| GET | `/api/organizations/:domain` | Branding institucional (público) |
 
+---
+
+## Códigos de Estado
+
+| Código | Significado |
+|--------|-------------|
+| 200 | OK |
+| 201 | Creado |
+| 400 | Petición malformada |
+| 401 | No autenticado (JWT inválido o ausente) |
+| 403 | Sin permisos o cuenta pendiente |
+| 404 | Recurso no encontrado |
+| 429 | Rate limit superado |
+| 500 | Error interno del servidor |
+
+---
+
+## Ejemplos cURL
+
+### Login y guardar token
 ```bash
-curl -X POST http://localhost:5000/api/login \
+TOKEN=$(curl -s -X POST http://localhost:3001/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "alumno@ufv.es",
-    "password": "alumno123"
-  }'
+  -d '{"email":"carlos@ufv.es","password":"demo123"}' \
+  | jq -r .token)
 ```
 
-### Ejemplo 2: Obtener elecciones
-
+### Obtener elecciones asignadas
 ```bash
-curl http://localhost:5000/api/elections
+curl http://localhost:3001/api/elections \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-### Ejemplo 3: Votar
-
+### Consultar branding de portal institucional
 ```bash
-curl -X POST http://localhost:5000/api/vote \
+curl http://localhost:3001/api/organizations/ufv.es
+curl http://localhost:3001/api/organizations/highland.edu
+curl http://localhost:3001/api/organizations/vtb.system
+```
+
+### Estado de sincronización blockchain
+```bash
+curl http://localhost:3001/api/elections/blockchain-sync-status \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Aprobar solicitud de registro (admin)
+```bash
+curl -X PATCH http://localhost:3001/admin/registration-requests/5 \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "election_id": 1,
-    "candidate": "Alice García",
-    "user_id": 2
-  }'
-```
-
-### Ejemplo 4: Obtener resultados
-
-```bash
-curl http://localhost:5000/api/results/1
-```
-
-### Ejemplo 5: Ver blockchain
-
-```bash
-curl http://localhost:5000/api/chain
-```
-
-### Ejemplo 6: Validar blockchain
-
-```bash
-curl http://localhost:5000/api/chain/validate
-```
-
-### Ejemplo 7: Obtener estadísticas admin
-
-```bash
-curl http://localhost:5000/api/admin/stats
+  -d '{"status":"approved"}'
 ```
 
 ---
 
-## Notas Técnicas
+## Seguridad
 
-### Almacenamiento de Datos
-
-**SQL (SQLite):**
-- `users`: Email, password, role
-- `elections`: Título, descripción, candidatos, estado
-- `votes`: user_id, election_id, tx_hash (vinculación censo)
-
-**Blockchain (En memoria):**
-- Bloques con votos anónimos
-- Sin user_id en los votos (anonimato)
-- Hash SHA-256 por voto
-- Proof-of-Work con 2 ceros iniciales
-
-### Seguridad
-
-⚠️ **DEMO EDUCATIVA** - NO USAR EN PRODUCCIÓN
-
-Mejoras necesarias:
-- [ ] Hashear contraseñas (bcrypt)
-- [ ] JWT para autenticación
-- [ ] HTTPS
-- [ ] Rate limiting
-- [ ] Encripción de datos
-- [ ] Validación de input más robusta
-
----
-
-## Limpia Estructura de Respuestas
-
-### Usuario
-```json
-{
-  "id": int,
-  "email": "string@domain.com",
-  "role": "admin | votante"
-}
-```
-
-### Elección
-```json
-{
-  "id": int,
-  "title": "string",
-  "description": "string",
-  "is_active": boolean,
-  "candidates": [
-    {
-      "name": "string",
-      "description": "string"
-    }
-  ],
-  "created_at": "ISO 8601",
-  "closed_at": "ISO 8601 | null",
-  "vote_count": int
-}
-```
-
-### Voto (en blockchain)
-```json
-{
-  "election_id": int,
-  "candidate": "string",
-  "anonymous_id": "string (UUID corto)",
-  "timestamp": "ISO 8601"
-}
-```
-
-### Bloque
-```json
-{
-  "index": int,
-  "timestamp": "ISO 8601",
-  "votes": [...],
-  "previous_hash": "string (hex)",
-  "nonce": int,
-  "hash": "string (hex SHA-256)"
-}
-```
-
----
-
-## Rate Limiting
-
-No implementado en demo. En producción:
-- 5 login attempts por minuto por IP
-- 1 voto por usuario (por elección)
-- 100 requests/minuto general
-
----
-
-## Versionado de API
-
-Versión actual: **1.0** (pre-release)
-
-Todos los endpoints usan `/api/` como prefijo.
-En producción considerar:
-- `/api/v1/`
-- `/api/v2/`
-- Mantener compatibilidad hacia atrás
-
----
-
-## Autor & Documentación
-
-Esta API es para un proyecto de fin de grado de Ingeniería Informática.  
-Sistema educativo híbrido Web2 + Web3 basado en blockchain simulada.
-
-Para soporte: revisar el código fuente comentado o `README.md`.
+- JWT firmado con `JWT_SECRET` (HS256), expira en 24h.
+- Passwords hasheadas con bcrypt (12 rounds).
+- Nullifiers generados con `HMAC-SHA256(userId, electionId, NULLIFIER_SECRET)` — nunca almacenados en claro.
+- Rate limiting en `/auth/login`: 5 intentos / 15 min en producción.
+- CORS configurable vía `CORS_ORIGINS`.
+- `PRIVATE_KEY` del relayer nunca expuesto al frontend.

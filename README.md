@@ -18,6 +18,7 @@ El backend actua como relayer: valida al usuario contra SQLite, genera un nullif
 - Base de datos: SQLite local en `backend/vtb.db`.
 - Contrato: `ElectionRegistry` con `createElection`, `castVote`, `getElection`, `getElectionCount`.
 - Votos: cada voto se registra on-chain como `nullifier + voteHash` y se audita localmente con `tx_hash`.
+- Multi-tenancy visual: portales institucionales dinamicos en `/portal/:domain` con marca propia (logo, color primario) leida de la tabla `org_units`.
 
 ## Arquitectura
 
@@ -41,8 +42,9 @@ SQLite
   - election_access
   - registration_requests
   - nullifier_audit
-  - org_units
+  - org_units  (id, domain UNIQUE, name, logo_url, primary_color, unit_type, institution_domain, ...)
   - email_whitelist
+  - election_targets
 
 Sepolia / ElectionRegistry
   - Guarda elecciones on-chain
@@ -185,33 +187,50 @@ Despues copia el `CONTRACT_ADDRESS` local a `backend/.env` y `frontend/.env`.
 
 Estas cuentas salen del seed actual de `backend/src/scripts/seedDatabase.ts`.
 
-| Rol | Email | Contrasena | Uso recomendado |
-| --- | --- | --- | --- |
-| Superadmin | `superadmin@vtb.system` | `superadmin123` | Acceso total al panel admin |
-| Admin UFV | `admin@ufv.es` | `admin123` | Gestion del dominio `ufv.es` |
-| Admin EDU | `admin@universidad.edu` | `admin123` | Gestion del dominio `universidad.edu` |
-| Admin Highland | `admin@highland.edu` | `admin123` | Gestion del dominio `highland.edu` |
-| Admin EPS | `admin@eps.ufv.es` | `admin123` | Gestion del dominio `eps.ufv.es` |
-| Estudiante UFV | `carlos@ufv.es` | `demo123` | Demo rapida desde login |
-| Estudiante UFV | `miguel@ufv.es` | `demo123` | Buen usuario para probar votos pendientes |
-| Estudiante UFV | `student8@ufv.es` | `demo123` | Usuario demo adicional |
-| Estudiante EDU | `juan@universidad.edu` | `demo123` | Demo rapida desde login |
-| Estudiante EDU | `elena@universidad.edu` | `demo123` | Buen usuario para probar votos pendientes |
-| Estudiante Highland | `student5@highland.edu` | `demo123` | Demo del dominio Highland |
+| Rol | Email | Contrasena | Portal de entrada | Uso recomendado |
+| --- | --- | --- | --- | --- |
+| Superadmin | `superadmin@vtb.system` | `superadmin123` | `/portal/vtb.system` | Acceso total al panel admin |
+| Admin UFV | `admin@ufv.es` | `admin123` | `/portal/ufv.es` | Gestion del dominio `ufv.es` |
+| Admin EDU | `admin@universidad.edu` | `admin123` | `/portal/universidad.edu` | Gestion del dominio `universidad.edu` |
+| Admin Highland | `admin@highland.edu` | `admin123` | `/portal/highland.edu` | Gestion del dominio `highland.edu` |
+| Admin EPS | `admin@eps.ufv.es` | `admin123` | `/portal/eps.ufv.es` | Gestion del dominio `eps.ufv.es` |
+| Estudiante UFV | `carlos@ufv.es` | `demo123` | `/portal/ufv.es` | Demo rapida, ha votado en varias |
+| Estudiante UFV | `miguel@ufv.es` | `demo123` | `/portal/ufv.es` | Buen usuario para probar votos pendientes |
+| Estudiante UFV | `student8@ufv.es` | `demo123` | `/portal/ufv.es` | Usuario demo adicional |
+| Estudiante EDU | `juan@universidad.edu` | `demo123` | `/portal/universidad.edu` | Demo rapida desde login |
+| Estudiante EDU | `elena@universidad.edu` | `demo123` | `/portal/universidad.edu` | Buen usuario para probar votos pendientes |
+| Estudiante Highland | `student5@highland.edu` | `demo123` | `/portal/highland.edu` | Demo del dominio Highland |
 
 Importante: documentos antiguos y algunos scripts de inicio pueden mencionar `password123`. La contrasena real de los estudiantes seed actuales es `demo123`.
 
 ## Flujo De Login
 
-1. El usuario entra en `/login`.
-2. El frontend envia `POST /auth/login` con `email` y `password`.
-3. El backend busca el usuario en SQLite.
-4. Si `is_approved = 0`, responde `ACCOUNT_PENDING_APPROVAL`.
-5. Si la password bcrypt coincide, devuelve un JWT de 24 horas.
-6. El frontend guarda token y datos de usuario en `localStorage`.
-7. Si el rol es `admin` o `superadmin`, redirige a `/admin`; si no, a `/dashboard`.
+Existe un unico punto de entrada para todos los usuarios: el portal institucional.
+
+1. El usuario entra en `/landing`.
+2. Escribe su dominio institucional en el input (ej. `ufv.es`) y pulsa **Go to Portal**.
+3. El frontend redirige a `/portal/ufv.es`.
+4. La pagina llama a `GET /api/organizations/ufv.es` y obtiene nombre, logo y color primario.
+5. Se muestra el portal con la marca de la institucion (logo, color de acento).
+6. El usuario elige entre portal de votante o de administrador.
+7. El frontend envia `POST /auth/login` con email y password.
+8. El backend busca el usuario en SQLite.
+9. Si `is_approved = 0`, responde `ACCOUNT_PENDING_APPROVAL`.
+10. Si la password bcrypt coincide, devuelve un JWT de 24 horas.
+11. El frontend guarda token y datos de usuario en `localStorage`.
+12. Si el rol es `admin` o `superadmin`, redirige a `/admin`; si no, a `/dashboard`.
 
 El JWT no contiene nullifier. El nullifier se genera solo cuando se vota.
+
+Nota: el boton generico de Login ha sido eliminado de la barra de navegacion. El unico flujo de entrada es a traves del input de dominio en la landing.
+
+Portales institucionales disponibles por defecto:
+
+| Dominio | Nombre | Color |
+| --- | --- | --- |
+| `ufv.es` | Universidad Francisco de Vitoria | `#004b87` (azul navy) |
+| `highland.edu` | Highlands School | `#0f204b` (azul oscuro) |
+| `vtb.system` | VTB Administration | `#3b82f6` (azul tech) |
 
 ## Flujo De Registro De Usuarios
 
@@ -356,10 +375,12 @@ Publicos:
 | --- | --- | --- |
 | GET | `/health` | Health check |
 | GET | `/api/health` | Health check alternativo |
-| POST | `/auth/login` | Login |
+| POST | `/auth/login` | Login (devuelve JWT) |
 | POST | `/auth/register` | Registro directo pendiente de aprobacion |
 | POST | `/registration/request` | Solicitud publica de acceso |
 | GET | `/api/elections/:id/audit` | Auditoria publica de una eleccion |
+| GET | `/api/org-units` | Unidades organizativas (acepta ?domain=) |
+| GET | `/api/organizations/:domain` | Branding institucional para el portal multi-tenant |
 
 Protegidos:
 
@@ -457,6 +478,56 @@ Checklist de seguridad:
 - Configurar `CORS_ORIGINS` con el dominio real.
 - Usar disco persistente para `vtb.db` o una base gestionada.
 
+## Multi-Tenancy Visual
+
+VTB implementa portales institucionales mediante rutas URL en lugar de subdominios (compatible con Vercel).
+
+### Como funciona
+
+Cada institucion tiene una fila en la tabla `org_units` con los campos `domain`, `name`, `logo_url` y `primary_color`. Cuando un usuario entra en `/portal/ufv.es`, el frontend llama a `GET /api/organizations/ufv.es` y renderiza la pagina con el logo y el color de esa institucion.
+
+El color institucional se usa como acento (borde superior de la tarjeta de login, color del boton Sign In, links), nunca como fondo de pagina completo. El fondo respeta el modo claro/oscuro del usuario.
+
+### Rutas implicadas
+
+| Ruta | Descripcion |
+| --- | --- |
+| `/landing` | Input de dominio; redirige a `/portal/:domain` |
+| `/portal/:domain` | Portal institucional con marca propia y formulario de login |
+| `GET /api/organizations/:domain` | Endpoint publico que devuelve `name`, `logo_url`, `primary_color` |
+
+### Anadir una nueva institucion
+
+1. Agrega una fila en el seed (`backend/src/scripts/seedDatabase.ts`), seccion `orgUnits`:
+
+```typescript
+{ 
+  name: 'Mi Universidad', 
+  domain: 'miuniversidad.edu', 
+  parent_domain: null, 
+  unit_type: 'institution', 
+  institution_domain: 'miuniversidad.edu', 
+  logo_url: '/logos/miuniversidad.png', 
+  primary_color: '#c0392b' 
+},
+```
+
+2. Coloca el logo en `frontend/public/logos/miuniversidad.png`.
+3. Reinicia el backend (o ejecuta `npm run seed`).
+4. El portal queda disponible en `/portal/miuniversidad.edu`.
+
+No hace falta ninguna configuracion de subdominio ni cambio en el servidor.
+
+### Logos estaticos incluidos
+
+| Archivo | Institucion |
+| --- | --- |
+| `frontend/public/logos/ufv.png` | Universidad Francisco de Vitoria |
+| `frontend/public/logos/highland.png` | Highlands School |
+| `frontend/public/logos/vtb.svg` | VTB Administration (SVG generado por codigo) |
+
+Si el logo no existe, la pagina muestra un emoji 🏛️ como fallback.
+
 ## Troubleshooting
 
 ### `insufficient funds for intrinsic transaction cost`
@@ -522,22 +593,37 @@ Muchos hostings tienen filesystem efimero. Usa disco persistente, volumen montad
 VTB_DEMO/
   backend/
     src/
-      config/database.ts
+      config/database.ts        — tablas SQLite + migraciones aditivas
       routes/auth.ts
       routes/elections.ts
       routes/admin.ts
       routes/registration.ts
-      scripts/seedDatabase.ts
+      routes/organizations.ts   — GET /api/organizations/:domain (multi-tenant)
+      scripts/seedDatabase.ts   — seed idempotente con org_units, usuarios y elecciones
       utils/auth.ts
     package.json
     Dockerfile
 
   frontend/
+    public/
+      logos/
+        ufv.png                 — logo UFV
+        highland.png            — logo Highlands School
+        vtb.svg                 — logo VTB Administration (SVG generado por codigo)
     src/
-      App.jsx
+      App.jsx                   — rutas (incluye /portal/:domain)
       context/
       pages/
+        Landing.jsx             — input de dominio + redirect a portal
+        InstitutionPortal.jsx  — portal institucional multi-tenant
+        Login.jsx
+        Dashboard.jsx
+        VotingBooth.jsx
+        ElectionResults.jsx
+        AdminPanel.jsx
+        RegisterRequest.jsx
       components/
+        Navbar.jsx              — sin boton Login cuando no autenticado
       i18n/
     package.json
     vite.config.js
@@ -551,6 +637,7 @@ VTB_DEMO/
     package.json
 
   README.md
+  API_DOCUMENTATION.md
   docker-compose.yml
 ```
 
