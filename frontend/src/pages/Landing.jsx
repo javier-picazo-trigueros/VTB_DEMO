@@ -57,12 +57,12 @@ export const Landing = () => {
     e.preventDefault();
     const trimmed = domainInput.trim().toLowerCase();
     if (!trimmed) {
-      setDomainError("Please enter your institution domain.");
+      setDomainError(t("landing.domainRequired"));
       return;
     }
     // Basic domain format validation
     if (!/^[a-z0-9-]+(\.([a-z0-9-]+))+$/.test(trimmed)) {
-      setDomainError("Please enter a valid domain (e.g. ufv.es or highland.edu).");
+      setDomainError(t("landing.domainInvalid"));
       return;
     }
     setDomainError("");
@@ -114,7 +114,7 @@ export const Landing = () => {
             {!isAuthenticated && (
               <div className="w-full max-w-md">
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-3 text-center">
-                  Enter your institution's domain to access your voting portal:
+                  {t("landing.domainInstruction")}
                 </p>
                 <form
                   onSubmit={handlePortalSubmit}
@@ -126,7 +126,7 @@ export const Landing = () => {
                     type="text"
                     value={domainInput}
                     onChange={(e) => { setDomainInput(e.target.value); setDomainError(""); }}
-                    placeholder="e.g. ufv.es or highland.edu"
+                    placeholder={t("landing.domainPlaceholder")}
                     className="flex-1 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
                   <button
@@ -134,7 +134,7 @@ export const Landing = () => {
                     id="landing-portal-submit"
                     className="px-6 py-3 rounded-lg bg-gradient-hero text-white font-semibold text-sm hover:shadow-lg transition whitespace-nowrap"
                   >
-                    Go to Portal →
+                    {t("landing.portalButton")}
                   </button>
                 </form>
                 {domainError && (
