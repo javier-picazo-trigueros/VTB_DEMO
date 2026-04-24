@@ -129,6 +129,21 @@ export const AdminPanel = () => {
     Authorization: `Bearer ${localStorage.getItem("vtb-token")}`,
   });
 
+  const cardTabMap = {
+    "Total Users": "users",
+    "Pending Requests": "inbox",
+    "Total Elections": "elections",
+    "Active Elections": "elections",
+    "Votes Cast": "stats",
+  };
+
+  const handleKpiCardClick = (label) => {
+    const tabId = cardTabMap[label];
+    if (tabId) {
+      setActiveTab(tabId);
+    }
+  };
+
   const loadTabData = async () => {
     setLoading(true);
     setError("");
@@ -688,7 +703,15 @@ export const AdminPanel = () => {
                       <motion.div
                         key={label}
                         whileHover={{ scale: 1.02 }}
-                        className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700"
+                        onClick={() => handleKpiCardClick(label)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            handleKpiCardClick(label);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        className="cursor-pointer bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-150 hover:-translate-y-0.5"
                       >
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-2xl">{icon}</span>
