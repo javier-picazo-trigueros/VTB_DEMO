@@ -126,6 +126,11 @@ const resources = {
 
         cta: "Start Voting Now",
         documentation: "Documentation",
+        portalButton: "Go to Portal →",
+        domainPlaceholder: "e.g. ufv.es or highland.edu",
+        domainRequired: "Please enter your institution domain.",
+        domainInvalid: "Please enter a valid domain (e.g. ufv.es or highland.edu).",
+        domainInstruction: "Enter your institution's domain to access your voting portal:",
       },
 
       // LOGIN
@@ -188,6 +193,8 @@ const resources = {
         admins: "Admins",
         students: "Students",
         totalElections: "Elections",
+        activeElections: "Active Elections",
+        totalVotes: "Total Votes",
         nullifiers: "Nullifiers",
         createNewUser: "Create New User",
         createNewElection: "Create New Election",
@@ -219,6 +226,20 @@ const resources = {
         processedRequests: "Processed Requests",
         approved: "Approved",
         rejected: "Rejected",
+        registeredAccounts: "Registered accounts",
+        awaitingApproval: "Awaiting approval",
+        allElections: "All elections",
+        currentlyRunning: "Currently running",
+        nullifiersIssued: "Nullifiers issued",
+        emailPlaceholder: "Email",
+        namePlaceholder: "Full name",
+        studentIdPlaceholder: "Student ID",
+        passwordPlaceholder: "Password",
+        rolePlaceholder: "Role",
+        voter: "Voter",
+        domainAdmin: "Domain Admin",
+        adminDomainPlaceholder: "Admin domain (e.g. ufv.es)",
+        creatingUser: "Creating...",
       },
 
       // VOTING BOOTH
@@ -475,6 +496,11 @@ const resources = {
 
         cta: "Comienza a Votar Ahora",
         documentation: "Documentación",
+        portalButton: "Ir al Portal →",
+        domainPlaceholder: "p. ej. ufv.es o highland.edu",
+        domainRequired: "Por favor ingresa el dominio de tu institución.",
+        domainInvalid: "Por favor ingresa un dominio válido (p. ej. ufv.es o highland.edu).",
+        domainInstruction: "Ingresa el dominio de tu institución para acceder a tu portal de votación:",
       },
 
       // LOGIN
@@ -537,6 +563,8 @@ const resources = {
         admins: "Administradores",
         students: "Estudiantes",
         totalElections: "Votaciones",
+        activeElections: "Votaciones Activas",
+        totalVotes: "Votos Totales",
         nullifiers: "Nullifiers",
         createNewUser: "Crear Nuevo Usuario",
         createNewElection: "Crear Nueva Votación",
@@ -568,6 +596,20 @@ const resources = {
         processedRequests: "Solicitudes Procesadas",
         approved: "Aprobado",
         rejected: "Rechazado",
+        registeredAccounts: "Cuentas registradas",
+        awaitingApproval: "Esperando aprobación",
+        allElections: "Todas las votaciones",
+        currentlyRunning: "Actualmente ejecutándose",
+        nullifiersIssued: "Nullifiers emitidos",
+        emailPlaceholder: "Correo electrónico",
+        namePlaceholder: "Nombre completo",
+        studentIdPlaceholder: "Número de estudiante",
+        passwordPlaceholder: "Contraseña",
+        rolePlaceholder: "Rol",
+        voter: "Votante",
+        domainAdmin: "Admin de Dominio",
+        adminDomainPlaceholder: "Dominio de admin (p. ej. ufv.es)",
+        creatingUser: "Creando...",
       },
 
       // VOTING BOOTH

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import axios from "axios";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Navbar } from "../components/Navbar";
@@ -11,6 +12,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export const AdminPanel = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -128,6 +130,21 @@ export const AdminPanel = () => {
   const getAuthHeader = () => ({
     Authorization: `Bearer ${localStorage.getItem("vtb-token")}`,
   });
+
+  const cardTabMap = {
+    "totalUsers": "users",
+    "pendingRequests": "inbox",
+    "totalElections": "elections",
+    "activeElections": "elections",
+    "totalVotes": "stats",
+  };
+
+  const handleKpiCardClick = (key) => {
+    const tabId = cardTabMap[key];
+    if (tabId) {
+      setActiveTab(tabId);
+    }
+  };
 
   const loadTabData = async () => {
     setLoading(true);
@@ -628,12 +645,12 @@ export const AdminPanel = () => {
 
         {/* Tabs */}
         <div className="mt-8 flex flex-wrap gap-3 mb-8">
-          <Tab id="dashboard" label="Dashboard" icon="📊" />
-          <Tab id="inbox" label="Requests" icon="📬" badge={pendingBadge > 0 ? pendingBadge : null} />
-          <Tab id="users" label="Users" icon="👥" />
-          <Tab id="elections" label="Elections" icon="🗳️" />
-          <Tab id="stats" label="Statistics" icon="📈" />
-          <Tab id="audit" label="Vote Audit" icon="🔐" />
+          <Tab id="dashboard" label={t("admin.dashboard")} icon="📊" />
+          <Tab id="inbox" label={t("admin.requests")} icon="📬" badge={pendingBadge > 0 ? pendingBadge : null} />
+          <Tab id="users" label={t("admin.users")} icon="👥" />
+          <Tab id="elections" label={t("admin.elections")} icon="🗳️" />
+          <Tab id="stats" label={t("admin.statistics")} icon="📈" />
+          <Tab id="audit" label={t("admin.audit")} icon="🔐" />
         </div>
 
         {/* Content */}
@@ -679,25 +696,33 @@ export const AdminPanel = () => {
                   {/* KPI Cards */}
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     {[
-                      { label: "Total Users", icon: "👥", value: stats.totalUsers, badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", sub: "Registered accounts" },
-                      { label: "Pending Requests", icon: "📬", value: stats.pendingRequests, badgeClass: stats.pendingRequests > 0 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", sub: "Awaiting approval" },
-                      { label: "Total Elections", icon: "🗳️", value: stats.totalElections, badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300", sub: "All elections" },
-                      { label: "Active Elections", icon: "⚡", value: stats.activeElections, badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300", sub: "Currently running" },
-                      { label: "Votes Cast", icon: "🔐", value: stats.totalVotes, badgeClass: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300", sub: "Nullifiers issued" },
-                    ].map(({ label, icon, value, badgeClass, sub }) => (
+                      { key: "totalUsers", icon: "👥", value: stats.totalUsers, badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", subKey: "registeredAccounts" },
+                      { key: "pendingRequests", icon: "📬", value: stats.pendingRequests, badgeClass: stats.pendingRequests > 0 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", subKey: "awaitingApproval" },
+                      { key: "totalElections", icon: "🗳️", value: stats.totalElections, badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300", subKey: "allElections" },
+                      { key: "activeElections", icon: "⚡", value: stats.activeElections, badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300", subKey: "currentlyRunning" },
+                      { key: "totalVotes", icon: "🔐", value: stats.totalVotes, badgeClass: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300", subKey: "nullifiersIssued" },
+                    ].map(({ key, icon, value, badgeClass, subKey }) => (
                       <motion.div
-                        key={label}
+                        key={key}
                         whileHover={{ scale: 1.02 }}
-                        className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700"
+                        onClick={() => handleKpiCardClick(key)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            handleKpiCardClick(key);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        className="cursor-pointer bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-150 hover:-translate-y-0.5"
                       >
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-2xl">{icon}</span>
                           <span className={`text-xs font-medium px-2 py-1 rounded-full ${badgeClass}`}>
-                            {label}
+                            {t(`admin.${key}`)}
                           </span>
                         </div>
                         <p className="text-3xl font-bold text-slate-900 dark:text-white">{value}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{sub}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t(`admin.${subKey}`)}</p>
                       </motion.div>
                     ))}
                   </div>
@@ -842,11 +867,11 @@ export const AdminPanel = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"
                   >
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Create New User</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">{t("admin.createNewUser")}</h2>
                     <form onSubmit={handleCreateUser} className="grid md:grid-cols-2 gap-4">
                       <input
                         type="email"
-                        placeholder="Email"
+                        placeholder={t("admin.emailPlaceholder")}
                         value={newUser.email}
                         onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                         disabled={loading}
@@ -855,7 +880,7 @@ export const AdminPanel = () => {
                       />
                       <input
                         type="text"
-                        placeholder="Full name"
+                        placeholder={t("admin.namePlaceholder")}
                         value={newUser.name}
                         onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
                         disabled={loading}
@@ -864,7 +889,7 @@ export const AdminPanel = () => {
                       />
                       <input
                         type="text"
-                        placeholder="Student ID"
+                        placeholder={t("admin.studentIdPlaceholder")}
                         value={newUser.student_id}
                         onChange={(e) => setNewUser({ ...newUser, student_id: e.target.value })}
                         disabled={loading}
@@ -873,7 +898,7 @@ export const AdminPanel = () => {
                       />
                       <input
                         type="password"
-                        placeholder="Password"
+                        placeholder={t("admin.passwordPlaceholder")}
                         value={newUser.password}
                         onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                         disabled={loading}
@@ -885,13 +910,14 @@ export const AdminPanel = () => {
                         onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                         className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                       >
-                        <option value="student">Voter</option>
-                        <option value="admin">Domain Admin</option>
+                        <option value="student">{t("admin.voter")}</option>
+                        <option value="admin">{t("admin.domainAdmin")}</option>
                       </select>
                       {newUser.role === 'admin' && (
                         <input
                           type="text"
-                          placeholder="Admin domain (e.g. ufv.es)"
+                          placeholder={t("admin.adminDomainPlaceholder")}
+                          value={newUser.admin_domain || ''}
                           value={newUser.admin_domain || ''}
                           onChange={(e) => setNewUser({ ...newUser, admin_domain: e.target.value })}
                           className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
@@ -904,7 +930,7 @@ export const AdminPanel = () => {
                         disabled={loading}
                         className="md:col-span-2 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50"
                       >
-                        {loading ? "Creating..." : "Create User"}
+                        {loading ? t("admin.creatingUser") : t("admin.createNewUser")}
                       </motion.button>
                     </form>
                   </motion.div>
