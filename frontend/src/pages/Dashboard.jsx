@@ -36,6 +36,7 @@ const StatusBadge = ({ election }) => {
   );
 };
 
+
 const Countdown = ({ endTime }) => {
   const [remaining, setRemaining] = useState(endTime - Math.floor(Date.now() / 1000));
   const ref = useRef(null);
@@ -161,6 +162,7 @@ const ElectionCard = ({ election, eligibility, index, navigate, isAdminElection 
   );
 };
 
+
 export const Dashboard = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -173,10 +175,12 @@ export const Dashboard = () => {
   const [filter, setFilter] = useState({ status: 'all', search: '' });
   const [sortBy, setSortBy] = useState('newest');
 
+
   useEffect(() => {
     if (!isAuthenticated) { navigate("/login"); return; }
     loadElections();
   }, [isAuthenticated]);
+
 
   const loadElections = async () => {
     setIsLoading(true);
@@ -208,11 +212,14 @@ export const Dashboard = () => {
     }
   };
 
+
   if (!isAuthenticated) return null;
+
 
   const userName = user?.name || user?.email || "";
   const userRole = localStorage.getItem('vtb-role') || 'student';
   const isAdminUser = userRole === 'admin' || userRole === 'superadmin';
+
 
   // Filter + sort
   const filteredElections = elections.filter(e => {
@@ -224,12 +231,14 @@ export const Dashboard = () => {
     return matchSearch && matchStatus;
   });
 
+
   const sortedElections = [...filteredElections].sort((a, b) =>
     sortBy === 'ending'
       ? (a.endTime || 0) - (b.endTime || 0)
       : (b.id || 0) - (a.id || 0)
   );
 
+  
   const adminElections = isAdminUser
     ? sortedElections.filter(e => e.voterRole === 'admin')
     : [];

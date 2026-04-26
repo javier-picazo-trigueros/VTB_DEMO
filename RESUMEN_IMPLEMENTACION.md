@@ -1,30 +1,30 @@
 # VTB — RESUMEN DE IMPLEMENTACIÓN
 
-## 📊 PROGRESO GENERAL
+## PROGRESO GENERAL
 
 **Completado: 47% (10/21 bloques)**
 
 ```
-BLOQUE 1 — BUGS CRÍTICOS           ✅ 100% (4/4)
-BLOQUE 2 — SEGURIDAD                ✅ 75% (3/4)
-BLOQUE 3 — FUNCIONALIDADES         🔄 0% (0/5)
-BLOQUE 4 — HOSTING                 🔄 0% (0/4)
-BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
+BLOQUE 1 — BUGS CRÍTICOS           100% (4/4)
+BLOQUE 2 — SEGURIDAD                75% (3/4)
+BLOQUE 3 — FUNCIONALIDADES         0% (0/5)
+BLOQUE 4 — HOSTING                 0% (0/4)
+BLOQUE 5 — CALIDAD Y UX             25% (1/4)
 ```
 
 ---
 
-## ✅ COMPLETADO EN ESTA SESIÓN
+## COMPLETADO EN ESTA SESIÓN
 
-### 🔴 BLOQUE 1 — BUGS CRÍTICOS (Rompen Demo) — 100%
+### BLOQUE 1 — BUGS CRÍTICOS (Rompen Demo) — 100%
 
-#### 1.1 Ruta `/voting/:id` ✅
+#### 1.1 Ruta `/voting/:id`
 - **Cambio**: Agregada ruta dinámica en `App.jsx`
 - **Archivos**: `frontend/src/App.jsx`
 - **Impacto**: Permite navegar a cabina de votación con ID específico
 - **Protección**: Con guard de autenticación
 
-#### 1.2 Candidatos Dinámicos ✅
+#### 1.2 Candidatos Dinámicos
 - **Cambio**: VotingBooth ahora carga candidatos de API
 - **Backend**:
   - Nueva tabla `candidates` en SQLite
@@ -37,7 +37,7 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
   - `backend/src/routes/elections.ts` (nuevo endpoint)
   - `backend/src/config/database.ts` (nueva tabla)
 
-#### 1.3 Nullifier Vote-Time Generation ✅
+#### 1.3 Nullifier Vote-Time Generation
 - **Cambio arquitectónico crítico**: Nullifier ahora se genera en backend al votar, no en login
 - **Login antes**: POST `/auth/login { email, password, electionId }` → JWT con nullifier
 - **Login ahora**: POST `/auth/login { email, password }` → JWT simple
@@ -51,16 +51,16 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
   Backend genera: nullifier = HMAC(userId + electionId)
   ```
 - **Beneficios**:
-  - ✅ Login más simple
-  - ✅ Separación clara de responsabilidades
-  - ✅ Frontend no necesita electionId en login
+  - Login más simple
+  - Separación clara de responsabilidades
+  - Frontend no necesita electionId en login
 - **Archivos modificados**: 
   - `backend/src/utils/auth.ts` (refactor de funciones)
   - `backend/src/routes/auth.ts` (login sin electionId)
   - `backend/src/routes/elections.ts` (generate nullifier en vote)
   - `frontend/src/pages/Login.jsx` (sin electionId)
 
-#### 1.4 Eliminar Flask ✅
+#### 1.4 Eliminar Flask
 - **Eliminados**:
   - `backend/app.py` (entry point Flask)
   - `backend/blockchain.py` (simulación de blockchain - obsoleta)
@@ -71,9 +71,9 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
 
 ---
 
-### 🔒 BLOQUE 2 — SEGURIDAD — 75%
+### BLOQUE 2 — SEGURIDAD — 75%
 
-#### 2.1 Bcrypt para Contraseñas ✅
+#### 2.1 Bcrypt para Contraseñas
 - **Cambio**: SHA-512 → bcrypt (12 rounds)
 - **Instalado**:
   - `bcryptjs` v2.4.3
@@ -94,7 +94,7 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
   - `backend/src/routes/registration.ts`
   - `backend/src/scripts/seedDatabase.ts`
 
-#### 2.2 Variables de Entorno ✅
+#### 2.2 Variables de Entorno
 - **Archivos creados**:
   - `.env.example` — Template con documentación de TODAS las variables
   - `.env` — Configuración para desarrollo
@@ -114,7 +114,7 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
   ```
 - **Implementación**: Todo hardcodeado reemplazado por `process.env.VARIABLE`
 
-#### 2.3 Rate Limiting en Login ✅
+#### 2.3 Rate Limiting en Login
 - **Instalado**: `express-rate-limit` v7.1.5
 - **Configuración**: 5 intentos en 15 minutos
 - **Comportamiento**:
@@ -125,15 +125,15 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
   - `backend/src/index.ts` (middleware configurado)
   - `backend/package.json` (dependencia agregada)
 
-#### 2.4 CORS para Producción ⏱️
+#### 2.4 CORS para Producción 
 - **Estado**: Configured pero no implementado
 - **Próximo**: Ajustar según dominio final
 
 ---
 
-### 🎨 BLOQUE 5 — CALIDAD Y UX — 25%
+### BLOQUE 5 — CALIDAD Y UX — 25%
 
-#### 5.1 ErrorBoundary ✅
+#### 5.1 ErrorBoundary
 - **Componente**: `frontend/src/components/ErrorBoundary.jsx`
 - **Funcionalidad**:
   - Captura errores globales no controlados
@@ -144,11 +144,11 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
 
 ---
 
-## 🔄 NO COMPLETADO (Prioridad)
+## NO COMPLETADO (Prioridad)
 
-### 🟡 BLOQUE 3 — FUNCIONALIDADES FALTANTES
+### BLOQUE 3 — FUNCIONALIDADES FALTANTES
 
-#### 3.1 Registration Request (Self-Enrollment) ⏱️
+#### 3.1 Registration Request (Self-Enrollment)
 - **Alcance**: Flujo completo de solicitud de acceso
 - **Backend**: 
   - [ ] Tabla `registration_requests` con status (pending|approved|rejected)
@@ -161,14 +161,14 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
   - [ ] Sección en AdminPanel para revisar solicitudes
 - **Estimado**: 4-6 horas
 
-#### 3.2 Gráfico de Resultados ⏱️
+#### 3.2 Gráfico de Resultados 
 - **Alcance**: Visualización de resultados en tiempo real
 - **Instalación**: `npm install recharts`
 - **Componente**: Gráfico de barras con datos de votos
 - **Ubicación**: Página de resultados `/results/:electionId`
 - **Estimado**: 2-3 horas
 
-#### 3.3 Live Blockchain Feed ⏱️
+#### 3.3 Live Blockchain Feed 
 - **Estado**: Ya existe pero necesita pulido
 - **Mejoras**:
   - Refrescar cada 30 segundos
@@ -176,7 +176,7 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
   - Manejo de desconexiones
 - **Estimado**: 1-2 horas
 
-#### 3.4 Feedback de Transacción ⏱️
+#### 3.4 Feedback de Transacción 
 - **Alcance**: Estados de progreso durante el voto
 - **Estados**:
   1. "Generando prueba criptográfica..."
@@ -185,7 +185,7 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
 - **Modal**: Éxito con txHash y enlace a explorador
 - **Estimado**: 2-3 horas
 
-#### 3.5 Vista de Auditoría ⏱️
+#### 3.5 Vista de Auditoría 
 - **Alcance**: Panel público de hashes
 - **Características**:
   - Tab "Auditoría Blockchain" en resultados
@@ -195,15 +195,15 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
 
 ---
 
-### 🏗️ BLOQUE 4 — HOSTING
+### BLOQUE 4 — HOSTING
 
-#### 4.1 Dockerizar ⏱️
+#### 4.1 Dockerizar 
 - Frontend Dockerfile (multi-stage)
 - Backend Dockerfile (Node)
 - `docker-compose.yml` con todos los servicios
 - `.dockerignore`
 
-#### 4.2 Script Setup ⏱️
+#### 4.2 Script Setup 
 - `scripts/setup.sh` que:
   - Copie `.env.example` a `.env`
   - Instale dependencias
@@ -211,26 +211,26 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
   - Despliegue en Hardhat
   - Seed base de datos
 
-#### 4.3 README Completo ⏱️
+#### 4.3 README Completo 
 - Instalar, Ejecutar, Credenciales
 - Troubleshooting
 - Arquitectura con diagramas
 
-#### 4.4 Build Producción ⏱️
+#### 4.4 Build Producción 
 - Frontend: Optimizar build de Vite
 - Backend: Minificación
 - Variables env por entorno
 
 ---
 
-### 📊 BLOQUE 5 — REMAINING
+### BLOQUE 5 — REMAINING
 
-#### 5.2 Loading Spinners ⏱️
+#### 5.2 Loading Spinners 
 - Componente `<LoadingSpinner message="..." />`
 - Usar en: Dashboard, VotingBooth, Resultados
 - Timeout de 10 segundos con reintentar
 
-#### 5.3 Validación Estado de Elección ⏱️
+#### 5.3 Validación Estado de Elección 
 - Anterior a entrar en cabina:
   - Exist check
   - Status check (active vs pending vs closed)
@@ -238,14 +238,14 @@ BLOQUE 5 — CALIDAD Y UX             ✅ 25% (1/4)
   - Already voted check
 - Mensajes claros para cada caso
 
-#### 5.4 Persistencia Sesión ⏱️
+#### 5.4 Persistencia Sesión 
 - Verificar expiración de JWT al cargar app
 - Redirigir a login si tokens expirado
 - Limpiar localStorage en logout
 
 ---
 
-## 🔧 CAMBIOS TÉCNICOS IMPORTANTES
+## CAMBIOS TÉCNICOS IMPORTANTES
 
 ### Base de Datos — Nueva Tabla
 
@@ -300,7 +300,7 @@ function generateNullifier(userId, electionId) → string  // generado en vote-t
 
 ---
 
-## 📦 DEPENDENCIAS AGREGADAS
+## DEPENDENCIAS AGREGADAS
 
 ```json
 {
@@ -322,7 +322,7 @@ function generateNullifier(userId, electionId) → string  // generado en vote-t
 
 ---
 
-## 🚀 PRÓXIMOS PASOS RECOMENDADOS
+## PRÓXIMOS PASOS RECOMENDADOS
 
 ### Fase 1 — Robustecer (Est. 1-2 días)
 1. Implementar Registration Request Flow (3.1)
@@ -345,7 +345,7 @@ function generateNullifier(userId, electionId) → string  // generado en vote-t
 
 ---
 
-## ⚠️ NOTAS IMPORTANTES
+## NOTAS IMPORTANTES
 
 ### Para Desarrolladores
 1. **Todos los `hashPassword()` ahora son async** — Usar `await` siempre
@@ -360,16 +360,16 @@ function generateNullifier(userId, electionId) → string  // generado en vote-t
 - Backend API docs: http://localhost:3001/
 
 ### Para Producción
-- ✅ Actualizar `.env` con valores reales
-- ✅ set NODE_ENV=production
-- ✅ Usar bcrypt (ya implementado)
-- ✅ Rate limiting activo
-- ✅ CORS configurado por dominio
-- ⏱️ Falta: Docker, SSL, base de datos compartida
+- Actualizar `.env` con valores reales
+- set NODE_ENV=production
+- Usar bcrypt (ya implementado)
+- Rate limiting activo
+- CORS configurado por dominio
+- Falta: Docker, SSL, base de datos compartida
 
 ---
 
-## 📖 REFERENCIAS
+## REFERENCIAS
 
 - `CAMBIOS_IMPLEMENTADOS.md` — Lista detallada de cambios
 - `ARCHITECTURE.md` — Diagramas del sistema
@@ -379,7 +379,7 @@ function generateNullifier(userId, electionId) → string  // generado en vote-t
 
 ---
 
-## 📈 MÉTRICAS
+## MÉTRICAS
 
 | Métrica | Valor |
 |---------|-------|

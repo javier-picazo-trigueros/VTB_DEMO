@@ -1,36 +1,36 @@
 # VTB - Cambios Implementados (Sesión Actual)
 
-## ✅ COMPLETADO
+##  COMPLETADO
 
 ### BLOQUE 1 — BUGS CRÍTICOS
-- **1.1** ✅ Crear ruta `/voting/:id` en App.jsx con protección de autenticación
-- **1.2** ✅ Cargar candidatos dinámicamente en VotingBooth desde API
-- **1.3** ✅ Refactorizar nullifier para generar en tiempo de votación (vote-time), no en login
-- **1.4** ✅ Eliminar backend Flask (app.py, blockchain.py, models.py, requirements.txt)
+- **1.1**  Crear ruta `/voting/:id` en App.jsx con protección de autenticación
+- **1.2**  Cargar candidatos dinámicamente en VotingBooth desde API
+- **1.3**  Refactorizar nullifier para generar en tiempo de votación (vote-time), no en login
+- **1.4**  Eliminar backend Flask (app.py, blockchain.py, models.py, requirements.txt)
 
 ### BLOQUE 2 — SEGURIDAD  
-- **2.1** ✅ Migrar de SHA-512 a bcrypt para hashing de contraseñas
+- **2.1**  Migrar de SHA-512 a bcrypt para hashing de contraseñas
   - Instalado: `bcryptjs` y `@types/bcryptjs`
   - Actualizado: `hashPassword()` y `verifyPassword()` para ser async
   - Aplicado en: auth.ts, seedDatabase.ts, registration.ts, admin.ts
   
-- **2.2** ✅ Setup de variables de entorno
+- **2.2**  Setup de variables de entorno
   - Creado: `.env.example` con todas las variables documentadas
   - Creado: `.env` para desarrollo
   - Creado: `.gitignore` para excluir problemas de seguridad
   - Variables críticas: `JWT_SECRET`, `NULLIFIER_SECRET`, `CONTRACT_ADDRESS`, `PRIVATE_KEY`
 
-- **2.3** ✅ Rate limiting en login
+- **2.3**  Rate limiting en login
   - Instalado: `express-rate-limit`
   - Configurado: 5 intentos en 15 minutos para POST /auth/login
   - Deshabilitado en desarrollo
 
 ### BLOQUE 5 — CALIDAD Y UX
-- **5.1** ✅ Crear ErrorBoundary para capturar errores globales
+- **5.1**  Crear ErrorBoundary para capturar errores globales
   - Creado: `/frontend/src/components/ErrorBoundary.jsx`
   - Muestra pantalla de error amigable con opción de reload
 
-## 🏗️ CAMBIOS ARQUITECTÓNICOS IMPORTANTES
+## CAMBIOS ARQUITECTÓNICOS IMPORTANTES
 
 ### 1. Nullifier Generation (BLOQUE 1.3)
 **Antes**: Generado en login, incluido en JWT
@@ -55,9 +55,9 @@ POST /elections/register-vote {
 ```
 
 **Ventajas**:
-- ✅ Separación clara: JWT para autenticación, nullifier para votación
-- ✅ Login más simple (sin necesidad de seleccionar elección primero)
-- ✅ Nullifier generado en el endpoint exacto donde se usa
+-  Separación clara: JWT para autenticación, nullifier para votación
+-  Login más simple (sin necesidad de seleccionar elección primero)
+-  Nullifier generado en el endpoint exacto donde se usa
 
 ### 2. Candidatos Dinámicos (BLOQUE 1.2)
 **Nuevo**:
@@ -90,7 +90,7 @@ CREATE TABLE candidates (
 )
 ```
 
-## 📦 DEPENDENCIAS AGREGADAS
+## DEPENDENCIAS AGREGADAS
 
 ### Backend
 ```json
@@ -107,7 +107,7 @@ CREATE TABLE candidates (
 
 **Instalar con**: `cd backend && npm install`
 
-## 🔐 VARIABLES DE ENTORNO REQUERIDAS
+## VARIABLES DE ENTORNO REQUERIDAS
 
 Ver `.env.example` para la lista completa. Variables más críticas:
 
@@ -126,7 +126,7 @@ VITE_API_URL=http://localhost:3001
 VITE_CONTRACT_ADDRESS=0x...
 ```
 
-## 🚀 PRÓXIMOS PASOS (NO IMPLEMENTADOS AÚN)
+## PRÓXIMOS PASOS (NO IMPLEMENTADOS AÚN)
 
 ### BLOQUE 3 — FUNCIONALIDADES FALTANTES (Priority)
 - **3.1** Flujo de solicitud de registro (Self-Enrollment)
@@ -161,7 +161,7 @@ VITE_CONTRACT_ADDRESS=0x...
 - **5.3** Validación de estado de elección antes de votar
 - **5.4** Persistencia de sesión mejorada
 
-## ✅ TESTING RECOMENDADO
+##  TESTING RECOMENDADO
 
 ```bash
 # 1. Backend
@@ -184,14 +184,14 @@ npx hardhat node
 # - Voting: Seleccionar y votar
 ```
 
-## 📝 NOTAS
+## NOTAS
 
 - **bcrypt**: Todos los `hashPassword()` ahora retornan una Promise. Asegúrate de `await` en todos los lugares.
 - **Nullifier**: Ya NO es parte del JWT. Se genera en backend al recibir el voto.
 - **Login**: Ya NO requiere seleccionar elección. Escoges elección al clickear "Vote Now" en dashboard.
 - **Rate limiting**: Deshabilitado en desarrollo pero activo en producción.
 
-## 🔧 TROUBLESHOOTING
+## TROUBLESHOOTING
 
 ### Error: "bcryptjs no encontrado"
 ```bash

@@ -1,6 +1,6 @@
 # Quick Start - VTB Demo
 
-## ⚡ Inicio Rápido (5 minutos)
+## Inicio Rápido (5 minutos)
 
 ### Prerequisitos
 - Python 3.8+
@@ -9,7 +9,7 @@
 
 ---
 
-## 🚀 OPCIÓN A: Inicio Manual (Recomendado)
+## OPCIÓN A: Inicio Manual (Recomendado)
 
 ### Paso 1: Terminal 1 - Backend
 
@@ -19,9 +19,9 @@ pip install -r requirements.txt
 python app.py
 ```
 
-✅ Deberías ver:
+Deberías ver:
 ```
-🚀 VTB API iniciada en http://localhost:5000
+VTB API iniciada en http://localhost:5000
 ```
 
 ### Paso 2: Terminal 2 - Frontend
@@ -32,7 +32,7 @@ npm install
 npm run dev
 ```
 
-✅ Deberías ver:
+Deberías ver:
 ```
 ➜  Local:   http://localhost:3000/
 ```
@@ -55,7 +55,7 @@ Votar en "Delegado 3º Ingeniería"
 
 ---
 
-## 🔐 Credenciales Rápidas
+## Credenciales Rápidas
 
 ### Para Votante:
 - Email: `alumno@ufv.es`
@@ -71,7 +71,7 @@ Votar en "Delegado 3º Ingeniería"
 
 ---
 
-## 📊 Demostración en Defensa (Guión Sugerido)
+## Demostración en Defensa (Guión Sugerido)
 
 ### Escena 1: Mostrar Landing Page (30s)
 - Abre http://localhost:3000
@@ -88,12 +88,12 @@ Votar en "Delegado 3º Ingeniería"
 ### Escena 3: Votar (1m)
 - Abre Dashboard
 - Muestra tarjetas de elecciones
-- Haz click en "🗳️ Votar" en "Delegado 3º Ingeniería"
+- Haz click en "Votar" en "Delegado 3º Ingeniería"
 - En el modal:
   - Explica "Selecciona candidato"
   - Explica "Tu voto será anónimo"
   - Selecciona un candidato (ej: "Alice García")
-  - Haz click "⛓️ Registrar Voto en Blockchain"
+  - Haz click "Registrar Voto en Blockchain"
   - Espera a que aparezca el modal de éxito
   - Muestra el **Hash de Transacción** (recibo para auditoría)
   - Explica que nadie puede vincular este hash a tu identidad
@@ -126,7 +126,7 @@ Votar en "Delegado 3º Ingeniería"
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Error: "Could not connect to Flask"
 - ¿Backend está en `http://localhost:5000`? 
@@ -168,7 +168,7 @@ port: 3001  # Usa 3001 en lugar de 3000
 
 ---
 
-## 📱 Interfaz Usuario
+## Interfaz Usuario
 
 ### Landing Page
 - Dark mode profesional
@@ -204,7 +204,7 @@ port: 3001  # Usa 3001 en lugar de 3000
 
 ---
 
-## 🎯 Puntos Clave para la Defensa
+## Puntos Clave para la Defensa
 
 1. **Separación Web2/Web3**
    - SQL: Verifica "¿puedes votar?" (autenticación)
@@ -230,7 +230,7 @@ port: 3001  # Usa 3001 en lugar de 3000
 
 ---
 
-## 📚 Archivos Clave para Mostrar
+## Archivos Clave para Mostrar
 
 En la defensa, puedes abrir estos archivos para explicar la arquitectura:
 
@@ -250,7 +250,7 @@ En la defensa, puedes abrir estos archivos para explicar la arquitectura:
 
 ---
 
-## ✅ Pre-defensa Checklist
+## Pre-defensa Checklist
 
 - [ ] Backend corre en `http://localhost:5000`
 - [ ] Frontend corre en `http://localhost:3000`
@@ -265,7 +265,7 @@ En la defensa, puedes abrir estos archivos para explicar la arquitectura:
 
 ---
 
-## 💡 Tips para Impresionar
+## Tips para Impresionar
 
 1. **Explica el flujo usuario** de forma clara antes de clickear
 2. **Abre VS Code** y muestra código mientras explicas conceptos
@@ -280,7 +280,7 @@ En la defensa, puedes abrir estos archivos para explicar la arquitectura:
 
 ---
 
-## 🎓 Al Finalizar la Defensa
+## Al Finalizar la Defensa
 
 Gracias a todo el tribunal por su atención.
 
@@ -292,7 +292,7 @@ Gracias a todo el tribunal por su atención.
 
 ---
 
-¡**Buena suerte en la defensa!** 🎓♦️
+¡**Buena suerte en la defensa!**
 
 Si algo falla durante la presentación, mantén la calma y explica el concepto técnicamente. 
 El tribunal valora más tu comprensión que que todo funcione perfecto.

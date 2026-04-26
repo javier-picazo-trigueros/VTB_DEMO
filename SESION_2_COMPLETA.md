@@ -1,17 +1,17 @@
 # VTB - SESIÓN 2: IMPLEMENTACIÓN COMPLETA
 
-## 📊 RESUMEN DE PROGRESO
+## RESUMEN DE PROGRESO
 
 **Completado en esta sesión (Sesión 2):**
-- ✅ FIX A: ErrorBoundary integrado en App.jsx
-- ✅ FIX B: CORS configurado correctamente para dev/prod
-- ✅ FIX C: Rate limiting NODE_ENV configurado (5 intentos/prod, 100 intentos/dev)
-- ✅ FIX D: Endpoint GET /elections filtrado por usuario (tabla election_voters)
-- ✅ 5.4: Persistencia de sesión y expiración JWT implementada
-- ✅ 3.1: Flujo completo de solicitud de registro (Self-Enrolment)
-- ✅ 5.3: Validación eligibility antes de cabina de votación
-- ✅ 5.2: LoadingSpinner component reutilizable
-- ✅ 4.2: setup.sh script para inicialización automática
+-  FIX A: ErrorBoundary integrado en App.jsx
+-  FIX B: CORS configurado correctamente para dev/prod
+-  FIX C: Rate limiting NODE_ENV configurado (5 intentos/prod, 100 intentos/dev)
+-  FIX D: Endpoint GET /elections filtrado por usuario (tabla election_voters)
+-  5.4: Persistencia de sesión y expiración JWT implementada
+-  3.1: Flujo completo de solicitud de registro (Self-Enrolment)
+-  5.3: Validación eligibility antes de cabina de votación
+-  5.2: LoadingSpinner component reutilizable
+-  4.2: setup.sh script para inicialización automática
 
 ---
 
@@ -215,11 +215,11 @@ Si reject:
 
 **Estructura en Admin Panel:**
 
-Tab "Solicitudes" (📬) muestra:
+Tab "Solicitudes" muestra:
 - Badge con cantidad de solicitudes pendientes
 - Tarjetas por solicitud con:
   - Email, Nombre, ID, Fecha
-  - Botones: ✅ Aprobar, ❌ Rechazar
+  - Botones:  Aprobar, Rechazar
 - Al aprobar: mostrar modal con contraseña temporal
 - Al rechazar: pedir motivo con prompt()
 - Sección separada de "Solicitudes Procesadas"
@@ -328,28 +328,28 @@ chmod +x scripts/setup.sh
 
 ---
 
-## 🚀 ESTADO ACTUAL DE LA APLICACIÓN
+## ESTADO ACTUAL DE LA APLICACIÓN
 
 ### Flujos Implementados:
-1. ✅ **Acceso & Autenticación**
+1.  **Acceso & Autenticación**
    - Login con email/password
    - JWT 24h con expiración
    - Rate limiting 5 intentos/15 min en producción
    - CORS whitelist
 
-2. ✅ **Self-Enrolment**
+2.  **Self-Enrolment**
    - Usuarios nuevos solicitan acceso
    - Admin aprueba/rechaza con motivo
    - Sistema genera contraseña temporal
 
-3. ✅ **Votación**
+3.  **Votación**
    - Dashboard filtrado por permisos
    - Validación pre-votación (elegibilidad)
    - Cabina con candidatos dinámicos
    - Generación nullifier en backend
    - Live feed blockchain
 
-4. ✅ **Administración**
+4.  **Administración**
    - Panel admin con tabs
    - Gestión solicitudes de registro
    - Estadísticas del sistema
@@ -366,7 +366,7 @@ chmod +x scripts/setup.sh
 
 ---
 
-## 📋 CHECKLIST DE VALIDACIÓN
+## CHECKLIST DE VALIDACIÓN
 
 - [x] ErrorBoundary captura errores en tree
 - [x] CORS bloquea origins no permitidos en prod
@@ -382,19 +382,19 @@ chmod +x scripts/setup.sh
 
 ---
 
-## 🔒 SEGURIDAD VERIFICADA
+## SEGURIDAD VERIFICADA
 
-- ✅ Contraseñas hasheadas con bcryptjs (12 rounds)
-- ✅ JWT con expiración 24h (configurable)
-- ✅ Rate limiting protege login
-- ✅ CORS limita acceso cross-origin
-- ✅ Nullifiers generados server-side (no en client)
-- ✅ PII nunca va a blockchain
-- ✅ Nullifier determinístico pero no reversible
+-  Contraseñas hasheadas con bcryptjs (12 rounds)
+-  JWT con expiración 24h (configurable)
+-  Rate limiting protege login
+-  CORS limita acceso cross-origin
+-  Nullifiers generados server-side (no en client)
+-  PII nunca va a blockchain
+-  Nullifier determinístico pero no reversible
 
 ---
 
-## 📖 DOCUMENTACIÓN PARA CONTINUACIÓN
+## DOCUMENTACIÓN PARA CONTINUACIÓN
 
 Refiere a `CAMBIOS_IMPLEMENTADOS.md` para:
 - Estado de cada commit/cambio

@@ -653,4 +653,3 @@ Este proyecto esta preparado como demo avanzada. Antes de usarlo con usuarios re
 - revisa proteccion CSRF/CORS segun despliegue final,
 - considera mover SQLite a una base gestionada,
 - haz pruebas de carga y de doble voto.
-

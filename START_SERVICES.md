@@ -1,36 +1,36 @@
-# 🚀 VTB - Scripts de Inicio Rápido
+# VTB - Scripts de Inicio Rápido
 
 Elige el script según tu sistema operativo para iniciar los 3 servicios (Backend, Frontend, Blockchain) con **un solo comando**.
 
 ---
 
-## 📌 Opciones
+## Opciones
 
-### 🪟 **Windows - Opción 1: Batch Script (.bat)**
+### **Windows - Opción 1: Batch Script (.bat)**
 ```bash
 start.bat
 ```
-- ✅ Más simple y directa
-- ✅ Abre 3 ventanas de CMD separadas
-- ✅ Recomendado para usuarios de Windows
+-  Más simple y directa
+-  Abre 3 ventanas de CMD separadas
+-  Recomendado para usuarios de Windows
 
-### 🪟 **Windows - Opción 2: PowerShell Script (.ps1)**
+### **Windows - Opción 2: PowerShell Script (.ps1)**
 ```powershell
 .\start.ps1
 ```
-- ✅ Más control y manejo de procesos
-- ⚠️ Requiere permitir ejecución de scripts (ver abajo)
+-  Más control y manejo de procesos
+- Requiere permitir ejecución de scripts (ver abajo)
 
-### 🐧 **Linux / macOS / Git Bash**
+### **Linux / macOS / Git Bash**
 ```bash
 bash start.sh
 ```
-- ✅ Script universal para Unix-like systems
-- ✅ Todos los servicios en una terminal
+-  Script universal para Unix-like systems
+-  Todos los servicios en una terminal
 
 ---
 
-## 🔧 Instrucciones Detalladas
+## Instrucciones Detalladas
 
 ### Windows - Batch (.bat)
 1. Haz doble clic en **`start.bat`** o:
@@ -73,7 +73,7 @@ chmod +x start.sh
 
 ---
 
-## 📊 Servicios y Accesos
+## Servicios y Accesos
 
 Una vez iniciados, accede a:
 
@@ -85,7 +85,7 @@ Una vez iniciados, accede a:
 
 ---
 
-## 🔐 Credenciales de Prueba
+## Credenciales de Prueba
 
 **Estudiante:**
 - Email: `juan@universidad.edu`
@@ -97,7 +97,7 @@ Una vez iniciados, accede a:
 
 ---
 
-## 📝 Archivos Incluidos
+## Archivos Incluidos
 
 ```
 start.sh          ← Para Linux/macOS/Git Bash
@@ -108,7 +108,7 @@ START_SERVICES.md ← Este archivo
 
 ---
 
-## 🆘 Solución de Problemas
+## Solución de Problemas
 
 ### Error: "npm: command not found"
 → Instala Node.js desde https://nodejs.org
@@ -126,7 +126,7 @@ START_SERVICES.md ← Este archivo
 
 ---
 
-## 🎯 Flujo Rápido de Demo
+## Flujo Rápido de Demo
 
 1. **Ejecuta un script** según tu SO (arriba)
 2. **Abre navegador:** http://localhost:3000
@@ -136,7 +136,3 @@ START_SERVICES.md ← Este archivo
 4. **Elige una elección** y **vota**
 5. **Ve resultados** en tiempo real
 6. **Admin panel:** Haz login como admin para ver estadísticas
-
----
-
-✨ **¡Listo! Ahora VTB está corriendo con un solo comando.** ✨

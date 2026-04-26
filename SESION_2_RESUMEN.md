@@ -1,4 +1,4 @@
-# 📋 SESIÓN 2 — RESUMEN EJECUTIVO
+# SESIÓN 2 — RESUMEN EJECUTIVO
 
 **Fecha:** 19 Febrero 2026  
 **Duración:** 1 sesión completa  
@@ -7,28 +7,28 @@
 
 ---
 
-## 🎯 OBJETIVOS ALCANZADOS
+## OBJETIVOS ALCANZADOS
 
-✅ **Corregir 4 bugs críticos del sistema (FIX A-D)**
+**Corregir 4 bugs críticos del sistema (FIX A-D)**
 - ErrorBoundary → Manejo de errores global
 - CORS → Seguridad cross-origin
 - Rate limiting → Protección contra brute force
 - Election filtering → Privacidad de datos
 
-✅ **Implementar 5 características críticas (BLOQUE 3.1, 5.2, 5.3, 5.4)**
+**Implementar 5 características críticas (BLOQUE 3.1, 5.2, 5.3, 5.4)**
 - Self-enrolment con aprobación admin
 - Validación de elegibilidad pre-votación
 - Persistencia de sesión JWT
 - Componente loadingspinner reutilizable
 
-✅ **Crear infraestructura de deployment (BLOQUE 4.2)**
+**Crear infraestructura de deployment (BLOQUE 4.2)**
 - setup.sh script automatizado
 - Documentación Sesión 2 + Sesión 3
 - Guía de continuación técnica
 
 ---
 
-## 📊 DETALLES CUANTITATIVOS
+## DETALLES CUANTITATIVOS
 
 ### Archivos Modificados: 11
 - `frontend/src/App.jsx` - ErrorBoundary integration
@@ -57,20 +57,20 @@
 
 ---
 
-## 🔐 SEGURIDAD IMPLEMENTADA
+## SEGURIDAD IMPLEMENTADA
 
 | Aspecto | Antes | Después | Impacto |
 |--------|-------|---------|--------|
-| **Error Handling** | White screen | ErrorBoundary + UI | ✅ 100% error capture |
-| **CORS** | Abierto todo | Whitelist con validación | ✅ Bloquea origins maliciosos |
-| **Rate Limiting** | Ninguno | 5 intentos/15min (prod) | ✅ Previene brute force |
-| **JWT Validation** | No validado | Cliente verifica exp | ✅ Sesiones no eternas |
-| **Election Access** | Código abierto | Basado en censo (election_voters) | ✅ Privacidad electoral |
-| **Registration** | Manual usuarios | Self-enrol + admin approval | ✅ Escalable sin admin |
+| **Error Handling** | White screen | ErrorBoundary + UI |  100% error capture |
+| **CORS** | Abierto todo | Whitelist con validación |  Bloquea origins maliciosos |
+| **Rate Limiting** | Ninguno | 5 intentos/15min (prod) |  Previene brute force |
+| **JWT Validation** | No validado | Cliente verifica exp |  Sesiones no eternas |
+| **Election Access** | Código abierto | Basado en censo (election_voters) |  Privacidad electoral |
+| **Registration** | Manual usuarios | Self-enrol + admin approval |  Escalable sin admin |
 
 ---
 
-## 💡 DECISIONES ARQUITECTÓNICAS
+## DECISIONES ARQUITECTÓNICAS
 
 ### 1. ErrorBoundary en root (App.jsx)
 **Ventaja:** Captura TODOS los errores del árbol de componentes  
@@ -95,7 +95,7 @@
 
 ---
 
-## 📈 MÉTRICAS DE IMPACTO
+## MÉTRICAS DE IMPACTO
 
 ### Funcionalidad
 - De 47% a 52% completitud (5 puntos porcentuales)
@@ -116,7 +116,7 @@
 
 ---
 
-## 🔄 FLUJOS EN PRODUCCIÓN
+## FLUJOS EN PRODUCCIÓN
 
 ### Flujo: New User Registration
 ```
@@ -148,7 +148,7 @@
 
 ---
 
-## 🎬 DEMOSTRACIÓN FUNCIONAL
+## DEMOSTRACIÓN FUNCIONAL
 
 Para demostrar LIVE al final de Sesión 2:
 
@@ -170,7 +170,7 @@ Para demostrar LIVE al final de Sesión 2:
 
 ---
 
-## 📋 CAMBIOS LISTOS PARA REVISAR
+## CAMBIOS LISTOS PARA REVISAR
 
 Archivos ordenados por importancia:
 
@@ -193,7 +193,7 @@ Archivos ordenados por importancia:
 
 ---
 
-## ⚠️ LIMITACIONES CONOCIDAS
+## LIMITACIONES CONOCIDAS
 
 1. **LoadingSpinner timeout:** hardcodeado 10 segundos (configurable)
 2. **Setup.sh:** No soporta Windows (usar WSL o cygwin)
@@ -203,7 +203,7 @@ Archivos ordenados por importancia:
 
 ---
 
-## 🚀 PRÓXIMAS PRIORIDADES (ORDEN)
+## PRÓXIMAS PRIORIDADES (ORDEN)
 
 **Sesión 3 (CRÍTICO):**
 1. Recharts: gráfico resultados (3.2)
@@ -222,7 +222,7 @@ Archivos ordenados por importancia:
 
 ---
 
-## ✨ CALIDAD DEL CÓDIGO
+## CALIDAD DEL CÓDIGO
 
 - **TypeScript:** Tipos completos en backend
 - **Comments:** JSDoc en funciones críticas
@@ -232,7 +232,7 @@ Archivos ordenados por importancia:
 
 ---
 
-## 📞 PARA EMPEZAR SESIÓN 3
+## PARA EMPEZAR SESIÓN 3
 
 1. Leer `SESION_3_PLAN.md` (guía ordenada)
 2. Refiere a `SESION_2_COMPLETA.md` para contexto
@@ -241,11 +241,11 @@ Archivos ordenados por importancia:
 
 ---
 
-**Sesión 2 COMPLETADA ✅**
+**Sesión 2 COMPLETADA**
 
 Total de commits: ~20 cambios lógicos  
 Breaking changes: 0  
 Tests: 0 (para Sesión 3)  
 Documentation: 2 archivos completos  
 
-**Código listo para Sesión 3. No dudes en referenciar SESION_2_COMPLETA.md para detalles.** 🎯
+**Código listo para Sesión 3. No dudes en referenciar SESION_2_COMPLETA.md para detalles.**

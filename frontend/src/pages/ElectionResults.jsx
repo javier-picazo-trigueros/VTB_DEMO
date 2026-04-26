@@ -98,6 +98,7 @@ const ElectionResults = () => {
     return () => { clearInterval(refreshInterval); clearInterval(counterInterval); };
   }, [results?.election?.status, id]);
 
+
   // ── Loading ──
   if (loading && !results) return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -126,6 +127,7 @@ const ElectionResults = () => {
     </div>
   );
 
+
   if (!results) return null;
 
   const { election } = results;
@@ -134,6 +136,7 @@ const ElectionResults = () => {
   const safeRate = isNaN(results?.participationRate) ? 0 : (results?.participationRate || 0);
   const maxVotes = candidates.length ? Math.max(...candidates.map(c => c.votes)) : 0;
   const sortedCandidates = [...candidates].sort((a, b) => b.votes - a.votes);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -484,4 +487,7 @@ const ElectionResults = () => {
   );
 };
 
+
 export default ElectionResults;
+
+

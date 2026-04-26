@@ -3,7 +3,7 @@
 Base URL (desarrollo): `http://localhost:3001`
 
 > Todos los endpoints de datos usan el prefijo `/api/` o `/auth/` o `/admin/` o `/registration/`.
-> Los endpoints marcados con 🔒 requieren `Authorization: Bearer <JWT>`.
+> Los endpoints marcados con requieren `Authorization: Bearer <JWT>`.
 
 ---
 
@@ -60,7 +60,7 @@ Crea un usuario directamente (pendiente de aprobación manual).
 
 ---
 
-### GET `/auth/verify` 🔒
+### GET `/auth/verify`
 Verifica que el JWT sigue siendo válido.
 
 **Response 200:**
@@ -100,7 +100,7 @@ Verifica que el JWT sigue siendo válido.
 
 ## Elecciones
 
-### GET `/api/elections` 🔒
+### GET `/api/elections`
 Lista las elecciones asignadas al usuario autenticado (vía `election_voters`).
 
 **Response 200:**
@@ -126,7 +126,7 @@ Lista las elecciones asignadas al usuario autenticado (vía `election_voters`).
 
 ---
 
-### GET `/api/elections/:id` 🔒
+### GET `/api/elections/:id`
 Detalle de una elección con candidatos.
 
 **Response 200:** mismo esquema que el elemento de la lista anterior.
@@ -135,7 +135,7 @@ Detalle de una elección con candidatos.
 
 ---
 
-### GET `/api/elections/:id/eligibility` 🔒
+### GET `/api/elections/:id/eligibility`
 Comprueba si el usuario puede votar en la elección dada.
 
 **Response 200:**
@@ -159,7 +159,7 @@ Posibles razones: `Election not found`, `Election is not active`, `You are not i
 
 ---
 
-### GET `/api/elections/:id/results` 🔒
+### GET `/api/elections/:id/results`
 Resultados y participación de la elección.
 
 **Response 200:**
@@ -178,7 +178,7 @@ Resultados y participación de la elección.
 
 ---
 
-### POST `/api/elections/register-vote` 🔒
+### POST `/api/elections/register-vote`
 Registra el voto del usuario en la blockchain (Ethereum Sepolia).
 
 **Request:**
@@ -216,7 +216,7 @@ Registra el voto del usuario en la blockchain (Ethereum Sepolia).
 
 ---
 
-### GET `/api/elections/blockchain-sync-status` 🔒
+### GET `/api/elections/blockchain-sync-status`
 Estado del mapeo entre SQLite y el contrato on-chain.
 
 **Response 200:**
@@ -261,7 +261,7 @@ Si el email está en `email_whitelist`, la cuenta se aprueba automáticamente al
 
 ---
 
-## Panel Admin (requiere rol `admin` o `superadmin`) 🔒
+## Panel Admin (requiere rol `admin` o `superadmin`)
 
 Todos los endpoints de admin requieren JWT con `role: admin` o `role: superadmin`. Los admins de dominio solo ven y modifican recursos de su `admin_domain`.
 

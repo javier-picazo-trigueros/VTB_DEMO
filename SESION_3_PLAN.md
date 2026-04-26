@@ -5,21 +5,21 @@
 
 ---
 
-## 📊 PROGRESO ACUMULADO
+## PROGRESO ACUMULADO
 
 ```
-BLOQUE 1 — BUGS CRÍTICOS                ✅ 100% (4/4)
-BLOQUE 2 — SEGURIDAD                    ✅ 100% (4/4)
-BLOQUE 3 — FUNCIONALIDADES              ✅ 25% (1/5)  ← 3.1 solo
-BLOQUE 4 — HOSTING                      ✅ 25% (1/4)  ← 4.2 solo
-BLOQUE 5 — CALIDAD Y UX                 ✅ 75% (3/4)  ← falta 5.1
+BLOQUE 1 — BUGS CRÍTICOS                 100% (4/4)
+BLOQUE 2 — SEGURIDAD                     100% (4/4)
+BLOQUE 3 — FUNCIONALIDADES               25% (1/5)  ← 3.1 solo
+BLOQUE 4 — HOSTING                       25% (1/4)  ← 4.2 solo
+BLOQUE 5 — CALIDAD Y UX                  75% (3/4)  ← falta 5.1
 ─────────────────────────────────────────────────────
-TOTAL                                   ✅ 52% (11/21)
+TOTAL                                    52% (11/21)
 ```
 
 ---
 
-## 🎯 PRÓXIMAS TAREAS ORDENADAS (Sesión 3)
+## PRÓXIMAS TAREAS ORDENADAS (Sesión 3)
 
 Ejecutar **exactamente en este orden** para no romper nada:
 
@@ -39,7 +39,7 @@ Ejecutar **exactamente en este orden** para no romper nada:
 - [ ] Máximo 8 eventos recientes
 - [ ] Truncamiento: `0x1a2b...ef34 — hace 3 seg`
 - [ ] Tiempo relativo actualizado cada segundo
-- [ ] Badge "⚡ Reconectando..." si desconecta
+- [ ] Badge "Reconectando..." si desconecta
 - [ ] Máx 3 reintentos (5 seg cada uno)
 - [ ] CleanUp listeners en useEffect
 
@@ -51,10 +51,10 @@ Ejecutar **exactamente en este orden** para no romper nada:
 - [ ] Env vars: `VITE_EXPLORER_URL`
 
 **3.5 — Tab Auditoría en Resultados** (1-2 horas)
-- [ ] 2 tabs: `[📊 Resultados]` `[🔗 Auditoría]`
+- [ ] 2 tabs: `[Resultados]` `[Auditoría]`
 - [ ] GET `/api/elections/:id/audit` → nullifier/txHash/timestamp
 - [ ] Tabla con columnas truncadas → links al explorer
-- [ ] Banner: 🔒 privacidad garantizada
+- [ ] Banner: privacidad garantizada
 - [ ] Botón "Exportar CSV" (client-side, sin llamada extra)
 
 ---
@@ -96,7 +96,7 @@ Ejecutar **exactamente en este orden** para no romper nada:
 
 ---
 
-## ⚡ RECOMENDACIONES PARA SESIÓN 3
+## RECOMENDACIONES PARA SESIÓN 3
 
 ### Por qué este orden:
 1. **3.2, 3.3, 3.4, 3.5** primero: son features que enriquecen la demo
@@ -130,7 +130,7 @@ Ejecutar **exactamente en este orden** para no romper nada:
 
 ---
 
-## 📝 ARCHIVOS PRINCIPALES POR BLOQUE
+## ARCHIVOS PRINCIPALES POR BLOQUE
 
 ### 3.2 — Results
 ```
@@ -167,7 +167,7 @@ frontend/src/pages/VotingBooth.jsx (actualizar)
 ### 3.5 — Audit
 ```
 frontend/src/pages/ElectionResults.jsx (agregar Tab)
-├─ [📊 Resultados] [🔗 Auditoría]
+├─ [Resultados] [Auditoría]
 ├─ GET /elections/:id/audit
 └─ CSV export client-side
 
@@ -236,7 +236,7 @@ frontend/src/pages/AdminPanel.jsx
 
 ---
 
-## 🔗 CONEXIONES CON SESIÓN 2
+## CONEXIONES CON SESIÓN 2
 
 Todos estos cambios **dependen** de lo hecho en Sesión 2:
 
@@ -253,17 +253,17 @@ Todos estos cambios **dependen** de lo hecho en Sesión 2:
 
 ---
 
-## 🚨 PUNTOS CRÍTICOS A EVITAR
+## PUNTOS CRÍTICOS A EVITAR
 
-1. **No cambiar nullifier generation** ✅ Ya well-defined en 1.3
-2. **No usar Redux/Zustand** ✅ Context API + estado local suficiente
-3. **No modificar smart contract** ✅ Usar tal cual de Sesión 1
-4. **No hacer breaking changes en Auth** ✅ JWT design ya locked
-5. **Respetar election_voters table** ✅ FIX D lo añadió, no modificar schema
+1. **No cambiar nullifier generation**  Ya well-defined en 1.3
+2. **No usar Redux/Zustand**  Context API + estado local suficiente
+3. **No modificar smart contract**  Usar tal cual de Sesión 1
+4. **No hacer breaking changes en Auth**  JWT design ya locked
+5. **Respetar election_voters table**  FIX D lo añadió, no modificar schema
 
 ---
 
-## ✅ VALIDACIÓN POST-SESIÓN 3
+##  VALIDACIÓN POST-SESIÓN 3
 
 Cuando se completen todas las tareas, verificar:
 
@@ -279,7 +279,7 @@ Cuando se completen todas las tareas, verificar:
 
 ---
 
-## 📚 DOCUMENTACIÓN GENERADA
+## DOCUMENTACIÓN GENERADA
 
 Refiere a estos archivos en la raíz del proyecto:
 
@@ -295,7 +295,7 @@ En Sesión 3, actualizar:
 
 ---
 
-## 🛠️ HERRAMIENTAS RECOMENDADAS
+## HERRAMIENTAS RECOMENDADAS
 
 Para Sesión 3:
 - Recharts docs: https://recharts.org/ (para 3.2)
@@ -304,14 +304,10 @@ Para Sesión 3:
 
 ---
 
-## 📞 CONTACTO / SOPORTE
+## CONTACTO / SOPORTE
 
 Si algo no funciona o hay dudas sobre:
 - **Arquitectura**: Refiere a ARCHITECTURE.md
 - **API contracts**: Refiere a API_DOCUMENTATION.md
 - **Cambios S2**: Refiere a SESION_2_COMPLETA.md
 - **Build/Deploy**: Refiere a setup.sh (s4.2)
-
----
-
-**¡Listo para Sesión 3! 🚀**
