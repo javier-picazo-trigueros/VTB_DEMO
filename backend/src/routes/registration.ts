@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import { getDatabase } from "../config/database.js";
 import { hashPassword } from "../utils/auth.js";
+import { emailService } from "../services/emailService.js";
 
 const router = express.Router();
 const db = getDatabase();
@@ -112,6 +113,32 @@ router.post("/request", async (req: Request, res: Response) => {
        VALUES (?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)`,
       [fullName, email, studentId, orgUnit, passwordHash]
     );
+
+    // Send confirmation to user (best-effort)
+    emailService.sendRegistrationReceived(email, fullName).catch(err =>
+      console.error('[EMAIL ERROR] registration received:', err.message)
+    );
+
+    // Notify admins for this domain (best-effort)
+    const domain = email.split('@')[1];
+    try {
+      const admins = await db.run<{ email: string; name: string }>(
+        `SELECT email, name FROM users
+         WHERE role IN ('admin','superadmin')
+         AND (admin_domain = ? OR role = 'superadmin')
+         LIMIT 5`,
+        [domain]
+      );
+      for (const admin of (admins || [])) {
+        emailService.sendAdminNewRequest(
+          admin.email, fullName, email, studentId
+        ).catch(err =>
+          console.error('[EMAIL ERROR] admin notify:', err.message)
+        );
+      }
+    } catch (e) {
+      console.error('[EMAIL ERROR] finding admins:', e);
+    }
 
     res.json({
       message: "Registration request submitted successfully. An administrator will review it shortly.",

@@ -31,6 +31,10 @@
     "express-rate-limit": "^7.5.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.1",
+<<<<<<< Updated upstream
+=======
+    "resend": "^6.12.2",
+>>>>>>> Stashed changes
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {

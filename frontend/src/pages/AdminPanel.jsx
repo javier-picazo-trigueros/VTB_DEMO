@@ -530,6 +530,21 @@ export const AdminPanel = () => {
     }
   };
 
+  const handleSendReminders = async (electionId) => {
+    try {
+      const res = await axios.post(
+        `${API_URL}/admin/elections/${electionId}/send-reminders`,
+        {},
+        { headers: getAuthHeader() }
+      );
+      setSuccess(`Reminders sent to ${res.data.sent} of ${res.data.total} voters`);
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error sending reminders');
+      setTimeout(() => setError(''), 5000);
+    }
+  };
+
   const Tab = ({ id, label, icon, badge }) => (
     <button
       onClick={() => setActiveTab(id)}
@@ -1349,6 +1364,14 @@ export const AdminPanel = () => {
                                 >
                                   Manage Census
                                 </button>
+                                {election.is_active && (
+                                  <button
+                                    onClick={() => handleSendReminders(election.id)}
+                                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-medium transition"
+                                  >
+                                    📧 Remind voters
+                                  </button>
+                                )}
                               </div>
                             </div>
 
@@ -1587,6 +1610,10 @@ export const AdminPanel = () => {
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                     Pending Registration Requests ({registrationRequests.filter(r => r.status === "pending").length})
                   </h2>
+
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-700 dark:text-blue-300">
+                    📧 Applicants automatically receive email notifications when their request is received, approved, or rejected.
+                  </div>
 
                   {registrationRequests.filter(r => r.status === "pending").length === 0 ? (
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-6 rounded-lg text-center">

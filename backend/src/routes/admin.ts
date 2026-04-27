@@ -3,6 +3,7 @@ import multer from "multer";
 import { getDatabase } from "../config/database.js";
 import { verifyToken, hashPassword, generateToken } from "../utils/auth.js";
 import { ethers } from "ethers";
+import { emailService } from "../services/emailService.js";
 
 const router = express.Router();
 const db = getDatabase();
@@ -1036,6 +1037,14 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
         }
       }
 
+      emailService.sendRegistrationApproved(
+        request.email,
+        request.full_name,
+        tempPassword || ''
+      ).catch(err =>
+        console.error('[EMAIL ERROR] approval email:', err.message)
+      );
+
       res.json({
         message: tempPassword
           ? "User approved with temporary password"
@@ -1061,6 +1070,14 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
       await db.exec(
         "UPDATE registration_requests SET status = 'rejected', rejection_reason = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
         [reason, id]
+      );
+
+      emailService.sendRegistrationRejected(
+        request.email,
+        request.full_name,
+        reason || 'No reason provided'
+      ).catch(err =>
+        console.error('[EMAIL ERROR] rejection email:', err.message)
       );
 
       res.json({ message: "Solicitud rechazada" });
@@ -1496,5 +1513,62 @@ router.get("/elections/:id/stats", authAdminMiddleware, async (req: Request, res
   }
 });
 
+
+/**
+ * @route POST /admin/elections/:id/send-reminders
+ */
+router.post('/elections/:id/send-reminders',
+  authAdminMiddleware,
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    try {
+      const election = await db.get<any>(
+        'SELECT * FROM elections WHERE id = ?', [id]
+      );
+      if (!election) {
+        res.status(404).json({ error: 'Election not found' });
+        return;
+      }
+
+      const nonVoters = await db.run<{ email: string; name: string }>(
+        `SELECT u.email, u.name FROM election_voters ev
+         JOIN users u ON ev.user_id = u.id
+         WHERE ev.election_id = ?
+         AND u.id NOT IN (
+           SELECT user_id FROM nullifier_audit WHERE election_id = ?
+         )`,
+        [id, id]
+      );
+
+      const endDate = new Date(election.end_time * 1000).toLocaleDateString(
+        'en-GB', { day: '2-digit', month: 'long', year: 'numeric' }
+      );
+
+      let sent = 0;
+      for (const voter of (nonVoters || [])) {
+        try {
+          await emailService.sendElectionReminder(
+            voter.email, voter.name, election.name, endDate
+          );
+          sent++;
+        } catch (err: any) {
+          console.error(
+            `[EMAIL ERROR] reminder to ${voter.email}:`, err.message
+          );
+        }
+      }
+
+      res.json({
+        success: true,
+        sent,
+        total: nonVoters?.length || 0
+      });
+    } catch (err: any) {
+      console.error('Send reminders error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 export default router;
