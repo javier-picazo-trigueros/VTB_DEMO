@@ -194,6 +194,29 @@ export class Database {
     await this.exec("ALTER TABLE registration_requests ADD COLUMN org_unit TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN voter_role TEXT DEFAULT 'student'").catch(() => {});
 
+    // New attribute-based org structure
+    await this.exec("ALTER TABLE users ADD COLUMN school TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN degree TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN year INTEGER DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN study_group TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE registration_requests ADD COLUMN school TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE registration_requests ADD COLUMN degree TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE registration_requests ADD COLUMN year INTEGER DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE registration_requests ADD COLUMN study_group TEXT DEFAULT NULL").catch(() => {});
+
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS schools_and_degrees (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        institution_domain TEXT NOT NULL,
+        school_name TEXT NOT NULL,
+        degree_name TEXT NOT NULL,
+        degree_code TEXT,
+        years INTEGER DEFAULT 4,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(institution_domain, school_name, degree_name)
+      )
+    `).catch(() => {});
+
     await this.exec(`
       CREATE TABLE IF NOT EXISTS email_whitelist (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

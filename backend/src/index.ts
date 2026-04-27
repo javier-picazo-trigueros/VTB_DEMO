@@ -256,6 +256,24 @@ app.use("/admin", adminRoutes);
 // Rutas de registro
 app.use("/registration", registrationRoutes);
 
+// Public endpoint: schools and degrees for registration form
+app.get("/api/schools-degrees", async (req: any, res: Response) => {
+  try {
+    const db = getDatabase();
+    const domain = req.query.domain as string | undefined;
+    const items = await db.run<any>(
+      domain
+        ? 'SELECT * FROM schools_and_degrees WHERE institution_domain = ? ORDER BY school_name, degree_name'
+        : 'SELECT * FROM schools_and_degrees ORDER BY institution_domain, school_name, degree_name',
+      domain ? [domain] : []
+    );
+    res.json({ schools_degrees: items || [] });
+  } catch (error) {
+    console.error("Error fetching schools/degrees:", error);
+    res.status(500).json({ error: "Error fetching schools and degrees" });
+  }
+});
+
 // Ruta raíƒ­z con documentación
 app.get("/", (req: any, res: Response) => {
   res.json({

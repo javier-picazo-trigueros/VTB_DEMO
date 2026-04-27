@@ -230,6 +230,7 @@ router.get("/users", authAdminMiddleware, async (req: Request, res: Response) =>
     const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
     const users = await db.run<any>(
       `SELECT id, email, name, student_id, role, admin_domain,
+              school, degree, year, study_group,
               is_approved, approved_at, is_eligible, created_at
        FROM users ${where} ORDER BY created_at DESC`,
       params
@@ -532,6 +533,8 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
       name, description, start_time, end_time, banner_color,
       target_type = 'all',
       target_values = [] as string[],
+      target_schools = [] as string[],
+      target_degrees = [] as string[],
       target_description,
       voter_role = 'student',
     } = req.body;
@@ -599,6 +602,30 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
             ).catch(() => {});
           }
         }
+      }
+    }
+
+    // Build census by school/degree attributes
+    if ((target_schools as string[]).length > 0 || (target_degrees as string[]).length > 0) {
+      const conditions: string[] = [];
+      const params2: any[] = [];
+      if ((target_schools as string[]).length > 0) {
+        conditions.push(`school IN (${(target_schools as string[]).map(() => '?').join(',')})`);
+        params2.push(...(target_schools as string[]));
+      }
+      if ((target_degrees as string[]).length > 0) {
+        conditions.push(`degree IN (${(target_degrees as string[]).map(() => '?').join(',')})`);
+        params2.push(...(target_degrees as string[]));
+      }
+      const targetUsers = await db.run<{ id: number }>(
+        `SELECT id FROM users WHERE ${conditions.join(' OR ')} AND is_approved = 1`,
+        params2
+      );
+      for (const user of targetUsers) {
+        await db.exec(
+          'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+          [result.lastID, user.id]
+        ).catch(() => {});
       }
     }
 
@@ -956,6 +983,10 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
       status: string;
       password_hash: string | null;
       org_unit: string | null;
+      school: string | null;
+      degree: string | null;
+      year: number | null;
+      study_group: string | null;
     }>(
       "SELECT * FROM registration_requests WHERE id = ?",
       [id]
@@ -985,12 +1016,15 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
       }
 
       const orgUnit = request.org_unit || null;
+      const { school, degree, year, study_group } = request;
 
       const insertResult = await db.exec(
         `INSERT INTO users (email, password_hash, name, student_id, role, org_unit,
+                           school, degree, year, study_group,
                            is_approved, approved_by, approved_at, is_eligible, created_at)
-         VALUES (?, ?, ?, ?, 'student', ?, 1, ?, CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP)`,
-        [request.email, passwordHash, request.full_name, request.student_id, orgUnit, req.user.userId]
+         VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP)`,
+        [request.email, passwordHash, request.full_name, request.student_id, orgUnit,
+         school || null, degree || null, year || null, study_group || null, req.user.userId]
       );
 
       const newUserId = insertResult.lastID;

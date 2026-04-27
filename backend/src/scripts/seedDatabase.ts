@@ -10,25 +10,10 @@ import { hashPassword, generateNullifier } from "../utils/auth.js";
 export async function seedDemoData(): Promise<void> {
   const db = getDatabase();
 
-  // Seed org units always (idempotent)
-  // logo_url and primary_color are only set for top-level institution entries
+  // Seed org units always (idempotent) — kept for backward compat with legacy features
   const orgUnits = [
-    // UFV — institution root
     { name: 'Universidad Francisco de Vitoria', domain: 'ufv.es', parent_domain: null, unit_type: 'institution', institution_domain: 'ufv.es', logo_url: '/logos/ufv.png', primary_color: '#004b87' },
-    { name: 'School of Engineering', domain: 'eps.ufv.es', parent_domain: 'ufv.es', unit_type: 'school', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
-    { name: 'Computer Science', domain: 'cs.eps.ufv.es', parent_domain: 'eps.ufv.es', unit_type: 'degree', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
-    { name: 'CS Year 1', domain: 'cs1.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
-    { name: 'CS Year 2', domain: 'cs2.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
-    { name: 'CS Year 3', domain: 'cs3.eps.ufv.es', parent_domain: 'cs.eps.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
-    { name: 'Business Administration', domain: 'ba.ufv.es', parent_domain: 'ufv.es', unit_type: 'degree', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
-    { name: 'BA Year 1', domain: 'ba1.ufv.es', parent_domain: 'ba.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
-    { name: 'BA Year 2', domain: 'ba2.ufv.es', parent_domain: 'ba.ufv.es', unit_type: 'year', institution_domain: 'ufv.es', logo_url: null, primary_color: null },
-    // Highland — institution root (dark navy brand)
     { name: 'Highlands School', domain: 'highland.edu', parent_domain: null, unit_type: 'institution', institution_domain: 'highland.edu', logo_url: '/logos/highland.png', primary_color: '#0f204b' },
-    { name: 'Highland Secondary', domain: 'secondary.highland.edu', parent_domain: 'highland.edu', unit_type: 'school', institution_domain: 'highland.edu', logo_url: null, primary_color: null },
-    { name: 'Year 10', domain: 'y10.secondary.highland.edu', parent_domain: 'secondary.highland.edu', unit_type: 'year', institution_domain: 'highland.edu', logo_url: null, primary_color: null },
-    { name: 'Year 11', domain: 'y11.secondary.highland.edu', parent_domain: 'secondary.highland.edu', unit_type: 'year', institution_domain: 'highland.edu', logo_url: null, primary_color: null },
-    // VTB Administration — superadmin portal
     { name: 'VTB Administration', domain: 'vtb.system', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.system', logo_url: '/logos/vtb.svg', primary_color: '#3b82f6' },
   ];
   for (const ou of orgUnits) {
@@ -37,16 +22,82 @@ export async function seedDemoData(): Promise<void> {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [ou.name, ou.domain, ou.parent_domain, ou.unit_type, ou.institution_domain, ou.logo_url, ou.primary_color]
     ).catch(() => {});
-    // Update columns for pre-existing rows that are missing data
     await db.exec(
       `UPDATE org_units SET institution_domain = ? WHERE domain = ? AND (institution_domain = '' OR institution_domain IS NULL)`,
       [ou.institution_domain, ou.domain]
     ).catch(() => {});
-    // Always keep name, logo_url, primary_color up to date for institution roots
     if (ou.unit_type === 'institution') {
       await db.exec(
         `UPDATE org_units SET name = ?, logo_url = ?, primary_color = ? WHERE domain = ?`,
         [ou.name, ou.logo_url, ou.primary_color, ou.domain]
+      ).catch(() => {});
+    }
+  }
+
+  // Seed schools_and_degrees (idempotent)
+  const ufvSchoolsAndDegrees = [
+    // Escuela Politécnica Superior (EPS)
+    { school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', code: 'GINF', years: 4 },
+    { school: 'Escuela Politécnica Superior', degree: 'Ingeniería en Sistemas Industriales', code: 'GISI', years: 4 },
+    { school: 'Escuela Politécnica Superior', degree: 'Ingeniería de la Industria Conectada', code: 'GIIC', years: 4 },
+    { school: 'Escuela Politécnica Superior', degree: 'Ingeniería Mecánica', code: 'GMEC', years: 4 },
+    { school: 'Escuela Politécnica Superior', degree: 'Arquitectura', code: 'GARQ', years: 5 },
+    // Facultad de Ciencias de la Salud
+    { school: 'Facultad de Ciencias de la Salud', degree: 'Medicina', code: 'GMED', years: 6 },
+    { school: 'Facultad de Ciencias de la Salud', degree: 'Enfermería', code: 'GENF', years: 4 },
+    { school: 'Facultad de Ciencias de la Salud', degree: 'Fisioterapia', code: 'GFIS', years: 4 },
+    { school: 'Facultad de Ciencias de la Salud', degree: 'Farmacia', code: 'GFAR', years: 5 },
+    { school: 'Facultad de Ciencias de la Salud', degree: 'Nutrición Humana y Dietética', code: 'GNUT', years: 4 },
+    { school: 'Facultad de Ciencias de la Salud', degree: 'Biomedicina', code: 'GBIO', years: 4 },
+    // Facultad de Derecho, Empresa y Gobierno
+    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Derecho', code: 'GDER', years: 4 },
+    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Administración y Dirección de Empresas', code: 'GADE', years: 4 },
+    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Criminología', code: 'GCRI', years: 4 },
+    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Relaciones Internacionales', code: 'GRII', years: 4 },
+    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Gastronomía y Artes Culinarias', code: 'GGAS', years: 4 },
+    // Facultad de Ciencias de la Comunicación
+    { school: 'Facultad de Ciencias de la Comunicación', degree: 'Periodismo', code: 'GPER', years: 4 },
+    { school: 'Facultad de Ciencias de la Comunicación', degree: 'Comunicación Audiovisual', code: 'GCAV', years: 4 },
+    { school: 'Facultad de Ciencias de la Comunicación', degree: 'Publicidad y Relaciones Públicas', code: 'GPRP', years: 4 },
+    // Facultad de Educación y Psicología
+    { school: 'Facultad de Educación y Psicología', degree: 'Psicología', code: 'GPSI', years: 4 },
+    { school: 'Facultad de Educación y Psicología', degree: 'Educación Infantil', code: 'GEDI', years: 4 },
+    { school: 'Facultad de Educación y Psicología', degree: 'Educación Primaria', code: 'GEDP', years: 4 },
+    { school: 'Facultad de Educación y Psicología', degree: 'Ciencias de la Actividad Física y del Deporte', code: 'GCAF', years: 4 },
+    // Facultad de Ciencias Experimentales
+    { school: 'Facultad de Ciencias Experimentales', degree: 'Biotecnología', code: 'FBIO', years: 4 },
+    { school: 'Facultad de Ciencias Experimentales', degree: 'Ciencias Ambientales', code: 'GCAM', years: 4 },
+    { school: 'Facultad de Ciencias Experimentales', degree: 'Matemáticas', code: 'GMAT', years: 4 },
+  ];
+  for (const item of ufvSchoolsAndDegrees) {
+    const exists = await db.get<{ id: number }>(
+      'SELECT id FROM schools_and_degrees WHERE institution_domain = ? AND school_name = ? AND degree_name = ?',
+      ['ufv.es', item.school, item.degree]
+    );
+    if (!exists) {
+      await db.exec(
+        `INSERT INTO schools_and_degrees (institution_domain, school_name, degree_name, degree_code, years)
+         VALUES (?, ?, ?, ?, ?)`,
+        ['ufv.es', item.school, item.degree, item.code, item.years]
+      ).catch(() => {});
+    }
+  }
+
+  const highlandDegrees = [
+    { school: 'Secondary School', degree: 'GCSE Programme', years: 2 },
+    { school: 'Secondary School', degree: 'A-Level Programme', years: 2 },
+    { school: 'Sixth Form', degree: 'IB Diploma Programme', years: 2 },
+  ];
+  for (const item of highlandDegrees) {
+    const exists = await db.get<{ id: number }>(
+      'SELECT id FROM schools_and_degrees WHERE institution_domain = ? AND degree_name = ?',
+      ['highland.edu', item.degree]
+    );
+    if (!exists) {
+      await db.exec(
+        `INSERT INTO schools_and_degrees (institution_domain, school_name, degree_name, years)
+         VALUES (?, ?, ?, ?)`,
+        ['highland.edu', item.school, item.degree, item.years]
       ).catch(() => {});
     }
   }
@@ -92,6 +143,20 @@ export async function seedDemoData(): Promise<void> {
     }
   }
   console.log("✅ Demo accounts ensured (upserted)");
+
+  // Update school/degree/year for known UFV demo students
+  const studentAcademicData = [
+    { email: 'carlos@ufv.es', school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', year: 3 },
+    { email: 'laura@ufv.es',  school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', year: 2 },
+    { email: 'miguel@ufv.es', school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Derecho', year: 1 },
+    { email: 'sofia@ufv.es',  school: 'Facultad de Ciencias de la Salud', degree: 'Medicina', year: 2 },
+  ];
+  for (const s of studentAcademicData) {
+    await db.exec(
+      'UPDATE users SET school = ?, degree = ?, year = ? WHERE email = ?',
+      [s.school, s.degree, s.year, s.email]
+    ).catch(() => {});
+  }
 
   // Comprobar si ya hay datos
   const existing = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users");

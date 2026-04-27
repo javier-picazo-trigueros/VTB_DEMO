@@ -1,7 +1,7 @@
 /**
  * VTB - RegisterRequest.jsx
  * Public page for new users to request access.
- * Includes org unit cascading selectors and password field.
+ * Uses explicit school/degree/year attributes instead of email subdomains.
  */
 
 import { useState, useEffect } from 'react'
@@ -17,16 +17,17 @@ export const RegisterRequest = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
 
-  const [orgUnits, setOrgUnits] = useState([])
+  const [schoolsData, setSchoolsData] = useState([])
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     studentId: '',
     password: '',
     confirmPassword: '',
-    selectedSchool: '',
-    selectedDegree: '',
-    selectedYear: '',
+    school: '',
+    degree: '',
+    year: '',
+    study_group: '',
   })
 
   const [loading, setLoading] = useState(false)
@@ -35,63 +36,48 @@ export const RegisterRequest = () => {
   const [autoApproved, setAutoApproved] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
+  // Reload schools/degrees whenever the email domain changes
   useEffect(() => {
-    fetch(`${API_URL}/api/org-units`)
+    const domain = formData.email.includes('@') ? formData.email.split('@')[1] : ''
+    if (!domain) {
+      setSchoolsData([])
+      return
+    }
+    fetch(`${API_URL}/api/schools-degrees?domain=${domain}`)
       .then(r => r.json())
-      .then(data => setOrgUnits(data.units || []))
-      .catch(() => {})
-  }, [])
+      .then(data => setSchoolsData(data.schools_degrees || []))
+      .catch(() => setSchoolsData([]))
+  }, [formData.email])
 
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => {
       const next = { ...prev, [name]: value }
-      // Reset cascading selections when parent changes
       if (name === 'email') {
-        next.selectedSchool = ''
-        next.selectedDegree = ''
-        next.selectedYear = ''
+        next.school = ''
+        next.degree = ''
+        next.year = ''
+        next.study_group = ''
       }
-      if (name === 'selectedSchool') {
-        next.selectedDegree = ''
-        next.selectedYear = ''
+      if (name === 'school') {
+        next.degree = ''
+        next.year = ''
       }
-      if (name === 'selectedDegree') {
-        next.selectedYear = ''
+      if (name === 'degree') {
+        next.year = ''
       }
       return next
     })
     setError('')
   }
 
-  // Derive institution domain from email
-  const emailDomain = formData.email.includes('@') ? formData.email.split('@')[1] : ''
-
-  // Filter org units for user's institution
-  const institutionUnits = orgUnits.filter(u =>
-    u.institution_domain === emailDomain ||
-    emailDomain.endsWith('.' + u.institution_domain) ||
-    u.institution_domain.endsWith('.' + emailDomain)
-  )
-
-  const schools = institutionUnits.filter(u => u.unit_type === 'school')
-  const degrees = institutionUnits.filter(u =>
-    u.unit_type === 'degree' &&
-    (!formData.selectedSchool || u.parent_domain === formData.selectedSchool)
-  )
-  const years = institutionUnits.filter(u =>
-    u.unit_type === 'year' &&
-    (!formData.selectedDegree || u.parent_domain === formData.selectedDegree)
-  )
-
-  // Determine the most specific org unit selected
-  const selectedOrgUnit =
-    formData.selectedYear ||
-    formData.selectedDegree ||
-    formData.selectedSchool ||
-    ''
-
-  const showOrgSection = emailDomain && institutionUnits.length > 0
+  const schools = [...new Set(schoolsData.map(s => s.school_name))]
+  const degrees = schoolsData
+    .filter(s => s.school_name === formData.school)
+    .map(s => s.degree_name)
+  const maxYears = schoolsData.find(
+    s => s.school_name === formData.school && s.degree_name === formData.degree
+  )?.years || 4
 
   const validateForm = () => {
     if (!formData.fullName.trim()) { setError('Full name is required'); return false }
@@ -118,7 +104,10 @@ export const RegisterRequest = () => {
         email: formData.email,
         studentId: formData.studentId,
         password: formData.password,
-        orgUnit: selectedOrgUnit || undefined,
+        school: formData.school || null,
+        degree: formData.degree || null,
+        year: formData.year ? parseInt(formData.year) : null,
+        study_group: formData.study_group || null,
       })
 
       if (response.data.autoApproved) {
@@ -126,7 +115,7 @@ export const RegisterRequest = () => {
       } else {
         setSubmitted(true)
       }
-      setFormData({ fullName: '', email: '', studentId: '', password: '', confirmPassword: '', selectedSchool: '', selectedDegree: '', selectedYear: '' })
+      setFormData({ fullName: '', email: '', studentId: '', password: '', confirmPassword: '', school: '', degree: '', year: '', study_group: '' })
     } catch (err) {
       console.error('Registration error:', err)
       setError(err.response?.data?.error || 'Error submitting request')
@@ -218,11 +207,6 @@ export const RegisterRequest = () => {
                     <div>
                       <label className={labelCls}>{t("register.email")}</label>
                       <input type="email" name="email" value={formData.email} onChange={handleChange} disabled={loading} className={inputCls} placeholder="you@university.edu" required />
-                      {emailDomain && institutionUnits.length > 0 && (
-                        <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                          Institution detected: {institutionUnits.find(u => u.unit_type === 'institution')?.name || emailDomain}
-                        </p>
-                      )}
                     </div>
                     <div>
                       <label className={labelCls}>{t("register.studentId")}</label>
@@ -231,8 +215,8 @@ export const RegisterRequest = () => {
                   </div>
                 </div>
 
-                {/* === SECTION 2: Academic Info (cascading) === */}
-                {showOrgSection && (
+                {/* === SECTION 2: Academic Info (shown when domain has known schools) === */}
+                {schools.length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -245,46 +229,53 @@ export const RegisterRequest = () => {
                       Optional — helps us assign you to the right elections.
                     </p>
                     <div className="space-y-3">
-                      {schools.length > 0 && (
-                        <div>
-                          <label className={labelCls}>School / Faculty</label>
-                          <select name="selectedSchool" value={formData.selectedSchool} onChange={handleChange} className={selectCls}>
-                            <option value="">— Select school (optional) —</option>
-                            {schools.map(u => (
-                              <option key={u.domain} value={u.domain}>{u.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
 
-                      {degrees.length > 0 && (
+                      {/* School selector */}
+                      <div>
+                        <label className={labelCls}>School / Faculty</label>
+                        <select name="school" value={formData.school} onChange={handleChange} className={selectCls}>
+                          <option value="">Select school...</option>
+                          {schools.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+
+                      {/* Degree selector (shows when school selected) */}
+                      {formData.school && degrees.length > 0 && (
                         <div>
                           <label className={labelCls}>Degree / Programme</label>
-                          <select name="selectedDegree" value={formData.selectedDegree} onChange={handleChange} className={selectCls}>
-                            <option value="">— Select degree (optional) —</option>
-                            {degrees.map(u => (
-                              <option key={u.domain} value={u.domain}>{u.name}</option>
-                            ))}
+                          <select name="degree" value={formData.degree} onChange={handleChange} className={selectCls}>
+                            <option value="">Select degree...</option>
+                            {degrees.map(d => <option key={d} value={d}>{d}</option>)}
                           </select>
                         </div>
                       )}
 
-                      {years.length > 0 && (
+                      {/* Year selector (shows when degree selected) */}
+                      {formData.degree && (
                         <div>
                           <label className={labelCls}>Year</label>
-                          <select name="selectedYear" value={formData.selectedYear} onChange={handleChange} className={selectCls}>
-                            <option value="">— Select year (optional) —</option>
-                            {years.map(u => (
-                              <option key={u.domain} value={u.domain}>{u.name}</option>
+                          <select name="year" value={formData.year} onChange={handleChange} className={selectCls}>
+                            <option value="">Select year...</option>
+                            {Array.from({ length: maxYears }, (_, i) => i + 1).map(y => (
+                              <option key={y} value={y}>Year {y}</option>
                             ))}
                           </select>
                         </div>
                       )}
 
-                      {selectedOrgUnit && (
-                        <p className="text-xs text-blue-600 dark:text-blue-400">
-                          Assigned to: <strong>{orgUnits.find(u => u.domain === selectedOrgUnit)?.name}</strong>
-                        </p>
+                      {/* Group (optional, shows when year selected) */}
+                      {formData.year && (
+                        <div>
+                          <label className={labelCls}>Group (optional)</label>
+                          <input
+                            type="text"
+                            name="study_group"
+                            placeholder="e.g. A, B, Morning..."
+                            value={formData.study_group}
+                            onChange={handleChange}
+                            className={inputCls}
+                          />
+                        </div>
                       )}
                     </div>
                   </motion.div>

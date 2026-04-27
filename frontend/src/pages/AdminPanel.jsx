@@ -53,6 +53,7 @@ export const AdminPanel = () => {
   const [elections, setElections] = useState([]);
   const [availableDomains, setAvailableDomains] = useState([]);
   const [orgUnits, setOrgUnits] = useState([]);
+  const [schoolsData, setSchoolsData] = useState([]);
   const [newElection, setNewElection] = useState({
     name: "",
     description: "",
@@ -60,6 +61,7 @@ export const AdminPanel = () => {
     end_time: "",
     target_type: 'all',
     target_values: [],
+    target_schools: [],
     domains: adminDomain || '',
     selectedDomains: adminDomain ? [adminDomain] : [],
     candidates: [{ name: "", description: "" }],
@@ -195,6 +197,12 @@ export const AdminPanel = () => {
           } catch {
             // ignore
           }
+          try {
+            const schRes = await axios.get(`${API_URL}/api/schools-degrees`, { headers: getAuthHeader() });
+            setSchoolsData(schRes.data.schools_degrees || []);
+          } catch {
+            // ignore
+          }
           break;
         }
         case "audit": {
@@ -305,6 +313,7 @@ export const AdminPanel = () => {
           : newElection.target_type === 'domain'
             ? (newElection.domains || '').split(',').map(d => d.trim()).filter(Boolean)
             : newElection.target_values || [],
+        target_schools: newElection.target_schools || [],
       };
 
       const res = await axios.post(`${API_URL}/admin/elections`, electionPayload, {
@@ -343,6 +352,7 @@ export const AdminPanel = () => {
         end_time: "",
         target_type: 'all',
         target_values: [],
+        target_schools: [],
         domains: adminDomain || '',
         selectedDomains: adminDomain ? [adminDomain] : [],
         candidates: [{ name: "", description: "" }],
@@ -918,7 +928,6 @@ export const AdminPanel = () => {
                           type="text"
                           placeholder={t("admin.adminDomainPlaceholder")}
                           value={newUser.admin_domain || ''}
-                          value={newUser.admin_domain || ''}
                           onChange={(e) => setNewUser({ ...newUser, admin_domain: e.target.value })}
                           className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                         />
@@ -981,6 +990,7 @@ export const AdminPanel = () => {
                         <tr className="border-b border-slate-300 dark:border-slate-600">
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Email</th>
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Name</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">School / Degree</th>
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Role</th>
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Status</th>
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Action</th>
@@ -991,6 +1001,18 @@ export const AdminPanel = () => {
                           <tr key={user.id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
                             <td className="py-3 px-4 text-slate-900 dark:text-white">{user.email}</td>
                             <td className="py-3 px-4 text-slate-800 dark:text-slate-200">{user.name}</td>
+                            <td className="py-3 px-4 max-w-[200px]">
+                              {user.school && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full block truncate">
+                                  {user.school.replace('Facultad de ', 'Fac. ').replace('Escuela ', 'Esc. ')}
+                                </span>
+                              )}
+                              {user.degree && (
+                                <span className="text-xs text-slate-500 dark:text-slate-400 block truncate mt-0.5">
+                                  {user.degree}{user.year ? ` (Y${user.year})` : ''}
+                                </span>
+                              )}
+                            </td>
                             <td className="py-3 px-4">
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.role === "admin" || user.role === "superadmin"
                                   ? "bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200"
@@ -1133,13 +1155,14 @@ export const AdminPanel = () => {
                         <div className="flex gap-2 mb-3 flex-wrap">
                           {[
                             { value: 'all', label: '🌐 Everyone in my domain' },
+                            { value: 'school', label: '🏫 By school / faculty' },
                             { value: 'org_unit', label: '🏛️ Specific org unit' },
                             { value: 'domain', label: '📧 Email domain' },
                           ].map(({ value, label }) => (
                             <button
                               key={value}
                               type="button"
-                              onClick={() => setNewElection(p => ({ ...p, target_type: value, target_values: [] }))}
+                              onClick={() => setNewElection(p => ({ ...p, target_type: value, target_values: [], target_schools: [] }))}
                               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                                 newElection.target_type === value
                                   ? 'bg-blue-600 text-white'
@@ -1155,6 +1178,49 @@ export const AdminPanel = () => {
                           <p className="text-sm text-slate-500 dark:text-slate-400">
                             All users in your domain will be eligible to vote.
                           </p>
+                        )}
+
+                        {newElection.target_type === 'school' && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-2">
+                              Select one or more schools/faculties:
+                            </p>
+                            {schoolsData.length === 0 ? (
+                              <p className="text-xs text-slate-400 italic">No school data found.</p>
+                            ) : (
+                              <div className="space-y-1 max-h-48 overflow-y-auto">
+                                {Object.keys(
+                                  schoolsData.reduce((acc, item) => {
+                                    acc[item.school_name] = true;
+                                    return acc;
+                                  }, {})
+                                ).sort().map(school => (
+                                  <label key={school} className="flex items-center gap-2 p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-600/30 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={(newElection.target_schools || []).includes(school)}
+                                      onChange={(e) => {
+                                        const schools = newElection.target_schools || [];
+                                        setNewElection(p => ({
+                                          ...p,
+                                          target_schools: e.target.checked
+                                            ? [...schools, school]
+                                            : schools.filter(s => s !== school)
+                                        }));
+                                      }}
+                                      className="rounded"
+                                    />
+                                    <span className="text-sm text-slate-700 dark:text-slate-300">{school}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {(newElection.target_schools || []).length > 0 && (
+                              <p className="text-xs text-blue-600 mt-2">
+                                {newElection.target_schools.length} school(s) selected
+                              </p>
+                            )}
+                          </div>
                         )}
 
                         {newElection.target_type === 'org_unit' && (
@@ -1645,6 +1711,16 @@ export const AdminPanel = () => {
                                 {new Date(request.created_at).toLocaleString('en-US', { timeZone: 'Europe/Madrid' })}
                               </p>
                             </div>
+                            {request.school && (
+                              <div className="md:col-span-2">
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Academic Info</p>
+                                <p className="text-sm text-slate-900 dark:text-white">
+                                  {request.school}
+                                  {request.degree ? ` — ${request.degree}` : ''}
+                                  {request.year ? ` · Year ${request.year}` : ''}
+                                </p>
+                              </div>
+                            )}
                           </div>
 
                           <div className="bg-slate-100 dark:bg-slate-700 p-4 rounded-lg space-y-3">
