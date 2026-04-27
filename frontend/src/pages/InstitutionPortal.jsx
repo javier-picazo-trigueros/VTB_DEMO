@@ -315,7 +315,7 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
           <p className="mt-5 text-center text-sm text-gray-500 dark:text-gray-400">
             New user?{" "}
             <button
-              onClick={() => navigate("/register-request")}
+              onClick={() => navigate(`/register-request${domain ? `?domain=${domain}` : ''}`)}
               className="font-semibold underline transition hover:opacity-70"
               style={{ color: primaryColor }}
             >

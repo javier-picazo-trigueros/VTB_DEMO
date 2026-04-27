@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
@@ -16,6 +16,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 export const RegisterRequest = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const [searchParams] = useSearchParams()
+  const domainFromUrl = searchParams.get('domain') || ''
 
   const [schoolsData, setSchoolsData] = useState([])
   const [formData, setFormData] = useState({
@@ -36,9 +38,9 @@ export const RegisterRequest = () => {
   const [autoApproved, setAutoApproved] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  // Reload schools/degrees whenever the email domain changes
+  // Reload schools/degrees whenever the email domain changes (fall back to URL ?domain= param)
   useEffect(() => {
-    const domain = formData.email.includes('@') ? formData.email.split('@')[1] : ''
+    const domain = formData.email.includes('@') ? formData.email.split('@')[1] : domainFromUrl
     if (!domain) {
       setSchoolsData([])
       return
@@ -47,7 +49,7 @@ export const RegisterRequest = () => {
       .then(r => r.json())
       .then(data => setSchoolsData(data.schools_degrees || []))
       .catch(() => setSchoolsData([]))
-  }, [formData.email])
+  }, [formData.email, domainFromUrl])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -206,7 +208,7 @@ export const RegisterRequest = () => {
                     </div>
                     <div>
                       <label className={labelCls}>{t("register.email")}</label>
-                      <input type="email" name="email" value={formData.email} onChange={handleChange} disabled={loading} className={inputCls} placeholder="you@university.edu" required />
+                      <input type="email" name="email" value={formData.email} onChange={handleChange} disabled={loading} className={inputCls} placeholder={domainFromUrl ? `you@${domainFromUrl}` : 'you@university.edu'} required />
                     </div>
                     <div>
                       <label className={labelCls}>{t("register.studentId")}</label>

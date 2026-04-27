@@ -140,6 +140,16 @@ export const Landing = () => {
                 {domainError && (
                   <p className="mt-2 text-xs text-red-500 dark:text-red-400 text-center">{domainError}</p>
                 )}
+                <p className="mt-3 text-xs text-slate-400 dark:text-slate-500 text-center">
+                  Not listed?{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/register-request")}
+                    className="text-blue-500 hover:underline"
+                  >
+                    Request access
+                  </button>
+                </p>
               </div>
             )}
 
