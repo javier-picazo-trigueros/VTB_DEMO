@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { clearAuthAndRedirect } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -36,6 +37,12 @@ export function UserProfile() {
 
   const loadProfile = async () => {
     setLoading(true);
+    setError('');
+    const token = localStorage.getItem('vtb-token');
+    if (!token) {
+      clearAuthAndRedirect(navigate);
+      return;
+    }
     try {
       const res = await axios.get(`${API_URL}/auth/me/profile`, {
         headers: getAuthHeader(),
@@ -72,7 +79,15 @@ export function UserProfile() {
         setActivity([]);
       }
     } catch (err) {
-      setError('Error loading profile');
+      if (err.response?.status === 401) {
+        clearAuthAndRedirect(navigate);
+        return;
+      }
+      if (!err.response || err.code === 'ERR_NETWORK') {
+        setError('Backend is waking up — please wait a moment and retry.');
+      } else {
+        setError(err.response?.data?.error || err.message || 'Error loading profile');
+      }
     } finally {
       setLoading(false);
     }
@@ -158,8 +173,15 @@ export function UserProfile() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center gap-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+        <p className="text-slate-500 dark:text-slate-400 text-sm">Loading profile...</p>
+        <button
+          onClick={() => navigate(-1)}
+          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm underline"
+        >
+          ← Back
+        </button>
       </div>
     );
   }
@@ -232,8 +254,14 @@ export function UserProfile() {
           </div>
         )}
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-700 dark:text-red-300">
-            ❌ {error}
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-sm text-red-700 dark:text-red-300 flex items-center justify-between gap-3">
+            <span>❌ {error}</span>
+            <button
+              onClick={loadProfile}
+              className="shrink-0 px-3 py-1.5 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 rounded-lg text-xs font-medium transition"
+            >
+              Retry
+            </button>
           </div>
         )}
 
