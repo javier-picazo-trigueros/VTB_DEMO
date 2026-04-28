@@ -254,6 +254,12 @@ export const Dashboard = () => {
           <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
               Welcome, <span className="font-medium text-blue-600 dark:text-blue-400">{userName}</span>
+              <button
+                onClick={() => navigate('/profile')}
+                className="text-xs text-blue-500 hover:underline ml-2"
+              >
+                View profile →
+              </button>
             </p>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
               Available Elections

@@ -12,6 +12,29 @@ const router = express.Router();
 const db = getDatabase();
 
 /**
+ * Middleware: validates any authenticated user (not just admin)
+ */
+const authMiddleware = async (req: Request, res: Response, next: any) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Token requerido" });
+      return;
+    }
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token) as any;
+    if (!decoded || !decoded.userId) {
+      res.status(401).json({ error: "Token inválido" });
+      return;
+    }
+    (req as any).user = decoded;
+    next();
+  } catch (error) {
+    res.status(500).json({ error: "Error de autenticación" });
+  }
+};
+
+/**
  * @route POST /auth/register
  * @desc Registra un nuevo usuario (profesor/estudiante)
  * @body { email, password, name, student_id }
@@ -331,6 +354,113 @@ router.get("/user/:id", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error al obtener usuario:", error);
     res.status(500).json({ error: "Error al obtener información del usuario" });
+  }
+});
+
+/**
+ * @route PATCH /auth/change-password
+ * @desc Allows an authenticated user to change their own password
+ * @header Authorization: Bearer <token>
+ * @body { currentPassword, newPassword }
+ */
+router.patch("/change-password", authMiddleware, async (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+  const userId = (req as any).user?.userId;
+
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "Both passwords are required" });
+    return;
+  }
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: "Password must be at least 6 characters" });
+    return;
+  }
+
+  try {
+    const user = await db.get<any>("SELECT * FROM users WHERE id = ?", [userId]);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const isValid = await verifyPassword(currentPassword, user.password_hash);
+    if (!isValid) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+
+    const newHash = await hashPassword(newPassword);
+    await db.exec("UPDATE users SET password_hash = ? WHERE id = ?", [newHash, userId]);
+    res.json({ success: true, message: "Password updated successfully" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @route GET /auth/me/profile
+ * @desc Returns full profile with academic info for the authenticated user
+ */
+router.get("/me/profile", authMiddleware, async (req: Request, res: Response) => {
+  const userId = (req as any).user?.userId;
+  try {
+    const user = await db.get<any>(
+      `SELECT id, email, name, student_id, role, admin_domain,
+              school, degree, year, study_group, created_at
+       FROM users WHERE id = ?`,
+      [userId]
+    );
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json({ user });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @route PATCH /auth/me/profile
+ * @desc Updates editable profile fields for the authenticated user
+ */
+router.patch("/me/profile", authMiddleware, async (req: Request, res: Response) => {
+  const userId = (req as any).user?.userId;
+  const { name, school, degree, year, study_group } = req.body;
+
+  if (name !== undefined && (!name || name.trim().length < 2)) {
+    res.status(400).json({ error: "Name must be at least 2 characters" });
+    return;
+  }
+
+  try {
+    await db.exec(
+      `UPDATE users SET
+        name = COALESCE(?, name),
+        school = COALESCE(?, school),
+        degree = COALESCE(?, degree),
+        year = COALESCE(?, year),
+        study_group = COALESCE(?, study_group)
+       WHERE id = ?`,
+      [
+        name?.trim() || null,
+        school || null,
+        degree || null,
+        year !== undefined ? year : null,
+        study_group || null,
+        userId,
+      ]
+    );
+
+    const updated = await db.get<any>(
+      `SELECT id, email, name, student_id, role, admin_domain,
+              school, degree, year, study_group, created_at
+       FROM users WHERE id = ?`,
+      [userId]
+    );
+    res.json({ success: true, user: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

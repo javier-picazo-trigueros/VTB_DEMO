@@ -367,6 +367,33 @@ const resources = {
         verifyOnBlockchain: "Verify on Blockchain",
       },
 
+      // CHANGE PASSWORD
+      changePassword: {
+        title: "Change Password",
+        subtitle: "Enter your current password and choose a new one.",
+        current: "Current password",
+        next: "New password",
+        confirm: "Confirm new password",
+        save: "🔑 Save",
+        saving: "Saving…",
+        success: "Password changed!",
+        successDesc: "Redirecting to dashboard…",
+        mismatch: "New passwords do not match",
+        tooShort: "New password must be at least 6 characters",
+        cancel: "Cancel",
+      },
+
+      // INSTITUTION PORTAL
+      portal: {
+        title: "Institution Portal",
+        subtitle: "Your institution's voting hub",
+        loginButton: "Log In",
+        registerButton: "Request Access",
+        activeElections: "Active Elections",
+        noElections: "No active elections at this time.",
+        footer: "Secure voting powered by VTB",
+      },
+
       // ERRORS
       errors: {
         notFound: "Not Found",
@@ -735,6 +762,33 @@ const resources = {
         option: "Opción",
         auditTrail: "Pista de Auditoría",
         verifyOnBlockchain: "Verificar en Blockchain",
+      },
+
+      // CHANGE PASSWORD
+      changePassword: {
+        title: "Cambiar Contraseña",
+        subtitle: "Introduce tu contraseña actual y elige una nueva.",
+        current: "Contraseña actual",
+        next: "Nueva contraseña",
+        confirm: "Confirmar nueva contraseña",
+        save: "🔑 Guardar",
+        saving: "Guardando…",
+        success: "¡Contraseña cambiada!",
+        successDesc: "Redirigiendo al dashboard…",
+        mismatch: "Las contraseñas nuevas no coinciden",
+        tooShort: "La nueva contraseña debe tener al menos 6 caracteres",
+        cancel: "Cancelar",
+      },
+
+      // INSTITUTION PORTAL
+      portal: {
+        title: "Portal Institucional",
+        subtitle: "El centro de votación de tu institución",
+        loginButton: "Iniciar Sesión",
+        registerButton: "Solicitar Acceso",
+        activeElections: "Elecciones Activas",
+        noElections: "No hay elecciones activas en este momento.",
+        footer: "Votación segura impulsada por VTB",
       },
 
       // ERRORS

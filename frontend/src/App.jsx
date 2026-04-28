@@ -18,6 +18,8 @@ import ElectionResults from './pages/ElectionResults'
 import { AdminPanel } from './pages/AdminPanel'
 import { VotingBooth } from './pages/VotingBooth'
 import { InstitutionPortal } from './pages/InstitutionPortal'
+import { ChangePassword } from './pages/ChangePassword'
+import { UserProfile } from './pages/UserProfile'
 
 /**
  * Componente ProtectedRoute:
@@ -46,7 +48,14 @@ const ProtectedRoute = ({ element, requiredRole = null }) => {
  * AppContent: Rutas principales de la aplicación.
  */
 const AppContent = () => {
+  const { backendSleeping } = useAuth()
   return (
+    <>
+    {backendSleeping && (
+      <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-amber-950 text-center text-sm py-2 px-4 font-medium">
+        ⏳ Backend is waking up — this may take up to 30 seconds on first load.
+      </div>
+    )}
     <Routes>
       {/* Rutas píƒºblicas */}
       <Route path="/" element={<Navigate to="/landing" />} />
@@ -78,10 +87,19 @@ const AppContent = () => {
         path="/admin"
         element={<ProtectedRoute element={<AdminPanel />} requiredRole="admin" />}
       />
-      
+      <Route
+        path="/change-password"
+        element={<ProtectedRoute element={<ChangePassword />} />}
+      />
+      <Route
+        path="/profile"
+        element={<ProtectedRoute element={<UserProfile />} />}
+      />
+
       {/* 404 */}
       <Route path="*" element={<Navigate to="/landing" />} />
     </Routes>
+    </>
   )
 }
 

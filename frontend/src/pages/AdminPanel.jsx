@@ -74,6 +74,13 @@ export const AdminPanel = () => {
   const [audit, setAudit] = useState([]);
   const [stats2, setStats2] = useState([]);
 
+  // Edit election modal
+  const [editingElection, setEditingElection] = useState(null);
+
+  // Users pagination
+  const USERS_PER_PAGE = 10;
+  const [usersPage, setUsersPage] = useState(1);
+
   // Advanced Election Census State
   const [expandedElection, setExpandedElection] = useState(null);
   const [manageCensus, setManageCensus] = useState({ email: '', domain: '' });
@@ -174,6 +181,7 @@ export const AdminPanel = () => {
             headers: getAuthHeader(),
           });
           setUsers(usersRes.data.users);
+          setUsersPage(1);
           break;
         }
         case "elections": {
@@ -399,6 +407,42 @@ export const AdminPanel = () => {
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       setError(err.response?.data?.error || "Error updating election");
+    }
+  };
+
+  const handleEditElection = (election) => {
+    const toLocalDatetimeString = (unix) => {
+      if (!unix) return '';
+      const d = new Date(unix * 1000);
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    setEditingElection({
+      id: election.id,
+      name: election.name || '',
+      description: election.description || '',
+      end_time: toLocalDatetimeString(election.end_time || election.endTime),
+    });
+  };
+
+  const handleSaveEditElection = async () => {
+    try {
+      const payload = {
+        name: editingElection.name || undefined,
+        description: editingElection.description || undefined,
+        end_time: editingElection.end_time
+          ? Math.floor(new Date(editingElection.end_time).getTime() / 1000)
+          : undefined,
+      };
+      await axios.patch(`${API_URL}/admin/elections/${editingElection.id}`, payload, {
+        headers: getAuthHeader(),
+      });
+      setSuccess('Election updated');
+      setEditingElection(null);
+      loadTabData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error updating election');
     }
   };
 
@@ -997,7 +1041,7 @@ export const AdminPanel = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {users.map((user) => (
+                        {users.slice((usersPage - 1) * USERS_PER_PAGE, usersPage * USERS_PER_PAGE).map((user) => (
                           <tr key={user.id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
                             <td className="py-3 px-4 text-slate-900 dark:text-white">{user.email}</td>
                             <td className="py-3 px-4 text-slate-800 dark:text-slate-200">{user.name}</td>
@@ -1043,6 +1087,29 @@ export const AdminPanel = () => {
                     </table>
                     {users.length === 0 && (
                       <p className="text-center text-slate-500 dark:text-slate-400 py-8">No users found</p>
+                    )}
+                    {users.length > USERS_PER_PAGE && (
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          Page {usersPage} of {Math.ceil(users.length / USERS_PER_PAGE)} — {users.length} users
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setUsersPage(p => Math.max(1, p - 1))}
+                            disabled={usersPage === 1}
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition text-sm"
+                          >
+                            ← Prev
+                          </button>
+                          <button
+                            onClick={() => setUsersPage(p => Math.min(Math.ceil(users.length / USERS_PER_PAGE), p + 1))}
+                            disabled={usersPage === Math.ceil(users.length / USERS_PER_PAGE)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition text-sm"
+                          >
+                            Next →
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </motion.div>
                 </div>
@@ -1434,6 +1501,12 @@ export const AdminPanel = () => {
                                     }`}
                                 >
                                   {election.is_active !== false ? "Visible" : "Hidden"}
+                                </button>
+                                <button
+                                  onClick={() => handleEditElection(election)}
+                                  className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded-lg transition font-medium text-sm w-36"
+                                >
+                                  ✏️ Edit
                                 </button>
                                 <button
                                   onClick={() => setExpandedElection(expandedElection === election.id ? null : election.id)}
@@ -2002,6 +2075,70 @@ export const AdminPanel = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Edit Election Modal */}
+      {editingElection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">✏️ Edit Election</h2>
+              <button
+                onClick={() => setEditingElection(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={editingElection.name}
+                  onChange={e => setEditingElection(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  value={editingElection.description}
+                  onChange={e => setEditingElection(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End time</label>
+                <input
+                  type="datetime-local"
+                  value={editingElection.end_time}
+                  onChange={e => setEditingElection(prev => ({ ...prev, end_time: e.target.value }))}
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setEditingElection(null)}
+                  className="flex-1 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEditElection}
+                  className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition"
+                >
+                  Save changes
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

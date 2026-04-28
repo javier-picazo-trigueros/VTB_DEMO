@@ -126,6 +126,21 @@ export const RegisterRequest = () => {
     }
   }
 
+  const fillDemoData = () => {
+    setFormData({
+      fullName: 'Demo Student',
+      email: 'demo@ufv.es',
+      studentId: 'E20240001',
+      password: 'demo123',
+      confirmPassword: 'demo123',
+      school: '',
+      degree: '',
+      year: '',
+      study_group: '',
+    })
+    setError('')
+  }
+
   const inputCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:opacity-50"
   const selectCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
   const labelCls = "block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
@@ -177,9 +192,18 @@ export const RegisterRequest = () => {
 
           ) : (
             <>
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
-                Request Access
-              </h2>
+              <div className="flex items-start justify-between mb-1">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                  Request Access
+                </h2>
+                <button
+                  type="button"
+                  onClick={fillDemoData}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition font-medium"
+                >
+                  Fill demo data
+                </button>
+              </div>
               <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">
                 Fill in your details and an admin will approve your account.
               </p>

@@ -736,6 +736,34 @@ router.put("/elections/:id", authAdminMiddleware, async (req: Request, res: Resp
 });
 
 /**
+ * @route PATCH /admin/elections/:id
+ * @desc Edit election name, description, end_time
+ */
+router.patch("/elections/:id", authAdminMiddleware, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { name, description, end_time } = req.body;
+  try {
+    const election = await db.get("SELECT * FROM elections WHERE id = ?", [id]);
+    if (!election) {
+      res.status(404).json({ error: "Election not found" });
+      return;
+    }
+    await db.exec(
+      `UPDATE elections SET
+        name = COALESCE(?, name),
+        description = COALESCE(?, description),
+        end_time = COALESCE(?, end_time),
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [name || null, description || null, end_time || null, id]
+    );
+    res.json({ success: true, message: "Election updated" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * @route POST /admin/elections/:id/image
  */
 router.post("/elections/:id/image", authAdminMiddleware, upload.single('file'), async (req: Request, res: Response) => {

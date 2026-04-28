@@ -25,6 +25,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [backendSleeping, setBackendSleeping] = useState(false)
 
   const clearAuth = () => {
     const keys = ['vtb-token', 'vtb-user', 'vtb-role', 'vtb-user-id', 'vtb-email', 'vtb-name', 'vtb-admin-domain'];
@@ -69,6 +70,9 @@ export const AuthProvider = ({ children }) => {
         if (storedUser) {
           try { setUser(JSON.parse(storedUser)) } catch (e) {}
         }
+        if (err instanceof TypeError) {
+          setBackendSleeping(true)
+        }
       } finally {
         setLoading(false)
       }
@@ -78,6 +82,7 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   const login = async (email, password) => {
+    setBackendSleeping(false)
     try {
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
@@ -94,6 +99,9 @@ export const AuthProvider = ({ children }) => {
       return true
     } catch (error) {
       console.error('Error en login:', error)
+      if (error instanceof TypeError) {
+        setBackendSleeping(true)
+      }
       return false
     }
   }
@@ -112,6 +120,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     loading,
+    backendSleeping,
     login,
     logout,
     setAuthUser,
