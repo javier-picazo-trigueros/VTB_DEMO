@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "../components/Navbar";
 import { DemoModeButton } from "../components/DemoModeButton";
+import { DemoLoginModal } from "../components/DemoLoginModal";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 
@@ -95,6 +96,7 @@ export const Landing = () => {
   const [domainError, setDomainError] = useState("");
   const [stats, setStats] = useState(null);
   const [failedLogos, setFailedLogos] = useState({});
+  const [demoOpen, setDemoOpen] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/stats`)
@@ -156,6 +158,7 @@ export const Landing = () => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
+      <DemoLoginModal isOpen={demoOpen} onClose={() => setDemoOpen(false)} />
       <Navbar />
 
       <section
@@ -219,12 +222,26 @@ export const Landing = () => {
               {t("landing.heroSubtitleNew")}
             </motion.p>
 
-            <motion.div variants={itemVariants} className="mb-10 flex flex-col items-center gap-4 sm:flex-row lg:justify-start">
+            <motion.div variants={itemVariants} className="mb-10 flex flex-col items-center gap-4 sm:flex-row lg:justify-start flex-wrap">
+              {!isAuthenticated && (
+                <button
+                  onClick={() => setDemoOpen(true)}
+                  className="rounded-2xl bg-blue-600 px-8 py-4 text-lg font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 hover:shadow-blue-500/40 flex items-center gap-2"
+                >
+                  🚀 Try Demo
+                </button>
+              )}
               <button
                 onClick={() => navigate(isAuthenticated ? "/dashboard" : "/login")}
-                className="rounded-2xl bg-blue-600 px-8 py-4 text-lg font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 hover:shadow-blue-500/40"
+                className={`rounded-2xl px-8 py-4 text-lg font-bold transition ${
+                  isAuthenticated
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500"
+                    : theme === "dark"
+                    ? "border border-white/20 text-white hover:border-white/40 hover:bg-white/5"
+                    : "border border-slate-300 text-slate-800 hover:border-blue-400 hover:bg-white/70"
+                }`}
               >
-                {t("landing.startVoting")}
+                {isAuthenticated ? t("landing.startVoting") : "Sign In"}
               </button>
               <button
                 onClick={() => navigate("/transparency")}

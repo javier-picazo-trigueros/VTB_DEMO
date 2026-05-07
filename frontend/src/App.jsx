@@ -22,6 +22,7 @@ import { InstitutionPortal } from './pages/InstitutionPortal'
 import { ChangePassword } from './pages/ChangePassword'
 import { UserProfile } from './pages/UserProfile'
 import { Transparency } from './pages/Transparency'
+import { Pricing } from './pages/Pricing'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
@@ -82,6 +83,7 @@ const AppContent = () => {
       <Route path="/register-request" element={<RegisterRequest />} />
       <Route path="/portal/:domain" element={<InstitutionPortal />} />
       <Route path="/transparency" element={<Transparency />} />
+      <Route path="/pricing" element={<Pricing />} />
       <Route path="/results/:id" element={<ElectionResults />} />
       
       {/* Rutas protegidas (votante) */}

@@ -34,6 +34,13 @@ const resources = {
       language: "Language",
       english: "English",
       spanish: "Spanish",
+      navbar: {
+        pricing: "Pricing",
+        publicAudit: "Public Audit",
+        adminPanel: "Admin Panel",
+        myProfile: "My profile",
+        changePassword: "Change password",
+      },
 
       // LANDING PAGE
       landing: {
@@ -540,6 +547,13 @@ const resources = {
       language: "Idioma",
       english: "English",
       spanish: "Español",
+      navbar: {
+        pricing: "Precios",
+        publicAudit: "Auditoría Pública",
+        adminPanel: "Panel Admin",
+        myProfile: "Mi perfil",
+        changePassword: "Cambiar contraseña",
+      },
 
       // LANDING PAGE
       landing: {

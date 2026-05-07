@@ -1,30 +1,42 @@
 import { Joyride, STATUS } from 'react-joyride';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
-function getTourKey() {
-  try {
-    const stored = localStorage.getItem('vtb-user');
-    const user = stored ? JSON.parse(stored) : null;
-    const userId = user?.id || user?.email || 'anon';
-    return `vtb-tour-done-${userId}`;
-  } catch {
-    return 'vtb-tour-done-anon';
-  }
+function makeTourKey(userId) {
+  const id = userId || (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('vtb-user') || '{}');
+      return u.id || u.email || 'anon';
+    } catch { return 'anon'; }
+  })();
+  return `vtb-tour-done-${id}`;
 }
 
-export function OnboardingTour({ role = 'student' }) {
+export function OnboardingTour({ role = 'student', userId }) {
   const [run, setRun] = useState(false);
-  const [tourKey, setTourKey] = useState('');
+  const keyRef = useRef('');
 
   useEffect(() => {
-    const key = getTourKey();
-    setTourKey(key);
+    const key = makeTourKey(userId);
+    keyRef.current = key;
     if (!localStorage.getItem(key)) {
       const timer = setTimeout(() => setRun(true), 1200);
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, []);
+  }, [userId]);
+
+  const markDone = () => {
+    const key = keyRef.current || makeTourKey(userId);
+    localStorage.setItem(key, 'true');
+    setRun(false);
+  };
+
+  const handleCallback = ({ status, action }) => {
+    const finished = status === STATUS.FINISHED || status === STATUS.SKIPPED;
+    // Also catch close-button click, escape key, overlay click
+    const dismissed = action === 'close' || action === 'skip' || action === 'reset';
+    if (finished || dismissed) markDone();
+  };
 
   const voterSteps = [
     { target: 'body', content: '👋 Welcome to VTB! Let us show you around.', placement: 'center', disableBeacon: true },
@@ -42,13 +54,6 @@ export function OnboardingTour({ role = 'student' }) {
 
   const steps = ['admin', 'superadmin'].includes(role) ? adminSteps : voterSteps;
 
-  const handleCallback = ({ status }) => {
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
-      if (tourKey) localStorage.setItem(tourKey, 'true');
-      setRun(false);
-    }
-  };
-
   return (
     <Joyride
       steps={steps}
@@ -56,6 +61,7 @@ export function OnboardingTour({ role = 'student' }) {
       continuous
       showProgress
       showSkipButton
+      disableScrolling={false}
       callback={handleCallback}
       styles={{
         options: {

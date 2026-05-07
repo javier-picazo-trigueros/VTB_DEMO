@@ -32,10 +32,11 @@ export const Navbar = () => {
   useEffect(() => {
     const token = localStorage.getItem("vtb-token");
     if (token) {
-      const email = localStorage.getItem("vtb-email");
-      const name = localStorage.getItem("vtb-name");
-      const role = localStorage.getItem("vtb-role");
-      setUser({ email, name, role });
+      try {
+        const stored = localStorage.getItem("vtb-user");
+        const parsed = stored ? JSON.parse(stored) : null;
+        if (parsed) setUser(parsed);
+      } catch { /* ignore */ }
     }
   }, []);
 
@@ -83,13 +84,19 @@ export const Navbar = () => {
           </button>
 
           {/* Controles Derechos */}
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center space-x-4 sm:space-x-6">
+            <a
+              href="/pricing"
+              className="hidden sm:inline text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-sm font-medium transition"
+            >
+              {t('navbar.pricing')}
+            </a>
             <a
               href="/transparency"
               data-tour="transparency-link"
-              className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-sm font-medium transition"
+              className="hidden sm:inline text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-sm font-medium transition"
             >
-              🔗 Public Audit
+              🔗 {t('navbar.publicAudit')}
             </a>
 
             {/* Theme Toggle */}
@@ -174,20 +181,20 @@ export const Navbar = () => {
                   {(user.role === "admin" || user.role === "superadmin") && (
                     <Link to="/admin">
                       <button className="block w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
-                        👨‍💼 Admin Panel
+                        👨‍💼 {t('navbar.adminPanel')}
                       </button>
                     </Link>
                   )}
 
                   <Link to="/profile">
                     <button className="block w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
-                      👤 My profile
+                      👤 {t('navbar.myProfile')}
                     </button>
                   </Link>
 
                   <Link to="/change-password">
                     <button className="block w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
-                      🔑 Change password
+                      🔑 {t('navbar.changePassword')}
                     </button>
                   </Link>
 

@@ -261,6 +261,103 @@ export async function seedDemoData(): Promise<void> {
         { name: "Enable Quarterly Audits", description: "Require a public quarterly audit export." },
       ],
     },
+    // ── Extra demo elections for a richer sandbox experience ──
+    {
+      election_id_blockchain: 110,
+      name: "UFV Student Council President 2025",
+      description: "Annual election for the Student Council President at Universidad Francisco de Vitoria.",
+      domains: ["ufv.es"],
+      voter_role: "student",
+      candidates: [
+        { name: "Alejandro Vega", description: "Proposes expanded mentoring programs and academic exchange agreements." },
+        { name: "Cristina Molina", description: "Focuses on campus sustainability and mental health resources." },
+        { name: "David Herrero", description: "Champions entrepreneurship, startup incubators, and industry partnerships." },
+      ],
+    },
+    {
+      election_id_blockchain: 111,
+      name: "UFV Best Student Research Project 2025",
+      description: "Vote for the most impactful student research project of the academic year.",
+      domains: ["ufv.es"],
+      voter_role: "student",
+      candidates: [
+        { name: "AI-Assisted Medical Diagnosis", description: "ML model for early detection of rare diseases from imaging data." },
+        { name: "Carbon Footprint Tracker App", description: "Mobile app that maps and gamifies personal CO₂ reduction." },
+        { name: "Blockchain Voting Audit System", description: "A transparent on-chain audit layer for institutional elections." },
+        { name: "Smart Campus Energy Manager", description: "IoT-based system to optimize building energy consumption in real time." },
+      ],
+    },
+    {
+      election_id_blockchain: 112,
+      name: "UFV EPS Faculty Representative",
+      description: "Election for the student faculty representative at the Escuela Politécnica Superior.",
+      domains: ["ufv.es"],
+      voter_role: "student",
+      candidates: [
+        { name: "Lucía Fernández", description: "3rd year Computer Engineering. Focus on lab resources and internship access." },
+        { name: "Marcos Ortiz", description: "4th year Industrial Engineering. Focus on international mobility programs." },
+      ],
+    },
+    {
+      election_id_blockchain: 113,
+      name: "Highlands Head of House Election",
+      description: "Annual student vote to elect the Head of House across all Highlands houses.",
+      domains: ["highland.edu"],
+      voter_role: "student",
+      candidates: [
+        { name: "Oliver Bennett", description: "Sixth Form student committed to inclusive inter-house events." },
+        { name: "Sophie Clarke", description: "A-Level student focused on academic support and study groups." },
+        { name: "Harry Dawson", description: "GCSE student with a plan for weekly student voice meetings." },
+      ],
+    },
+    {
+      election_id_blockchain: 114,
+      name: "Highlands Student Budget Allocation",
+      description: "How should the student activities fund be allocated this academic year?",
+      domains: ["highland.edu"],
+      voter_role: "student",
+      candidates: [
+        { name: "Sports & Outdoor Activities (40%)", description: "Increase budget for sports trips, equipment, and club tournaments." },
+        { name: "Arts & Culture (40%)", description: "Fund school productions, art exhibitions, and music events." },
+        { name: "Balanced Split (20/20)", description: "Equal share across all student activity categories." },
+      ],
+    },
+    {
+      election_id_blockchain: 115,
+      name: "Universidad Campus Improvement Priority",
+      description: "What should be the #1 campus improvement investment for next year?",
+      domains: ["universidad.edu"],
+      voter_role: "student",
+      candidates: [
+        { name: "New Collaborative Study Spaces", description: "Modern co-working areas with booking systems and high-speed Wi-Fi." },
+        { name: "Student Mental Health Centre", description: "Expand counselling, wellness workshops, and peer support networks." },
+        { name: "Upgraded Computing Labs", description: "New workstations, GPU clusters, and 24/7 lab access." },
+        { name: "Green Courtyard Project", description: "Transform unused outdoor space into a sustainable green study area." },
+      ],
+    },
+    {
+      election_id_blockchain: 116,
+      name: "Open Source vs Proprietary Tools — Developer Vote",
+      description: "VTB community referendum: should the platform prioritise open-source tooling?",
+      domains: ["vtb.demo", "ufv.es"],
+      voter_role: "student",
+      candidates: [
+        { name: "Open Source First", description: "Prefer open-source stacks; full transparency and community auditing." },
+        { name: "Best Tool for the Job", description: "Use proprietary tools where they offer clear quality advantages." },
+      ],
+    },
+    {
+      election_id_blockchain: 117,
+      name: "Annual Sustainability Referendum",
+      description: "Multi-institution vote on which sustainability initiative to champion next year.",
+      domains: ["vtb.demo", "ufv.es", "highland.edu", "universidad.edu"],
+      voter_role: "student",
+      candidates: [
+        { name: "Zero-Waste Campus Initiative", description: "Eliminate single-use plastics and introduce composting across all facilities." },
+        { name: "100% Renewable Energy by 2027", description: "Install solar panels and switch to certified green electricity providers." },
+        { name: "Carbon-Neutral Transport Plan", description: "Subsidise cycling, carpooling and electric shuttle buses for students." },
+      ],
+    },
   ];
 
   for (const election of alwaysDemoElections) {
@@ -301,7 +398,7 @@ export async function seedDemoData(): Promise<void> {
 
     for (const domain of election.domains) {
       await db.exec(
-        "INSERT OR IGNORE INTO election_access (election_id, domain) VALUES (?, ?)",
+        "INSERT OR IGNORE INTO election_access (election_id, email_domain) VALUES (?, ?)",
         [row.id, domain]
       ).catch(() => {});
 

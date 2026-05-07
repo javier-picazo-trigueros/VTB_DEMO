@@ -222,7 +222,7 @@ export const Dashboard = () => {
 
 
   const userName = user?.name || user?.email || "";
-  const userRole = localStorage.getItem('vtb-role') || 'student';
+  const userRole = user?.role || (() => { try { return JSON.parse(localStorage.getItem('vtb-user') || '{}').role || 'student'; } catch { return 'student'; } })();
   const isAdminUser = userRole === 'admin' || userRole === 'superadmin';
 
 
@@ -251,7 +251,7 @@ export const Dashboard = () => {
 
   return (
     <>
-      <OnboardingTour role={userRole} />
+      <OnboardingTour role={userRole} userId={user?.id || user?.email} />
       <Navbar />
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

@@ -19,9 +19,10 @@ export const AdminPanel = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Domain scoping
-  const adminDomain = localStorage.getItem('vtb-admin-domain') || '';
-  const userRole = localStorage.getItem('vtb-role') || '';
+  // Domain scoping — reads from vtb-user JSON (the only key AuthContext writes)
+  const _vtbUser = (() => { try { return JSON.parse(localStorage.getItem('vtb-user') || '{}'); } catch { return {}; } })();
+  const adminDomain = _vtbUser.adminDomain || '';
+  const userRole = _vtbUser.role || '';
   const isSuperAdmin = userRole === 'superadmin';
 
   // Dashboard
@@ -98,6 +99,8 @@ export const AdminPanel = () => {
   const [registrationRequests, setRegistrationRequests] = useState([]);
   const [approvalPassword, setApprovalPassword] = useState("");
   const [tempPasswordInfo, setTempPasswordInfo] = useState(null);
+  const [inboxDomainFilter, setInboxDomainFilter] = useState('');
+  const [inboxStatusFilter, setInboxStatusFilter] = useState('pending');
 
   // Derived filtered audit (uses audit + auditFilter state)
   const filteredAudit = audit.filter(entry => {
@@ -117,7 +120,8 @@ export const AdminPanel = () => {
   // Verificar admin al montar
   useEffect(() => {
     const token = localStorage.getItem("vtb-token");
-    const role = localStorage.getItem("vtb-role");
+    let role = '';
+    try { role = JSON.parse(localStorage.getItem('vtb-user') || '{}').role || ''; } catch { /* ignore */ }
 
     if (!token || (role !== "admin" && role !== "superadmin")) {
       navigate("/login");
@@ -622,7 +626,7 @@ export const AdminPanel = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <OnboardingTour role="admin" />
+      <OnboardingTour role={userRole} userId={_vtbUser.id || _vtbUser.email} />
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -897,22 +901,57 @@ export const AdminPanel = () => {
                     </div>
                   </div>
 
-                  {/* Requests Trend Chart */}
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
-                    <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Registration Requests — Last 7 Days</h3>
-                    {dashboardData.requestsTrend.length === 0 ? (
-                      <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No registration requests in the last 7 days</p>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={150}>
-                        <AreaChart data={dashboardData.requestsTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                          <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                          <Tooltip />
-                          <Area type="monotone" dataKey="count" stroke="#3B82F6" fill="#BFDBFE" strokeWidth={2} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    )}
+                  {/* Charts row */}
+                  <div className="grid lg:grid-cols-2 gap-6">
+                    {/* Requests Trend Chart */}
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Registration Requests — Last 7 Days</h3>
+                      {dashboardData.requestsTrend.length === 0 ? (
+                        <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No registration requests in the last 7 days</p>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={160}>
+                          <AreaChart data={dashboardData.requestsTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} />
+                            <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, color: '#f1f5f9' }} />
+                            <Area type="monotone" dataKey="count" stroke="#3B82F6" fill="#1d4ed840" strokeWidth={2} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+
+                    {/* Election Participation BarChart */}
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Participation Rate by Election</h3>
+                      {dashboardData.electionParticipation.length === 0 ? (
+                        <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No active elections</p>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={160}>
+                          <BarChart
+                            data={dashboardData.electionParticipation.map(ep => ({
+                              name: ep.name.length > 16 ? ep.name.slice(0, 14) + '…' : ep.name,
+                              rate: ep.rate ?? 0,
+                              votes: ep.votes_cast,
+                            }))}
+                            margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} unit="%" domain={[0, 100]} />
+                            <Tooltip
+                              contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, color: '#f1f5f9' }}
+                              formatter={(v, n) => n === 'rate' ? [`${v}%`, 'Rate'] : [v, 'Votes']}
+                            />
+                            <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
+                              {dashboardData.electionParticipation.map((_, idx) => (
+                                <Cell key={idx} fill={['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444'][idx % 5]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1760,125 +1799,107 @@ export const AdminPanel = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-6"
                 >
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                    Pending Registration Requests ({registrationRequests.filter(r => r.status === "pending").length})
-                  </h2>
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                      Registration Requests
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                      {['pending','approved','rejected','all'].map(s => (
+                        <button
+                          key={s}
+                          onClick={() => setInboxStatusFilter(s)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition ${inboxStatusFilter === s ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+                        >
+                          {s} {s !== 'all' && `(${registrationRequests.filter(r => r.status === s).length})`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                  {registrationRequests.filter(r => r.status === "pending").length === 0 ? (
+                  {/* Domain filter for superadmin */}
+                  {isSuperAdmin && (
+                    <input
+                      type="text"
+                      placeholder="Filter by domain (e.g. ufv.es, highland.edu)..."
+                      value={inboxDomainFilter}
+                      onChange={e => setInboxDomainFilter(e.target.value)}
+                      className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm"
+                    />
+                  )}
+
+                  {registrationRequests
+                    .filter(r => inboxStatusFilter === 'all' ? true : r.status === inboxStatusFilter)
+                    .filter(r => !inboxDomainFilter || r.email?.toLowerCase().includes(inboxDomainFilter.toLowerCase()))
+                    .length === 0 ? (
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-6 rounded-lg text-center">
-                      <p className="text-blue-800 dark:text-blue-200">No pending requests</p>
+                      <p className="text-blue-800 dark:text-blue-200">No {inboxStatusFilter === 'all' ? '' : inboxStatusFilter} requests{inboxDomainFilter ? ` for "${inboxDomainFilter}"` : ''}</p>
                     </div>
                   ) : (
                     registrationRequests
-                      .filter(r => r.status === "pending")
+                      .filter(r => inboxStatusFilter === 'all' ? true : r.status === inboxStatusFilter)
+                      .filter(r => !inboxDomainFilter || r.email?.toLowerCase().includes(inboxDomainFilter.toLowerCase()))
                       .map((request) => (
                         <div
                           key={request.id}
                           className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 space-y-4"
                         >
-                          <div className="grid md:grid-cols-2 gap-6">
-                            <div>
-                              <p className="text-sm text-slate-500 dark:text-slate-400">Email</p>
-                              <p className="font-mono text-slate-900 dark:text-white">{request.email}</p>
+                          <div className="flex items-start justify-between gap-4 mb-2">
+                            <div className="min-w-0">
+                              <p className="font-mono text-slate-900 dark:text-white truncate">{request.email}</p>
+                              <p className="text-sm text-slate-500 dark:text-slate-400">{request.full_name}</p>
                             </div>
+                            <span className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium capitalize ${
+                              request.status === 'pending' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200' :
+                              request.status === 'approved' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200' :
+                              'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200'
+                            }`}>{request.status}</span>
+                          </div>
+                          <div className="grid sm:grid-cols-3 gap-4 text-sm">
                             <div>
-                              <p className="text-sm text-slate-500 dark:text-slate-400">Full Name</p>
-                              <p className="font-semibold text-slate-900 dark:text-white">{request.full_name}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-slate-500 dark:text-slate-400">Student ID</p>
+                              <p className="text-slate-500 dark:text-slate-400 text-xs">Student ID</p>
                               <p className="font-mono text-slate-900 dark:text-white">{request.student_id}</p>
                             </div>
                             <div>
-                              <p className="text-sm text-slate-500 dark:text-slate-400">Request Date</p>
-                              <p className="text-sm text-slate-900 dark:text-white">
-                                {new Date(request.created_at).toLocaleString('en-US', { timeZone: 'Europe/Madrid' })}
-                              </p>
+                              <p className="text-slate-500 dark:text-slate-400 text-xs">Submitted</p>
+                              <p className="text-slate-900 dark:text-white">{new Date(request.created_at).toLocaleDateString()}</p>
                             </div>
                             {request.school && (
-                              <div className="md:col-span-2">
-                                <p className="text-sm text-slate-500 dark:text-slate-400">Academic Info</p>
-                                <p className="text-sm text-slate-900 dark:text-white">
-                                  {request.school}
-                                  {request.degree ? ` — ${request.degree}` : ''}
-                                  {request.year ? ` · Year ${request.year}` : ''}
-                                </p>
+                              <div>
+                                <p className="text-slate-500 dark:text-slate-400 text-xs">Academic</p>
+                                <p className="text-slate-900 dark:text-white truncate">{request.school}{request.year ? ` · Y${request.year}` : ''}</p>
                               </div>
                             )}
                           </div>
 
-                          <div className="bg-slate-100 dark:bg-slate-700 p-4 rounded-lg space-y-3">
-                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                              A temporary password will be generated automatically if needed
-                            </p>
+                          {request.status === 'pending' && (
                             <div className="flex gap-3 pt-2">
                               <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
                                 onClick={() => handleApproveRequest(request.id, request.email)}
                                 disabled={loading}
-                                className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50"
+                                className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
                               >
-                                Approve
+                                ✓ Approve
                               </motion.button>
                               <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
                                 onClick={() => handleRejectRequest(request.id)}
                                 disabled={loading}
-                                className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition disabled:opacity-50"
+                                className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
                               >
-                                Reject
+                                ✗ Reject
                               </motion.button>
                             </div>
-                          </div>
+                          )}
+                          {request.status !== 'pending' && request.reviewed_at && (
+                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                              Reviewed {new Date(request.reviewed_at).toLocaleString()}
+                            </p>
+                          )}
                         </div>
                       ))
-                  )}
-
-                  {/* Processed Requests */}
-                  {registrationRequests.filter(r => r.status !== "pending").length > 0 && (
-                    <div className="mt-8 pt-8 border-t border-slate-300 dark:border-slate-600">
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-                        Processed Requests
-                      </h3>
-                      <div className="space-y-2">
-                        {registrationRequests
-                          .filter(r => r.status !== "pending")
-                          .map((request) => (
-                            <div
-                              key={request.id}
-                              className="p-4 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-between text-sm"
-                            >
-                              <div>
-                                <p className="font-medium text-slate-900 dark:text-white">{request.email}</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                  {request.reviewed_at && new Date(request.reviewed_at).toLocaleString('en-US', { timeZone: 'Europe/Madrid' })}
-                                </p>
-                              </div>
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${request.status === "approved"
-                                  ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200"
-                                  : "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200"
-                                }`}>
-                                {request.status === "approved" ? "Approved" : "Rejected"}
-                              </span>
-                              {request.status === 'approved' && request.approved_password && (
-                                <div className="mt-2 ml-4 flex items-center gap-2">
-                                  <code className="text-xs bg-slate-200 dark:bg-slate-600 text-slate-800 dark:text-slate-200 px-2 py-0.5 rounded font-mono">
-                                    {request.approved_password}
-                                  </code>
-                                  <button
-                                    onClick={() => navigator.clipboard.writeText(request.approved_password)}
-                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                                  >
-                                    Copy
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                    </div>
                   )}
                 </motion.div>
               )}
