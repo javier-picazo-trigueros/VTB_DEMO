@@ -10,6 +10,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 
@@ -46,6 +47,7 @@ const ALL_ADMIN_DEMOS = [
 // ─── Inline login form ────────────────────────────────────────────────────────
 const PortalLoginForm = ({ primaryColor, domain }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { setAuthUser } = useAuth();
 
   const [portal, setPortal]   = useState(null); // null | 'voter' | 'admin'
@@ -74,15 +76,19 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
     setError("");
 
     try {
-      const { data } = await axios.post(`${API_URL}/auth/login`, {
-        email:    formData.email,
-        password: formData.password,
-      });
+      const { data } = await axios.post(
+        `${API_URL}/auth/login`,
+        {
+          email: formData.email,
+          password: formData.password,
+        },
+        { timeout: 15000 }
+      );
 
       const { token, user } = data;
 
       if (portal === "admin" && user.role !== "admin" && user.role !== "superadmin") {
-        setError("This account does not have admin access. Please use the Voter portal.");
+        setError(t("login.notAdmin"));
         setLoading(false);
         return;
       }
@@ -102,7 +108,13 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
         navigate("/dashboard");
       }
     } catch (err) {
-      setError(err.response?.data?.error || "Invalid email or password");
+      if (err.code === "ECONNABORTED") {
+        setError(t("login.timeoutError"));
+      } else if (!err.response) {
+        setError(t("login.networkError", { apiUrl: API_URL }));
+      } else {
+        setError(err.response?.data?.error || t("login.loginError"));
+      }
     } finally {
       setLoading(false);
     }
@@ -134,16 +146,16 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
         >
           <div className="text-3xl mb-3">🗳️</div>
           <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
-            I want to Vote
+            {t("login.voterPortalTitle")}
           </h3>
           <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
-            Access your assigned elections and cast your vote.
+            {t("login.voterAccessDesc")}
           </p>
           <div
             className="mt-4 flex items-center gap-1 text-sm font-semibold group-hover:gap-2 transition-all"
             style={{ color: primaryColor }}
           >
-            Enter as voter <span>→</span>
+            {t("login.enterAsVoter")} <span>-&gt;</span>
           </div>
         </motion.button>
 
@@ -158,16 +170,16 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
         >
           <div className="text-3xl mb-3">⚙️</div>
           <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
-            Administration
+            {t("login.adminPortalTitle")}
           </h3>
           <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
-            Manage elections and approve registrations.
+            {t("login.adminPortalDesc")}
           </p>
           <div
             className="mt-4 flex items-center gap-1 text-sm font-semibold group-hover:gap-2 transition-all"
             style={{ color: primaryColor }}
           >
-            Enter as admin <span>→</span>
+            {t("login.enterAsAdmin")} <span>-&gt;</span>
           </div>
         </motion.button>
       </div>
@@ -199,18 +211,18 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
               id="portal-back-btn"
               className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition"
             >
-              ← Back
+              {t("login.back")}
             </button>
             <span
               className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full text-white"
               style={{ backgroundColor: primaryColor }}
             >
-              {isVoter ? "🗳️ Voter Portal" : "⚙️ Admin Portal"}
+              {isVoter ? t("login.voterPortalBadge") : t("login.adminPortalBadge")}
             </span>
           </div>
 
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-5">
-            Sign in to {isVoter ? "vote" : "administer"}
+            {isVoter ? t("login.voterAccess") : t("login.adminAccess")}
           </h2>
 
           {/* Error */}
@@ -231,7 +243,7 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
           <form onSubmit={handleSubmit} className="space-y-4" id="portal-login-form">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Email
+                {t("login.email")}
               </label>
               <input
                 type="email"
@@ -249,7 +261,7 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Password
+                {t("login.password")}
               </label>
               <input
                 type="password"
@@ -274,7 +286,7 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
               className="w-full py-3 rounded-xl font-semibold text-white text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: primaryColor }}
             >
-              {loading ? "Signing in…" : "Sign In"}
+              {loading ? t("login.signingIn") : t("login.login")}
             </motion.button>
           </form>
 
@@ -285,7 +297,7 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
                 onClick={() => setShowDemo((p) => !p)}
                 className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1 transition"
               >
-                Demo {isVoter ? "voter" : "admin"} accounts {showDemo ? "▲" : "▼"}
+                {isVoter ? t("login.demoVoterAccounts") : t("login.demoAdminAccounts")} {showDemo ? t("login.hide") : t("login.show")}
               </button>
               {showDemo && (
                 <div className="grid grid-cols-2 gap-2 mt-3">
@@ -313,13 +325,13 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
 
           {/* Register */}
           <p className="mt-5 text-center text-sm text-gray-500 dark:text-gray-400">
-            New user?{" "}
+            {t("login.newUser")}{" "}
             <button
               onClick={() => navigate(`/register-request${domain ? `?domain=${domain}` : ''}`)}
               className="font-semibold underline transition hover:opacity-70"
               style={{ color: primaryColor }}
             >
-              Request access
+              {t("login.registerHere")}
             </button>
           </p>
         </div>
@@ -360,6 +372,7 @@ const SimpleShell = ({ emoji, title, message, domain, onBack }) => (
 export const InstitutionPortal = () => {
   const { domain }   = useParams();
   const navigate     = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
 
   const [status,  setStatus]  = useState("loading"); // loading | found | not_found | error
@@ -449,7 +462,7 @@ export const InstitutionPortal = () => {
           id="portal-home-link"
           className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition"
         >
-          ← Back to VTB
+          {t("login.backToVtb")}
         </button>
 
         {/* Brand color pill — only accent usage in top bar */}
@@ -535,3 +548,5 @@ export const InstitutionPortal = () => {
 };
 
 export default InstitutionPortal;
+
+

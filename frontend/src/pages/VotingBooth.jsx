@@ -164,16 +164,20 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         {copied ? "Copied" : "Copy txHash"}
       </button>
 
-      {txData.txHash && explorerUrl && (
+      {txData.txHash && explorerUrl && txData.blockNumber !== null ? (
         <a
           href={`${explorerUrl.replace(/\/$/, "")}/tx/${txData.txHash}`}
           target="_blank"
           rel="noreferrer"
           className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition font-medium text-sm"
         >
-          View in Explorer
+          View in Explorer ↗
         </a>
-      )}
+      ) : txData.blockNumber === null ? (
+        <p className="text-center text-xs text-amber-600 dark:text-amber-400 mb-3 px-2">
+          ⚠️ Vote recorded locally (demo mode — election not yet registered on Sepolia)
+        </p>
+      ) : null}
 
       <button
         onClick={onViewResults}
@@ -462,7 +466,7 @@ export const VotingBoothContent = () => {
       const response = await voteRequest;
       await new Promise(r => setTimeout(r, 600));
 
-      setTxData({ txHash: response.data.txHash });
+      setTxData({ txHash: response.data.txHash, blockNumber: response.data.blockNumber ?? null });
       setVoteStatus("success");
       setSelectedCandidate(null);
     } catch (err) {

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import axios from "axios";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Navbar } from "../components/Navbar";
+import { OnboardingTour } from "../components/OnboardingTour";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { clearAuthAndRedirect } from "../utils/auth";
 
@@ -603,6 +604,7 @@ export const AdminPanel = () => {
 
   const Tab = ({ id, label, icon, badge }) => (
     <button
+      data-tour={id === "inbox" ? "requests-tab" : id === "stats" ? "stats-tab" : undefined}
       onClick={() => setActiveTab(id)}
       className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${activeTab === id
           ? "bg-emerald-500 text-white"
@@ -620,6 +622,7 @@ export const AdminPanel = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <OnboardingTour role="admin" />
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -729,6 +732,13 @@ export const AdminPanel = () => {
               {/* Dashboard */}
               {activeTab === "dashboard" && stats && (
                 <div className="space-y-6">
+                  {import.meta.env.VITE_API_URL?.includes('onrender.com') && (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-300">
+                      ⚠️ Render free tier - database resets on each deploy.
+                      Add a persistent disk ($5/month) to retain data between deploys.
+                    </div>
+                  )}
+
                   {/* Scope badge */}
                   <div className="flex flex-wrap gap-2">
                     {isSuperAdmin ? (
@@ -917,6 +927,7 @@ export const AdminPanel = () => {
                   )}
                   {/* Form */}
                   <motion.div
+                    data-tour="create-election"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"

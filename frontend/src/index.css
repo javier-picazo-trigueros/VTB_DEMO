@@ -121,3 +121,51 @@ body {
 .hover-glow {
   @apply transition-all hover:shadow-lg hover:shadow-emerald-500/20;
 }
+
+/* Legacy landing safety net:
+   Older Vite/HMR sessions rendered the Why Blockchain and footer sections
+   with permanent dark classes. In light mode, force those legacy blocks back
+   to the light palette without changing real dark mode. */
+html:not(.dark) section.bg-slate-950 {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+html:not(.dark) section.bg-slate-950 h2,
+html:not(.dark) section.bg-slate-950 h3 {
+  color: #0f172a !important;
+}
+
+html:not(.dark) section.bg-slate-950 p {
+  color: #475569 !important;
+}
+
+html:not(.dark) section.bg-slate-950 .bg-white\/5 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+html:not(.dark) section.bg-slate-950 .border-white\/10 {
+  border-color: #e2e8f0 !important;
+}
+
+html:not(.dark) footer.bg-slate-950 {
+  background-color: #ffffff !important;
+  border-top: 1px solid #e2e8f0;
+  color: #475569 !important;
+}
+
+html:not(.dark) footer.bg-slate-950 span,
+html:not(.dark) footer.bg-slate-950 a,
+html:not(.dark) footer.bg-slate-950 p {
+  color: #475569 !important;
+}
+
+html:not(.dark) footer.bg-slate-950 .text-white {
+  color: #0f172a !important;
+}
+
+html:not(.dark) footer.bg-slate-950 .border-white\/10 {
+  border-color: #e2e8f0 !important;
+}

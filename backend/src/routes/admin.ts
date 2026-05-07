@@ -228,21 +228,37 @@ router.get("/users", authAdminMiddleware, async (req: Request, res: Response) =>
     }
 
     const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = (page - 1) * limit;
+
+    const totalCount = await db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM users ${where}`,
+      params
+    );
+
     const users = await db.run<any>(
       `SELECT id, email, name, student_id, role, admin_domain,
               school, degree, year, study_group,
               is_approved, approved_at, is_eligible, created_at
-       FROM users ${where} ORDER BY created_at DESC`,
-      params
+       FROM users ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
     );
 
-    res.json({ users: users || [] });
+    res.json({
+      users: users || [],
+      pagination: {
+        page,
+        limit,
+        total: totalCount?.count || 0,
+        totalPages: Math.ceil((totalCount?.count || 0) / limit),
+      },
+    });
   } catch (error) {
     console.error("Error listando usuarios:", error);
     res.status(500).json({ error: "Error al listar usuarios" });
   }
 });
-
 /**
  * @route POST /admin/users
  */
@@ -538,6 +554,15 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
       target_description,
       voter_role = 'student',
     } = req.body;
+
+    if (!start_time || !end_time) {
+      res.status(400).json({ error: 'start_time and end_time are required' });
+      return;
+    }
+    if (Number(end_time) <= Number(start_time)) {
+      res.status(400).json({ error: 'end_time must be after start_time' });
+      return;
+    }
 
     if (!name || !start_time || !end_time) {
       res.status(400).json({

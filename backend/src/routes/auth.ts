@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+﻿import express, { Request, Response } from "express";
 import { getDatabase } from "../config/database.js";
 import {
   hashPassword,
@@ -10,6 +10,7 @@ import {
 
 const router = express.Router();
 const db = getDatabase();
+const DUMMY_HASH = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj2NpkrpZqAG';
 
 /**
  * Middleware: validates any authenticated user (not just admin)
@@ -24,13 +25,13 @@ const authMiddleware = async (req: Request, res: Response, next: any) => {
     const token = authHeader.substring(7);
     const decoded = verifyToken(token) as any;
     if (!decoded || !decoded.userId) {
-      res.status(401).json({ error: "Token inválido" });
+      res.status(401).json({ error: "Token invÃ¡lido" });
       return;
     }
     (req as any).user = decoded;
     next();
   } catch (error) {
-    res.status(500).json({ error: "Error de autenticación" });
+    res.status(500).json({ error: "Error de autenticaciÃ³n" });
   }
 };
 
@@ -59,11 +60,11 @@ router.post("/register", async (req: Request, res: Response) => {
     );
 
     if (existingUser) {
-      res.status(409).json({ error: "El email ya está registrado" });
+      res.status(409).json({ error: "El email ya estÃ¡ registrado" });
       return;
     }
 
-    // Crear usuario pendiente de aprobación (is_approved = 0)
+    // Crear usuario pendiente de aprobaciÃ³n (is_approved = 0)
     // Los usuarios registrados directamente deben ser aprobados por un admin
     const passwordHash = await hashPassword(password);
     const result = await db.exec(
@@ -75,7 +76,7 @@ router.post("/register", async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       userId: result.lastID,
-      message: `Solicitud registrada. Tu cuenta está pendiente de aprobación por un administrador.`,
+      message: `Solicitud registrada. Tu cuenta estÃ¡ pendiente de aprobaciÃ³n por un administrador.`,
     });
   } catch (error) {
     console.error("Error en registro:", error);
@@ -88,11 +89,11 @@ router.post("/register", async (req: Request, res: Response) => {
  * @desc Login de usuario, genera JWT puro (sin nullifier)
  * @body { email, password }
  *
- * CAMBIO ARQUITECTÓNICO (1.3):
+ * CAMBIO ARQUITECTÃ“NICO (1.3):
  * - Ya NO requiere electionId
  * - Ya NO devuelve nullifier
- * - El nullifier se genera en tiempo de votación
- * - Separación clara: JWT = autenticación, nullifier = votación
+ * - El nullifier se genera en tiempo de votaciÃ³n
+ * - SeparaciÃ³n clara: JWT = autenticaciÃ³n, nullifier = votaciÃ³n
  */
 router.post("/login", async (req: Request, res: Response) => {
   try {
@@ -106,6 +107,8 @@ router.post("/login", async (req: Request, res: Response) => {
       return;
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+
     const user = await db.get<{
       id: number;
       email: string;
@@ -118,31 +121,25 @@ router.post("/login", async (req: Request, res: Response) => {
       admin_domain: string | null;
     }>(
       "SELECT id, email, password_hash, name, student_id, role, is_approved, is_eligible, admin_domain FROM users WHERE email = ?",
-      [email]
+      [normalizedEmail]
     );
 
-    if (!user) {
+    const passwordMatch = user
+      ? await verifyPassword(password, user.password_hash)
+      : await verifyPassword(password, DUMMY_HASH);
+
+    if (!user || !passwordMatch || !user.is_approved) {
+      if (user && !user.is_approved) {
+        res.status(403).json({
+          error: "Tu cuenta está pendiente de aprobación por un administrador",
+          code: "ACCOUNT_PENDING_APPROVAL",
+        });
+        return;
+      }
       res.status(401).json({ error: "Email o contraseña incorrectos" });
       return;
     }
 
-    // Verificar que la cuenta esté aprobada por un administrador
-    if (!user.is_approved) {
-      res.status(403).json({
-        error: "Tu cuenta está pendiente de aprobación por un administrador",
-        code: "ACCOUNT_PENDING_APPROVAL",
-      });
-      return;
-    }
-
-    // Verificar contraseña
-    const passwordMatch = await verifyPassword(password, user.password_hash);
-    if (!passwordMatch) {
-      res.status(401).json({ error: "Email o contraseña incorrectos" });
-      return;
-    }
-
-    // GENERAR TOKEN CON ADMIN DOMAIN
     const token = generateToken(user.id, user.email, user.role, user.admin_domain);
 
     res.json({
@@ -162,10 +159,9 @@ router.post("/login", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Error al iniciar sesión" });
   }
 });
-
 /**
  * @route GET /auth/verify
- * @desc Verifica que un JWT sea válido
+ * @desc Verifica que un JWT sea vÃ¡lido
  * Headers: Authorization: Bearer <token>
  */
 router.get("/verify", async (req: Request, res: Response) => {
@@ -181,7 +177,7 @@ router.get("/verify", async (req: Request, res: Response) => {
     const decoded = verifyToken(token);
 
     if (!decoded) {
-      res.status(401).json({ error: "Token inválido o expirado" });
+      res.status(401).json({ error: "Token invÃ¡lido o expirado" });
       return;
     }
 
@@ -193,7 +189,7 @@ router.get("/verify", async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Error en verificación:", error);
+    console.error("Error en verificaciÃ³n:", error);
     res.status(500).json({ error: "Error al verificar token" });
   }
 });
@@ -219,7 +215,7 @@ router.post("/admin/register", async (req: Request, res: Response) => {
     const decoded = verifyToken(token) as any;
 
     if (!decoded || !decoded.userId) {
-      res.status(401).json({ error: "Token inválido" });
+      res.status(401).json({ error: "Token invÃ¡lido" });
       return;
     }
 
@@ -261,7 +257,7 @@ router.post("/admin/register", async (req: Request, res: Response) => {
     );
 
     if (existingUser) {
-      res.status(409).json({ error: "El email ya está registrado" });
+      res.status(409).json({ error: "El email ya estÃ¡ registrado" });
       return;
     }
 
@@ -286,7 +282,7 @@ router.post("/admin/register", async (req: Request, res: Response) => {
 
 /**
  * @route GET /auth/me
- * @desc Validates JWT and returns current user — used for session persistence check
+ * @desc Validates JWT and returns current user â€” used for session persistence check
  * Headers: Authorization: Bearer <token>
  */
 router.get("/me", async (req: Request, res: Response) => {
@@ -299,7 +295,7 @@ router.get("/me", async (req: Request, res: Response) => {
     const token = authHeader.substring(7);
     const decoded = verifyToken(token) as any;
     if (!decoded || !decoded.userId) {
-      res.status(401).json({ error: "Token inválido o expirado" });
+      res.status(401).json({ error: "Token invÃ¡lido o expirado" });
       return;
     }
     const user = await db.get<{
@@ -329,7 +325,7 @@ router.get("/me", async (req: Request, res: Response) => {
 
 /**
  * @route GET /auth/user/:id
- * @desc Obtiene información de usuario (sin datos sensibles)
+ * @desc Obtiene informaciÃ³n de usuario (sin datos sensibles)
  */
 router.get("/user/:id", async (req: Request, res: Response) => {
   try {
@@ -353,7 +349,7 @@ router.get("/user/:id", async (req: Request, res: Response) => {
     res.json({ user });
   } catch (error) {
     console.error("Error al obtener usuario:", error);
-    res.status(500).json({ error: "Error al obtener información del usuario" });
+    res.status(500).json({ error: "Error al obtener informaciÃ³n del usuario" });
   }
 });
 
@@ -465,3 +461,4 @@ router.patch("/me/profile", authMiddleware, async (req: Request, res: Response) 
 });
 
 export default router;
+

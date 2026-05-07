@@ -1,6 +1,9 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import dotenv from "dotenv";
+
+dotenv.config({ quiet: true });
 
 /**
  * @title Auth Utilities - VTB Backend
@@ -46,11 +49,40 @@ import bcrypt from "bcryptjs";
  */
 
 // CONSTANTE CRÍTICA: Secret key para HMAC (debe estar en .env en producción)
+const isProduction = process.env.NODE_ENV === "production";
+
 const HMAC_SECRET =
-  process.env.NULLIFIER_SECRET || "super-secret-key-change-in-production";
+  process.env.NULLIFIER_SECRET ||
+  (!isProduction ? "dev-only-nullifier-secret-change-before-prod" : undefined);
 
 // JWT Secret (debe estar en .env en producción)
-const JWT_SECRET = process.env.JWT_SECRET || "jwt-secret-key-change-in-production";
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  (!isProduction ? "dev-only-jwt-secret-change-before-prod" : undefined);
+
+if (!HMAC_SECRET) {
+  throw new Error(
+    'FATAL: NULLIFIER_SECRET environment variable is not set. ' +
+      "Set it in Render or backend/.env before starting the server."
+  );
+}
+if (!JWT_SECRET) {
+  throw new Error(
+    'FATAL: JWT_SECRET environment variable is not set. ' +
+      "Set it in Render or backend/.env before starting the server."
+  );
+}
+
+if (!isProduction && !process.env.NULLIFIER_SECRET) {
+  console.warn("WARNING: NULLIFIER_SECRET not set. Using insecure local development fallback.");
+}
+
+if (!isProduction && !process.env.JWT_SECRET) {
+  console.warn("WARNING: JWT_SECRET not set. Using insecure local development fallback.");
+}
+
+const REQUIRED_HMAC_SECRET: string = HMAC_SECRET;
+const REQUIRED_JWT_SECRET: string = JWT_SECRET;
 
 /**
  * @dev Hash de contraseña usando bcrypt (más seguro que SHA-512)
@@ -86,7 +118,7 @@ export function generateNullifier(userId: number, electionId: number): string {
 
   // HMAC-SHA256 con secret del servidor
   const nullifier = crypto
-    .createHmac("sha256", HMAC_SECRET)
+    .createHmac("sha256", REQUIRED_HMAC_SECRET)
     .update(message)
     .digest("hex");
 
@@ -113,7 +145,7 @@ export function generateToken(
   if (adminDomain) {
     payload.adminDomain = adminDomain;
   }
-  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
+  const token = jwt.sign(payload, REQUIRED_JWT_SECRET, { expiresIn: "24h" });
   return token;
 }
 
@@ -131,7 +163,7 @@ export function verifyToken(
   adminDomain?: string | null;
 } | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, REQUIRED_JWT_SECRET) as any;
     return {
       userId: decoded.userId,
       email: decoded.email,

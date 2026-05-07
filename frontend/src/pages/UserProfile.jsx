@@ -354,7 +354,26 @@ export function UserProfile() {
                     : '—'}
                 </p>
               </div>
-            </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                  Onboarding
+                </label>
+                <button
+                  onClick={() => {
+                    try {
+                      const stored = localStorage.getItem('vtb-user');
+                      const user = stored ? JSON.parse(stored) : null;
+                      const userId = user?.id || user?.email || 'anon';
+                      localStorage.removeItem(`vtb-tour-done-${userId}`);
+                    } catch { /* ignore */ }
+                    navigate('/dashboard');
+                  }}
+                  className="text-sm text-blue-500 hover:underline"
+                >
+                  🔄 Restart onboarding tour
+                </button>
+              </div>            </div>
 
             {/* Academic info */}
             {(profile?.school || editing) && (

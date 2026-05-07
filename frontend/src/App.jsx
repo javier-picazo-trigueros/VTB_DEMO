@@ -8,6 +8,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
+import { CookieBanner } from './components/CookieBanner'
 
 // Páginas
 import { Landing } from './pages/Landing'
@@ -20,6 +21,9 @@ import { VotingBooth } from './pages/VotingBooth'
 import { InstitutionPortal } from './pages/InstitutionPortal'
 import { ChangePassword } from './pages/ChangePassword'
 import { UserProfile } from './pages/UserProfile'
+import { Transparency } from './pages/Transparency'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 /**
  * Componente ProtectedRoute:
@@ -49,11 +53,25 @@ const ProtectedRoute = ({ element, requiredRole = null }) => {
  */
 const AppContent = () => {
   const { backendSleeping } = useAuth()
+  const isLocalBackend = API_URL.includes('localhost') || API_URL.includes('127.0.0.1')
+
+  const wakeBackend = async () => {
+    try {
+      await fetch(`${API_URL}/health`)
+      window.location.reload()
+    } catch {}
+  }
+
   return (
     <>
     {backendSleeping && (
       <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-amber-950 text-center text-sm py-2 px-4 font-medium">
-        ⏳ Backend is waking up — this may take up to 30 seconds on first load.
+        {isLocalBackend
+          ? 'Backend local no responde. Arranca backend con: cd backend && npm run dev'
+          : 'Backend is waking up. This may take up to 30 seconds on Render free tier.'}
+        <button onClick={wakeBackend} className="underline ml-2">
+          Reintentar
+        </button>
       </div>
     )}
     <Routes>
@@ -63,6 +81,8 @@ const AppContent = () => {
       <Route path="/login" element={<Login />} />
       <Route path="/register-request" element={<RegisterRequest />} />
       <Route path="/portal/:domain" element={<InstitutionPortal />} />
+      <Route path="/transparency" element={<Transparency />} />
+      <Route path="/results/:id" element={<ElectionResults />} />
       
       {/* Rutas protegidas (votante) */}
       <Route
@@ -71,14 +91,6 @@ const AppContent = () => {
       />
       <Route
         path="/voting/:id"
-        element={<ProtectedRoute element={<VotingBooth />} />}
-      />
-      <Route
-        path="/results/:id"
-        element={<ProtectedRoute element={<ElectionResults />} />}
-      />
-      <Route
-        path="/voting-booth"
         element={<ProtectedRoute element={<VotingBooth />} />}
       />
       
@@ -99,6 +111,7 @@ const AppContent = () => {
       {/* 404 */}
       <Route path="*" element={<Navigate to="/landing" />} />
     </Routes>
+    <CookieBanner />
     </>
   )
 }
@@ -118,3 +131,4 @@ export default function App() {
     </Router>
   )
 }
+

@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ quiet: true });
 import express, { Express, Response } from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
@@ -64,17 +64,12 @@ app.use((req, res, next) => {
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 5 : 100,
-  message: { error: 'Demasiados intentos de login. Inténtalo en 15 minutos.' },
+  max: process.env.NODE_ENV === 'production'
+    ? parseInt(process.env.RATE_LIMIT_MAX || '10')
+    : 100,
+  message: { error: 'Too many login attempts. Try again in 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req: any) => process.env.NODE_ENV === 'development',
-  handler: (req: any, res: any) => {
-    res.status(429).json({
-      error: 'Demasiados intentos de login. Inténtalo más tarde.',
-      retryAfter: req.rateLimit?.resetTime,
-    });
-  },
 });
 
 // ============================================================
@@ -119,6 +114,54 @@ app.get("/api/org-units", async (req: any, res: Response) => {
   } catch (error) {
     console.error("Error getting public org units:", error);
     res.status(500).json({ error: "Error getting org units" });
+  }
+});
+
+app.get('/api/stats', async (req: any, res: Response) => {
+  try {
+    const db = getDatabase();
+    const totalElections = await db.get<{ count: number }>(
+      'SELECT COUNT(*) as count FROM elections'
+    );
+    const totalVotes = await db.get<{ count: number }>(
+      'SELECT COUNT(*) as count FROM nullifier_audit'
+    );
+    const activeInstitutions = await db.get<{ count: number }>(
+      `SELECT COUNT(DISTINCT substr(email, instr(email,'@')+1)) as count
+       FROM users WHERE role = 'student' AND is_approved = 1`
+    );
+    const blockchainTransactions = await db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM nullifier_audit
+       WHERE tx_hash IS NOT NULL AND tx_hash != ''`
+    );
+    res.json({
+      totalElections: totalElections?.count || 0,
+      totalVotes: totalVotes?.count || 0,
+      activeInstitutions: activeInstitutions?.count || 0,
+      blockchainTransactions: blockchainTransactions?.count || 0,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/audit/public', async (req: any, res: Response) => {
+  try {
+    const db = getDatabase();
+    const records = await db.run<any>(
+      `SELECT
+         substr(na.nullifier_hash, 1, 10) || '...' || substr(na.nullifier_hash, -4) as nullifier_display,
+         na.tx_hash,
+         na.generated_at,
+         e.name as election_name
+       FROM nullifier_audit na
+       JOIN elections e ON na.election_id = e.id
+       ORDER BY na.generated_at DESC
+       LIMIT 20`
+    );
+    res.json({ transactions: records || [] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -84,6 +84,14 @@ export const Navbar = () => {
 
           {/* Controles Derechos */}
           <div className="flex items-center space-x-6">
+            <a
+              href="/transparency"
+              data-tour="transparency-link"
+              className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-sm font-medium transition"
+            >
+              🔗 Public Audit
+            </a>
+
             {/* Theme Toggle */}
             <motion.button
               whileHover={{ scale: 1.1 }}

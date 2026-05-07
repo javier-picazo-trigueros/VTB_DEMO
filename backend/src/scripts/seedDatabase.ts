@@ -15,6 +15,7 @@ export async function seedDemoData(): Promise<void> {
     { name: 'Universidad Francisco de Vitoria', domain: 'ufv.es', parent_domain: null, unit_type: 'institution', institution_domain: 'ufv.es', logo_url: '/logos/ufv.png', primary_color: '#004b87' },
     { name: 'Highlands School', domain: 'highland.edu', parent_domain: null, unit_type: 'institution', institution_domain: 'highland.edu', logo_url: '/logos/highland.png', primary_color: '#0f204b' },
     { name: 'VTB Administration', domain: 'vtb.system', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.system', logo_url: '/logos/vtb.svg', primary_color: '#3b82f6' },
+    { name: 'VTB Demo Sandbox', domain: 'vtb.demo', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.demo', logo_url: '/logos/vtb.svg', primary_color: '#2563eb' },
   ];
   for (const ou of orgUnits) {
     await db.exec(
@@ -109,6 +110,17 @@ export async function seedDemoData(): Promise<void> {
     { email: "admin@universidad.edu",  name: "Admin Universidad",     student_id: "ADMIN-EDU-001",  password: "admin123",      role: "admin",      admin_domain: "universidad.edu" },
     { email: "admin@highland.edu",     name: "Admin Highland",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highland.edu" },
     { email: "admin@eps.ufv.es",       name: "Admin EPS UFV",         student_id: "ADMIN-EPS-001",  password: "admin123",      role: "admin",      admin_domain: "eps.ufv.es" },
+    { email: "admin@vtb.demo",         name: "Demo Admin VTB",        student_id: "ADMIN-VTB-001",  password: "admin123",      role: "admin",      admin_domain: "vtb.demo" },
+    { email: "admin.demo@ufv.es",      name: "Demo Admin UFV",        student_id: "ADMIN-UFV-DEMO", password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
+    { email: "admin.demo@highland.edu",name: "Demo Admin Highland",   student_id: "ADMIN-HLD-DEMO", password: "admin123",      role: "admin",      admin_domain: "highland.edu" },
+    { email: "admin.demo@universidad.edu", name: "Demo Admin Universidad", student_id: "ADMIN-EDU-DEMO", password: "admin123", role: "admin",      admin_domain: "universidad.edu" },
+    { email: "superadmin@vtb.demo",    name: "Demo Super Admin",      student_id: "SUPERADMIN-DEMO", password: "superadmin123", role: "superadmin", admin_domain: null },
+    { email: "student@vtb.demo",       name: "Demo Student VTB",      student_id: "VTB-DEMO-001",   password: "demo123",       role: "student",    admin_domain: null },
+    { email: "student2@vtb.demo",      name: "Demo Student VTB 2",    student_id: "VTB-DEMO-002",   password: "demo123",       role: "student",    admin_domain: null },
+    { email: "demo.ufv@ufv.es",        name: "Demo Student UFV",      student_id: "UFV-DEMO-001",   password: "demo123",       role: "student",    admin_domain: null },
+    { email: "demo.eps@ufv.es",        name: "Demo Student EPS UFV",  student_id: "UFV-DEMO-002",   password: "demo123",       role: "student",    admin_domain: null },
+    { email: "demo.highland@highland.edu", name: "Demo Student Highlands", student_id: "HLD-DEMO-001", password: "demo123",    role: "student",    admin_domain: null },
+    { email: "demo.universidad@universidad.edu", name: "Demo Student Universidad", student_id: "EDU-DEMO-001", password: "demo123", role: "student", admin_domain: null },
     { email: "carlos@ufv.es",          name: "Carlos López Fernández", student_id: "UFV-2024-001", password: "demo123",       role: "student",    admin_domain: null },
     { email: "laura@ufv.es",           name: "Laura Martínez García",  student_id: "UFV-2024-002", password: "demo123",       role: "student",    admin_domain: null },
     { email: "miguel@ufv.es",          name: "Miguel Torres Sánchez",  student_id: "UFV-2024-003", password: "demo123",       role: "student",    admin_domain: null },
@@ -150,12 +162,176 @@ export async function seedDemoData(): Promise<void> {
     { email: 'laura@ufv.es',  school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', year: 2 },
     { email: 'miguel@ufv.es', school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Derecho', year: 1 },
     { email: 'sofia@ufv.es',  school: 'Facultad de Ciencias de la Salud', degree: 'Medicina', year: 2 },
+    { email: 'student@vtb.demo', school: 'VTB Demo Sandbox', degree: 'Demo Voting Track', year: 1 },
+    { email: 'student2@vtb.demo', school: 'VTB Demo Sandbox', degree: 'Demo Voting Track', year: 1 },
+    { email: 'demo.ufv@ufv.es', school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Administracion y Direccion de Empresas', year: 2 },
+    { email: 'demo.eps@ufv.es', school: 'Escuela Politecnica Superior', degree: 'Ingenieria Informatica', year: 3 },
+    { email: 'demo.highland@highland.edu', school: 'Sixth Form', degree: 'IB Diploma Programme', year: 1 },
+    { email: 'demo.universidad@universidad.edu', school: 'Campus Central', degree: 'Demo Governance', year: 2 },
   ];
   for (const s of studentAcademicData) {
     await db.exec(
       'UPDATE users SET school = ?, degree = ?, year = ? WHERE email = ?',
       [s.school, s.degree, s.year, s.email]
     ).catch(() => {});
+  }
+
+  const freshDemoEmails = [
+    "student@vtb.demo",
+    "student2@vtb.demo",
+    "demo.ufv@ufv.es",
+    "demo.eps@ufv.es",
+    "demo.highland@highland.edu",
+    "demo.universidad@universidad.edu",
+  ];
+
+  for (const email of freshDemoEmails) {
+    const demoUser = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]);
+    if (demoUser) {
+      await db.exec("DELETE FROM nullifier_audit WHERE user_id = ?", [demoUser.id]).catch(() => {});
+    }
+  }
+
+  const alwaysNow = Math.floor(Date.now() / 1000);
+  const alwaysDemoElections = [
+    {
+      election_id_blockchain: 101,
+      name: "VTB Demo Sandbox Election",
+      description: "Fresh local demo election for vtb.demo accounts.",
+      domains: ["vtb.demo"],
+      voter_role: "student",
+      candidates: [
+        { name: "Open Campus Proposal", description: "Prioritize flexible study spaces and public workshops." },
+        { name: "Digital First Proposal", description: "Prioritize online services, dashboards, and remote participation." },
+      ],
+    },
+    {
+      election_id_blockchain: 102,
+      name: "UFV Fresh Demo Vote",
+      description: "Active UFV demo election with clean demo accounts.",
+      domains: ["ufv.es"],
+      voter_role: "student",
+      candidates: [
+        { name: "Innovation Week", description: "Fund a week of student-led technical and social innovation." },
+        { name: "Campus Life Fund", description: "Fund clubs, events, and cross-faculty activities." },
+        { name: "Library Extension", description: "Extend library hours during exam periods." },
+      ],
+    },
+    {
+      election_id_blockchain: 103,
+      name: "Highlands Fresh Demo Vote",
+      description: "Active Highlands demo election with clean demo accounts.",
+      domains: ["highland.edu"],
+      voter_role: "student",
+      candidates: [
+        { name: "House Activities", description: "More inter-house activities and student-led events." },
+        { name: "STEM Lab Upgrade", description: "Upgrade lab equipment for science and robotics projects." },
+      ],
+    },
+    {
+      election_id_blockchain: 104,
+      name: "Universidad Fresh Demo Vote",
+      description: "Active universidad.edu demo election with clean demo accounts.",
+      domains: ["universidad.edu"],
+      voter_role: "student",
+      candidates: [
+        { name: "Student Wellbeing", description: "Invest in wellbeing, mentoring, and academic support." },
+        { name: "Green Campus", description: "Invest in sustainability projects and energy efficiency." },
+      ],
+    },
+    {
+      election_id_blockchain: 105,
+      name: "Multi-Institution Demo Referendum",
+      description: "Cross-domain demo vote for UFV, Highlands, Universidad, and VTB demo users.",
+      domains: ["vtb.demo", "ufv.es", "highland.edu", "universidad.edu"],
+      voter_role: "student",
+      candidates: [
+        { name: "Adopt Blockchain Audits", description: "Publish anonymized voting proofs for every institutional vote." },
+        { name: "Keep Internal Audits", description: "Keep audit trails inside institutional systems only." },
+      ],
+    },
+    {
+      election_id_blockchain: 106,
+      name: "Admin Demo Governance Vote",
+      description: "Admin-only demo election for testing management workflows.",
+      domains: ["vtb.demo", "ufv.es", "highland.edu", "universidad.edu"],
+      voter_role: "admin",
+      candidates: [
+        { name: "Enable Monthly Audits", description: "Require a public monthly audit export." },
+        { name: "Enable Quarterly Audits", description: "Require a public quarterly audit export." },
+      ],
+    },
+  ];
+
+  for (const election of alwaysDemoElections) {
+    let row = await db.get<{ id: number }>("SELECT id FROM elections WHERE name = ?", [election.name]);
+    if (!row) {
+      const result = await db.exec(
+        `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active, voter_role)
+         VALUES (?, ?, ?, ?, ?, 1, ?)`,
+        [
+          election.election_id_blockchain,
+          election.name,
+          election.description,
+          alwaysNow - 86400,
+          alwaysNow + 90 * 86400,
+          election.voter_role,
+        ]
+      );
+      row = { id: result.lastID };
+    } else {
+      await db.exec(
+        "UPDATE elections SET start_time = ?, end_time = ?, is_active = 1, voter_role = ? WHERE id = ?",
+        [alwaysNow - 86400, alwaysNow + 90 * 86400, election.voter_role, row.id]
+      ).catch(() => {});
+    }
+
+    for (const candidate of election.candidates) {
+      const candidateExists = await db.get<{ id: number }>(
+        "SELECT id FROM candidates WHERE election_id = ? AND name = ?",
+        [row.id, candidate.name]
+      );
+      if (!candidateExists) {
+        await db.exec(
+          "INSERT INTO candidates (election_id, name, description) VALUES (?, ?, ?)",
+          [row.id, candidate.name, candidate.description]
+        ).catch(() => {});
+      }
+    }
+
+    for (const domain of election.domains) {
+      await db.exec(
+        "INSERT OR IGNORE INTO election_access (election_id, domain) VALUES (?, ?)",
+        [row.id, domain]
+      ).catch(() => {});
+
+      const voters = election.voter_role === "admin"
+        ? await db.run<{ id: number }>(
+            "SELECT id FROM users WHERE role = 'admin' AND admin_domain = ?",
+            [domain]
+          )
+        : await db.run<{ id: number }>(
+            "SELECT id FROM users WHERE role = 'student' AND lower(email) LIKE ?",
+            [`%@${domain}`]
+          );
+
+      for (const voter of voters || []) {
+        await db.exec(
+          "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
+          [row.id, voter.id]
+        ).catch(() => {});
+      }
+    }
+
+    if (election.voter_role === "admin") {
+      const superAdmins = await db.run<{ id: number }>("SELECT id FROM users WHERE role = 'superadmin'");
+      for (const voter of superAdmins || []) {
+        await db.exec(
+          "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
+          [row.id, voter.id]
+        ).catch(() => {});
+      }
+    }
   }
 
   // Comprobar si ya hay datos

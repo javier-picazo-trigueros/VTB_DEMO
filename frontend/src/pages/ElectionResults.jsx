@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import { Navbar } from '../components/Navbar';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -17,6 +18,7 @@ const truncateHash = (h) =>
   h && h.length > 16 ? h.slice(0, 10) + '...' + h.slice(-6) : (h || '—');
 
 const ElectionResults = () => {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const token = localStorage.getItem('vtb-token');
@@ -104,7 +106,7 @@ const ElectionResults = () => {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <Navbar />
       <div className="flex items-center justify-center min-h-[calc(100vh-70px)]">
-        <LoadingSpinner message="Loading results..." />
+        <LoadingSpinner message={t('results.loadingResults')} />
       </div>
     </div>
   );
@@ -120,7 +122,7 @@ const ElectionResults = () => {
           <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
           <button onClick={() => navigate('/dashboard')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-            Back to Dashboard
+            {t('results.backToDashboard')}
           </button>
         </motion.div>
       </div>
@@ -147,7 +149,7 @@ const ElectionResults = () => {
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <button onClick={() => navigate('/dashboard')}
             className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition mb-4 text-sm">
-            ← Back to Dashboard
+            ← {t('results.backToDashboard')}
           </button>
 
           <div className="flex items-start justify-between flex-wrap gap-3">
@@ -159,21 +161,21 @@ const ElectionResults = () => {
                     ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                     : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
                 }`}>
-                  {election?.status === 'active' ? '🟢 Active' : '⏹ Closed'}
+                  {election?.status === 'active' ? `🟢 ${t('results.liveElection')}` : `⏹ ${t('results.electionClosed')}`}
                 </span>
                 {results.onChainVerified && (
                   <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
-                    ✓ On-chain verified
+                    ✓ {t('results.onChainVerified')}
                   </span>
                 )}
               </div>
               {election?.status === 'active' && (
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                   {refreshing
-                    ? 'Refreshing...'
+                    ? t('results.refreshing')
                     : lastUpdatedSec > 0
-                    ? `Updated ${lastUpdatedSec}s ago · Refreshes every 30s`
-                    : 'Live results'}
+                    ? t('results.updatedAgo', { sec: lastUpdatedSec })
+                    : t('results.liveResults')}
                 </p>
               )}
             </div>
@@ -186,7 +188,7 @@ const ElectionResults = () => {
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-sm transition"
             >
-              {copied ? '✓ Copied' : '🔗 Share'}
+              {copied ? `✓ ${t('results.copied')}` : `🔗 ${t('results.share')}`}
             </button>
           </div>
         </motion.div>
@@ -200,29 +202,29 @@ const ElectionResults = () => {
         >
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 text-center">
             <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{safeRate.toFixed(1)}%</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Participation</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('results.participation')}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 text-center">
             <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{totalVotes}</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Votes cast</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('results.votesCast')}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 text-center">
             <p className="text-3xl font-bold text-slate-900 dark:text-white">{election?.totalVoters || 0}</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Total census</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('results.totalCensus')}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 text-center">
             <p className={`text-3xl font-bold ${election?.status === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400'}`}>
-              {election?.status === 'active' ? 'Active' : 'Closed'}
+              {election?.status === 'active' ? t('results.liveElection') : t('results.electionClosed')}
             </p>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Status</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('results.statusLabel')}</p>
           </div>
         </motion.div>
 
         {/* Tabs */}
         <div className="flex gap-3 mb-6">
           {[
-            { id: 'results', label: '📊 Results' },
-            { id: 'audit', label: '🔐 Audit' },
+            { id: 'results', label: `📊 ${t('results.finalResultsTab')}` },
+            { id: 'audit', label: `🔐 ${t('results.auditTab')}` },
           ].map(({ id: tabId, label }) => (
             <button
               key={tabId}
@@ -248,7 +250,7 @@ const ElectionResults = () => {
             {/* Chart card */}
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Votes by Candidate</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('results.votesByCandidate')}</h2>
                 <div className="flex gap-2">
                   {['bar', 'pie'].map(type => (
                     <button
@@ -269,8 +271,8 @@ const ElectionResults = () => {
               {candidates.length === 0 || totalVotes === 0 ? (
                 <div className="text-center py-12 text-slate-400 dark:text-slate-500">
                   <div className="text-4xl mb-3">🗳️</div>
-                  <p>No votes have been cast yet.</p>
-                  <p className="text-sm mt-1">Results will appear here once voting begins.</p>
+                  <p>{t('results.noVotesCast')}</p>
+                  <p className="text-sm mt-1">{t('results.noVotesCastDesc')}</p>
                 </div>
               ) : chartType === 'bar' ? (
                 <ResponsiveContainer width="100%" height={300}>
@@ -326,16 +328,16 @@ const ElectionResults = () => {
 
             {/* Candidate breakdown table */}
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-6">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Candidate Breakdown</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">{t('results.candidateBreakdown')}</h2>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="border-b border-slate-200 dark:border-slate-700">
                     <tr>
                       <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">#</th>
-                      <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">Candidate</th>
-                      <th className="text-right px-3 py-3 text-sm font-medium text-slate-500">Votes</th>
+                      <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">{t('results.candidate')}</th>
+                      <th className="text-right px-3 py-3 text-sm font-medium text-slate-500">{t('results.votes')}</th>
                       <th className="text-right px-3 py-3 text-sm font-medium text-slate-500">%</th>
-                      <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">Progress</th>
+                      <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">{t('results.progress')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -351,7 +353,7 @@ const ElectionResults = () => {
                             {c.name}
                             {isWinner && (
                               <span className="ml-2 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
-                                👑 Winner
+                                👑 {t('results.winner')}
                               </span>
                             )}
                           </td>
@@ -389,17 +391,16 @@ const ElectionResults = () => {
             <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-xl">🔒</span>
               <div>
-                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Privacy Guaranteed</p>
+                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">{t('results.privacyTitle')}</p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                  This audit log confirms votes were recorded on the blockchain without revealing voter identity.
-                  Only anonymous cryptographic hashes are shown.
+                  {t('results.privacyAuditDesc')}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center justify-between">
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {auditData.length} vote{auditData.length !== 1 ? 's' : ''} recorded on blockchain
+                {t('results.recordedOnBlockchain', { count: auditData.length })}
               </p>
               <button
                 onClick={exportCSV}
@@ -410,17 +411,17 @@ const ElectionResults = () => {
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-6">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Blockchain Audit Log</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">{t('results.blockchainAuditLog')}</h2>
               {auditLoading ? (
-                <div className="flex justify-center py-12"><LoadingSpinner message="Loading audit..." /></div>
+                <div className="flex justify-center py-12"><LoadingSpinner message={t('results.loadingAudit')} /></div>
               ) : auditData.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="border-b border-slate-200 dark:border-slate-700">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium text-slate-500">Nullifier</th>
-                        <th className="text-left px-4 py-3 font-medium text-slate-500">TxHash</th>
-                        <th className="text-left px-4 py-3 font-medium text-slate-500">Timestamp</th>
+                        <th className="text-left px-4 py-3 font-medium text-slate-500">{t('results.nullifier')}</th>
+                        <th className="text-left px-4 py-3 font-medium text-slate-500">{t('results.txHash')}</th>
+                        <th className="text-left px-4 py-3 font-medium text-slate-500">{t('results.timestamp')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -469,14 +470,14 @@ const ElectionResults = () => {
                   </table>
                   {auditData.length > 50 && (
                     <p className="text-slate-400 text-sm mt-4 px-4">
-                      Showing first 50 of {auditData.length} records
+                      {t('results.showing50', { total: auditData.length })}
                     </p>
                   )}
                 </div>
               ) : (
                 <div className="text-center py-12">
                   <div className="text-4xl mb-3">📭</div>
-                  <p className="text-slate-500 dark:text-slate-400">No votes recorded yet</p>
+                  <p className="text-slate-500 dark:text-slate-400">{t('results.noVotes')}</p>
                 </div>
               )}
             </div>

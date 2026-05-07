@@ -45,10 +45,14 @@ export const AuthProvider = ({ children }) => {
         setLoading(false)
         return
       }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       try {
         const response = await fetch(`${API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         })
+        clearTimeout(timeoutId);
         if (response.ok) {
           const data = await response.json()
           const userData = {
@@ -65,12 +69,13 @@ export const AuthProvider = ({ children }) => {
           clearAuth()
         }
       } catch (err) {
-        // Network error — fall back to stored user so offline sessions survive
+        clearTimeout(timeoutId);
+        // Network error or timeout — fall back to stored user so offline sessions survive
         const storedUser = localStorage.getItem('vtb-user')
         if (storedUser) {
           try { setUser(JSON.parse(storedUser)) } catch (e) {}
         }
-        if (err instanceof TypeError) {
+        if (err instanceof TypeError || err.name === 'AbortError') {
           setBackendSleeping(true)
         }
       } finally {

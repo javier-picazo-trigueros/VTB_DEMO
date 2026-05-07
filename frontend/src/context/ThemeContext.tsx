@@ -14,49 +14,33 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 const ThemeContext = createContext(undefined);
 
-export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState("light");
-  const [mounted, setMounted] = useState(false);
+const getInitialTheme = () => {
+  if (typeof window === "undefined") return "light";
 
-  // Cargar tema de localStorage al iniciar
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("vtb-theme");
-    if (savedTheme) {
-      setTheme(savedTheme);
-    } else {
-      // Detectar preferencia del sistema
-      const prefersDark = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      ).matches;
-      setTheme(prefersDark ? "dark" : "light");
-    }
-    setMounted(true);
-  }, []);
+  const savedTheme = localStorage.getItem("vtb-theme");
+  if (savedTheme === "light" || savedTheme === "dark") {
+    return savedTheme;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+};
+
+export function ThemeProvider({ children }) {
+  const [theme, setTheme] = useState(getInitialTheme);
 
   // Aplicar clase al DOM
   useEffect(() => {
-    if (mounted) {
-      const html = document.documentElement;
-      if (theme === "dark") {
-        html.classList.add("dark");
-      } else {
-        html.classList.remove("dark");
-      }
-      localStorage.setItem("vtb-theme", theme);
-    }
-  }, [theme, mounted]);
+    const html = document.documentElement;
+    html.classList.toggle("dark", theme === "dark");
+    html.style.colorScheme = theme;
+    localStorage.setItem("vtb-theme", theme);
+  }, [theme]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
-
-  if (!mounted) {
-    return (
-      <ThemeContext.Provider value={{ theme, toggleTheme }}>
-        {children}
-      </ThemeContext.Provider>
-    );
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
