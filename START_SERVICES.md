@@ -1,138 +1,134 @@
-# VTB - Scripts de Inicio Rápido
+# VTB - Inicio Rapido de Servicios
 
-Elige el script según tu sistema operativo para iniciar los 3 servicios (Backend, Frontend, Blockchain) con **un solo comando**.
+Este archivo resume como levantar el MVP en local. Para una guia completa, lee `README.md`.
 
----
+## Antes de Empezar
 
-## Opciones
+Si has descargado el proyecto desde GitHub, recuerda que no incluye `.env`. Crea primero:
 
-### **Windows - Opción 1: Batch Script (.bat)**
-```bash
-start.bat
+- `backend/.env`
+- `frontend/.env.local`
+- `blockchain/.env` solo si vas a desplegar contratos
+
+Sin esos archivos el backend puede arrancar sin blockchain o fallar por falta de secretos.
+
+Web publicada:
+
+```text
+https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app/
 ```
--  Más simple y directa
--  Abre 3 ventanas de CMD separadas
--  Recomendado para usuarios de Windows
 
-### **Windows - Opción 2: PowerShell Script (.ps1)**
+## Opcion Recomendada
+
+Usa dos terminales.
+
+Terminal 1:
+
+```bash
+cd backend
+npm install
+npm start
+```
+
+Terminal 2:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Abre:
+
+```text
+http://localhost:3000
+```
+
+Comprueba backend:
+
+```text
+http://localhost:3001/health
+```
+
+## Blockchain Local Opcional
+
+Solo hace falta si quieres probar contrato local con Hardhat.
+
+Terminal 3:
+
+```bash
+cd blockchain
+npm install
+npm run node
+```
+
+Terminal 4:
+
+```bash
+cd blockchain
+npm run deploy:local
+```
+
+Copia la direccion del contrato desplegado en `backend/.env` como `CONTRACT_ADDRESS`.
+
+## Scripts del Repositorio
+
+Tambien existen scripts historicos:
+
+| Script | Sistema | Nota |
+| --- | --- | --- |
+| `start.bat` | Windows | Abre servicios en ventanas separadas |
+| `start.ps1` | Windows PowerShell | Puede requerir politica de ejecucion |
+| `start.sh` | Linux/macOS/Git Bash | Lanza servicios desde terminal |
+
+Si algun script falla, usa la opcion recomendada de dos terminales. Es mas facil de depurar.
+
+## Cuentas Demo
+
+| Rol | Email | Password |
+| --- | --- | --- |
+| Votante demo | `student@vtb.demo` | `demo123` |
+| Votante demo 2 | `student2@vtb.demo` | `demo123` |
+| Admin demo | `admin@vtb.demo` | `admin123` |
+| Superadmin demo | `superadmin@vtb.demo` | `superadmin123` |
+
+Tambien puedes usar el selector de cuentas demo dentro del login.
+
+## Puertos
+
+| Servicio | URL | Puerto |
+| --- | --- | --- |
+| Frontend | `http://localhost:3000` | 3000 |
+| Backend | `http://localhost:3001` | 3001 |
+| Hardhat | `http://localhost:8545` | 8545 |
+
+## Problemas Frecuentes
+
+### Puerto 3001 ocupado
+
+Comprueba si ya hay un backend VTB funcionando:
+
+```bash
+curl http://localhost:3001/health
+```
+
+En Windows:
+
 ```powershell
-.\start.ps1
+Get-NetTCPConnection -LocalPort 3001 | Select-Object LocalAddress,LocalPort,State,OwningProcess
+Stop-Process -Id <PID>
 ```
--  Más control y manejo de procesos
-- Requiere permitir ejecución de scripts (ver abajo)
 
-### **Linux / macOS / Git Bash**
-```bash
-bash start.sh
-```
--  Script universal para Unix-like systems
--  Todos los servicios en una terminal
+### PowerShell bloquea scripts
 
----
-
-## Instrucciones Detalladas
-
-### Windows - Batch (.bat)
-1. Haz doble clic en **`start.bat`** o:
-```bash
-start.bat
-```
-2. Se abrirán 3 ventanas automáticamente:
-   - Ventana 1: Backend en puerto 3001
-   - Ventana 2: Frontend en puerto 3000
-   - Ventana 3: Blockchain en puerto 8545
-3. Cada ventana se puede cerrar independientemente
-4. Para cerrar todo, cierra las 3 ventanas
-
-### Windows - PowerShell (.ps1)
-1. Abre PowerShell como Administrador
-2. Si es la primera vez, ejecuta:
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
-3. Navega a la carpeta del proyecto:
-```powershell
-cd ruta/a/VTB_DEMO
+
+### npm no existe
+
+Instala Node.js 20 desde:
+
+```text
+https://nodejs.org/
 ```
-4. Ejecuta:
-```powershell
-.\start.ps1
-```
-
-### Linux / macOS / Git Bash
-1. Abre terminal en la carpeta del proyecto
-2. Dale permisos de ejecución (solo primera vez):
-```bash
-chmod +x start.sh
-```
-3. Ejecuta:
-```bash
-./start.sh
-```
-4. Presiona `Ctrl+C` para detener todos los servicios
-
----
-
-## Servicios y Accesos
-
-Una vez iniciados, accede a:
-
-| Servicio      | URL                    | Puerto | Descripción              |
-|---------------|------------------------|--------|--------------------------|
-| **Frontend**  | http://localhost:3000  | 3000   | React Vite - Interfaz    |
-| **Backend**   | http://localhost:3001  | 3001   | Express API              |
-| **Blockchain**| http://localhost:8545  | 8545   | Hardhat Node             |
-
----
-
-## Credenciales de Prueba
-
-**Estudiante:**
-- Email: `juan@universidad.edu`
-- Password: `password123`
-
-**Administrador:**
-- Email: `admin@universidad.edu`
-- Password: `admin123`
-
----
-
-## Archivos Incluidos
-
-```
-start.sh          ← Para Linux/macOS/Git Bash
-start.bat         ← Para Windows (Batch)
-start.ps1         ← Para Windows (PowerShell)
-START_SERVICES.md ← Este archivo
-```
-
----
-
-## Solución de Problemas
-
-### Error: "npm: command not found"
-→ Instala Node.js desde https://nodejs.org
-
-### Error: "npx: command not found"
-→ Actualiza npm: `npm install -g npm@latest`
-
-### PowerShell: "cannot be loaded because running scripts is disabled"
-→ Ejecuta: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
-
-### Puerto ya en uso
-- Backend (3001): `netstat -ano | findstr :3001` (Windows)
-- Frontend (3000): `netstat -ano | findstr :3000` (Windows)
-- Blockchain (8545): `netstat -ano | findstr :8545` (Windows)
-
----
-
-## Flujo Rápido de Demo
-
-1. **Ejecuta un script** según tu SO (arriba)
-2. **Abre navegador:** http://localhost:3000
-3. **Ingresa credenciales:**
-   - Usuario: `juan@universidad.edu`
-   - Contraseña: `password123`
-4. **Elige una elección** y **vota**
-5. **Ve resultados** en tiempo real
-6. **Admin panel:** Haz login como admin para ver estadísticas
