@@ -364,8 +364,13 @@ export function UserProfile() {
                     try {
                       const stored = localStorage.getItem('vtb-user');
                       const user = stored ? JSON.parse(stored) : null;
-                      const userId = user?.id || user?.email || 'anon';
-                      localStorage.removeItem(`vtb-tour-done-${userId}`);
+                      const ids = [
+                        user?.id,
+                        user?.email,
+                        localStorage.getItem('vtb-user-id'),
+                        localStorage.getItem('vtb-email'),
+                      ].filter(Boolean);
+                      ids.forEach((id) => localStorage.removeItem(`vtb-tour-done-${id}`));
                     } catch { /* ignore */ }
                     navigate('/dashboard');
                   }}

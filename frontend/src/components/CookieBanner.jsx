@@ -28,7 +28,7 @@ export function CookieBanner() {
   const storageItems = [
     { key: 'vtb-token', desc: 'Authentication JWT - expires in 24h', required: true },
     { key: 'vtb-role', desc: 'Your role for UI routing', required: true },
-    { key: 'vtb-tour-completed', desc: 'Onboarding tour completion flag', required: false },
+    { key: 'vtb-tour-done-{user}', desc: 'Onboarding tour completion flag per user', required: false },
     { key: 'vtb-cookie-consent', desc: 'Your consent choice (this banner)', required: false },
     { key: 'i18nextLng', desc: 'Preferred language (EN/ES)', required: false },
   ];
