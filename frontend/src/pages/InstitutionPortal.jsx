@@ -33,15 +33,15 @@ const LoadingSpinner = ({ color = "#3b82f6" }) => (
 const ALL_VOTER_DEMOS = [
   { label: "UFV Student 1",      email: "carlos@ufv.es",           pwd: "demo123" },
   { label: "UFV Student 2",      email: "laura@ufv.es",            pwd: "demo123" },
-  { label: "Highland Student 1", email: "student5@highland.edu",   pwd: "demo123" },
-  { label: "Highland Student 2", email: "student6@highland.edu",   pwd: "demo123" },
+  { label: "Highland Student 1", email: "student5@highlands.edu",   pwd: "demo123" },
+  { label: "Highland Student 2", email: "student6@highlands.edu",   pwd: "demo123" },
 ];
 
 const ALL_ADMIN_DEMOS = [
   { label: "Super Admin",     email: "superadmin@vtb.system", pwd: "superadmin123" },
   { label: "UFV Admin",       email: "admin@ufv.es",           pwd: "admin123" },
   { label: "EPS Admin",       email: "admin@eps.ufv.es",       pwd: "admin123" },
-  { label: "Highland Admin",  email: "admin@highland.edu",     pwd: "admin123" },
+  { label: "Highland Admin",  email: "admin@highlands.edu",     pwd: "admin123" },
 ];
 
 // ─── Inline login form ────────────────────────────────────────────────────────
@@ -548,5 +548,6 @@ export const InstitutionPortal = () => {
 };
 
 export default InstitutionPortal;
+
 
 

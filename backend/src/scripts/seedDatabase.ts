@@ -10,10 +10,25 @@ import { hashPassword, generateNullifier } from "../utils/auth.js";
 export async function seedDemoData(): Promise<void> {
   const db = getDatabase();
 
+  // Normalize the Highlands domain in existing databases. Only @vtb.demo is demo-only;
+  // UFV and Highlands accounts are real Sepolia voters.
+  await db.exec("UPDATE users SET email = replace(email, '@highland.edu', '@highlands.edu') WHERE email LIKE '%@highland.edu'").catch(() => {});
+  await db.exec("UPDATE users SET admin_domain = 'highlands.edu' WHERE admin_domain = 'highland.edu'").catch(() => {});
+  await db.exec("UPDATE org_units SET domain = 'highlands.edu' WHERE domain = 'highland.edu'").catch(() => {});
+  await db.exec("UPDATE org_units SET institution_domain = 'highlands.edu' WHERE institution_domain = 'highland.edu'").catch(() => {});
+  await db.exec("UPDATE election_access SET email_domain = 'highlands.edu' WHERE email_domain = 'highland.edu'").catch(() => {});
+  await db.exec("UPDATE election_targets SET target_value = 'highlands.edu' WHERE target_value = 'highland.edu'").catch(() => {});
+  await db.exec("UPDATE schools_and_degrees SET institution_domain = 'highlands.edu' WHERE institution_domain = 'highland.edu'").catch(() => {});
+  await db.exec(
+    `DELETE FROM nullifier_audit
+     WHERE block_number IS NULL
+     AND user_id IN (SELECT id FROM users WHERE email NOT LIKE '%@vtb.demo')`
+  ).catch(() => {});
+
   // Seed org units always (idempotent) — kept for backward compat with legacy features
   const orgUnits = [
     { name: 'Universidad Francisco de Vitoria', domain: 'ufv.es', parent_domain: null, unit_type: 'institution', institution_domain: 'ufv.es', logo_url: '/logos/ufv.png', primary_color: '#004b87' },
-    { name: 'Highlands School', domain: 'highland.edu', parent_domain: null, unit_type: 'institution', institution_domain: 'highland.edu', logo_url: '/logos/highland.png', primary_color: '#0f204b' },
+    { name: 'Highlands School', domain: 'highlands.edu', parent_domain: null, unit_type: 'institution', institution_domain: 'highlands.edu', logo_url: '/logos/highland.png', primary_color: '#0f204b' },
     { name: 'VTB Administration', domain: 'vtb.system', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.system', logo_url: '/logos/vtb.svg', primary_color: '#3b82f6' },
     { name: 'VTB Demo Sandbox', domain: 'vtb.demo', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.demo', logo_url: '/logos/vtb.svg', primary_color: '#2563eb' },
   ];
@@ -84,21 +99,21 @@ export async function seedDemoData(): Promise<void> {
     }
   }
 
-  const highlandDegrees = [
+  const highlandsDegrees = [
     { school: 'Secondary School', degree: 'GCSE Programme', years: 2 },
     { school: 'Secondary School', degree: 'A-Level Programme', years: 2 },
     { school: 'Sixth Form', degree: 'IB Diploma Programme', years: 2 },
   ];
-  for (const item of highlandDegrees) {
+  for (const item of highlandsDegrees) {
     const exists = await db.get<{ id: number }>(
       'SELECT id FROM schools_and_degrees WHERE institution_domain = ? AND degree_name = ?',
-      ['highland.edu', item.degree]
+      ['highlands.edu', item.degree]
     );
     if (!exists) {
       await db.exec(
         `INSERT INTO schools_and_degrees (institution_domain, school_name, degree_name, years)
          VALUES (?, ?, ?, ?)`,
-        ['highland.edu', item.school, item.degree, item.years]
+        ['highlands.edu', item.school, item.degree, item.years]
       ).catch(() => {});
     }
   }
@@ -108,11 +123,11 @@ export async function seedDemoData(): Promise<void> {
     { email: "superadmin@vtb.system", name: "Super Admin",           student_id: "SUPERADMIN-001", password: "superadmin123", role: "superadmin", admin_domain: null },
     { email: "admin@ufv.es",           name: "Admin UFV",             student_id: "ADMIN-UFV-001",  password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
     { email: "admin@universidad.edu",  name: "Admin Universidad",     student_id: "ADMIN-EDU-001",  password: "admin123",      role: "admin",      admin_domain: "universidad.edu" },
-    { email: "admin@highland.edu",     name: "Admin Highland",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highland.edu" },
+    { email: "admin@highlands.edu",     name: "Admin Highlands",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highlands.edu" },
     { email: "admin@eps.ufv.es",       name: "Admin EPS UFV",         student_id: "ADMIN-EPS-001",  password: "admin123",      role: "admin",      admin_domain: "eps.ufv.es" },
     { email: "admin@vtb.demo",         name: "Demo Administrator",    student_id: "DEMO-ADM-001",   password: "demo123",       role: "admin",      admin_domain: "vtb.demo" },
     { email: "admin.demo@ufv.es",      name: "Demo Admin UFV",        student_id: "ADMIN-UFV-DEMO", password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
-    { email: "admin.demo@highland.edu",name: "Demo Admin Highland",   student_id: "ADMIN-HLD-DEMO", password: "admin123",      role: "admin",      admin_domain: "highland.edu" },
+    { email: "admin.demo@highlands.edu",name: "Demo Admin Highlands",   student_id: "ADMIN-HLD-DEMO", password: "admin123",      role: "admin",      admin_domain: "highlands.edu" },
     { email: "admin.demo@universidad.edu", name: "Demo Admin Universidad", student_id: "ADMIN-EDU-DEMO", password: "admin123", role: "admin",      admin_domain: "universidad.edu" },
     { email: "superadmin@vtb.demo",    name: "Demo Super Admin",      student_id: "SUPERADMIN-DEMO", password: "superadmin123", role: "superadmin", admin_domain: null },
     { email: "student@vtb.demo",       name: "Demo Student",          student_id: "DEMO-STU-001",   password: "demo123",       role: "student",    admin_domain: null },
@@ -120,10 +135,10 @@ export async function seedDemoData(): Promise<void> {
     { email: "julio@ufv.es",           name: "Julio Martinez Campos",  student_id: "UFV-PROF-001",   password: "profesor123",   role: "student",    admin_domain: null },
     { email: "susana@eps.ufv.es",      name: "Susana Ferreira Blanco", student_id: "EPS-DIR-001",    password: "director123",   role: "admin",      admin_domain: "eps.ufv.es" },
     { email: "olga@eps.ufv.es",        name: "Olga Navarro Ruiz",      student_id: "EPS-DIR-002",    password: "director123",   role: "admin",      admin_domain: "eps.ufv.es" },
-    { email: "julio@highland.edu",     name: "Julio Martinez Campos (Highland)", student_id: "HLD-PROF-001", password: "profesor123", role: "student", admin_domain: null },
+    { email: "julio@highlands.edu",     name: "Julio Martinez Campos (Highlands)", student_id: "HLD-PROF-001", password: "profesor123", role: "student", admin_domain: null },
     { email: "demo.ufv@ufv.es",        name: "Demo Student UFV",      student_id: "UFV-DEMO-001",   password: "demo123",       role: "student",    admin_domain: null },
     { email: "demo.eps@ufv.es",        name: "Demo Student EPS UFV",  student_id: "UFV-DEMO-002",   password: "demo123",       role: "student",    admin_domain: null },
-    { email: "demo.highland@highland.edu", name: "Demo Student Highlands", student_id: "HLD-DEMO-001", password: "demo123",    role: "student",    admin_domain: null },
+    { email: "demo.highland@highlands.edu", name: "Demo Student Highlands", student_id: "HLD-DEMO-001", password: "demo123",    role: "student",    admin_domain: null },
     { email: "demo.universidad@universidad.edu", name: "Demo Student Universidad", student_id: "EDU-DEMO-001", password: "demo123", role: "student", admin_domain: null },
     { email: "carlos@ufv.es",          name: "Carlos López Fernández", student_id: "UFV-2024-001", password: "demo123",       role: "student",    admin_domain: null },
     { email: "laura@ufv.es",           name: "Laura Martínez García",  student_id: "UFV-2024-002", password: "demo123",       role: "student",    admin_domain: null },
@@ -131,8 +146,8 @@ export async function seedDemoData(): Promise<void> {
     { email: "sofia@ufv.es",           name: "Sofía Rodríguez Pérez",  student_id: "UFV-2024-004", password: "demo123",       role: "student",    admin_domain: null },
     { email: "andres@ufv.es",          name: "Andrés Navarro Gil",      student_id: "UFV-2024-005", password: "demo123",       role: "student",    admin_domain: null },
     { email: "patricia@ufv.es",        name: "Patricia Vega Moreno",    student_id: "UFV-2024-006", password: "demo123",       role: "student",    admin_domain: null },
-    { email: "student5@highland.edu",  name: "James Wilson",            student_id: "HLD-001",      password: "demo123",       role: "student",    admin_domain: null },
-    { email: "student6@highland.edu",  name: "Emma Thompson",           student_id: "HLD-002",      password: "demo123",       role: "student",    admin_domain: null },
+    { email: "student5@highlands.edu",  name: "James Wilson",            student_id: "HLD-001",      password: "demo123",       role: "student",    admin_domain: null },
+    { email: "student6@highlands.edu",  name: "Emma Thompson",           student_id: "HLD-002",      password: "demo123",       role: "student",    admin_domain: null },
     { email: "juan@universidad.edu",   name: "Juan García Martín",      student_id: "EDU-2024-001", password: "demo123",       role: "student",    admin_domain: null },
     { email: "elena@universidad.edu",  name: "Elena Castro Ruiz",       student_id: "EDU-2024-003", password: "demo123",       role: "student",    admin_domain: null },
   ];
@@ -171,7 +186,7 @@ export async function seedDemoData(): Promise<void> {
     { email: 'student2@vtb.demo', school: 'VTB Demo Sandbox', degree: 'Demo Voting Track', year: 1 },
     { email: 'demo.ufv@ufv.es', school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Administracion y Direccion de Empresas', year: 2 },
     { email: 'demo.eps@ufv.es', school: 'Escuela Politecnica Superior', degree: 'Ingenieria Informatica', year: 3 },
-    { email: 'demo.highland@highland.edu', school: 'Sixth Form', degree: 'IB Diploma Programme', year: 1 },
+    { email: 'demo.highland@highlands.edu', school: 'Sixth Form', degree: 'IB Diploma Programme', year: 1 },
     { email: 'demo.universidad@universidad.edu', school: 'Campus Central', degree: 'Demo Governance', year: 2 },
   ];
   for (const s of studentAcademicData) {
@@ -186,7 +201,7 @@ export async function seedDemoData(): Promise<void> {
     "student2@vtb.demo",
     "demo.ufv@ufv.es",
     "demo.eps@ufv.es",
-    "demo.highland@highland.edu",
+    "demo.highland@highlands.edu",
     "demo.universidad@universidad.edu",
   ];
 
@@ -226,7 +241,7 @@ export async function seedDemoData(): Promise<void> {
       election_id_blockchain: 103,
       name: "Highlands Fresh Demo Vote",
       description: "Active Highlands demo election with clean demo accounts.",
-      domains: ["highland.edu"],
+      domains: ["highlands.edu"],
       voter_role: "student",
       candidates: [
         { name: "House Activities", description: "More inter-house activities and student-led events." },
@@ -248,7 +263,7 @@ export async function seedDemoData(): Promise<void> {
       election_id_blockchain: 105,
       name: "Multi-Institution Demo Referendum",
       description: "Cross-domain demo vote for UFV, Highlands, Universidad, and VTB demo users.",
-      domains: ["vtb.demo", "ufv.es", "highland.edu", "universidad.edu"],
+      domains: ["vtb.demo", "ufv.es", "highlands.edu", "universidad.edu"],
       voter_role: "student",
       candidates: [
         { name: "Adopt Blockchain Audits", description: "Publish anonymized voting proofs for every institutional vote." },
@@ -259,7 +274,7 @@ export async function seedDemoData(): Promise<void> {
       election_id_blockchain: 106,
       name: "Admin Demo Governance Vote",
       description: "Admin-only demo election for testing management workflows.",
-      domains: ["vtb.demo", "ufv.es", "highland.edu", "universidad.edu"],
+      domains: ["vtb.demo", "ufv.es", "highlands.edu", "universidad.edu"],
       voter_role: "admin",
       candidates: [
         { name: "Enable Monthly Audits", description: "Require a public monthly audit export." },
@@ -307,7 +322,7 @@ export async function seedDemoData(): Promise<void> {
       election_id_blockchain: 113,
       name: "Highlands Head of House Election",
       description: "Annual student vote to elect the Head of House across all Highlands houses.",
-      domains: ["highland.edu"],
+      domains: ["highlands.edu"],
       voter_role: "student",
       candidates: [
         { name: "Oliver Bennett", description: "Sixth Form student committed to inclusive inter-house events." },
@@ -319,7 +334,7 @@ export async function seedDemoData(): Promise<void> {
       election_id_blockchain: 114,
       name: "Highlands Student Budget Allocation",
       description: "How should the student activities fund be allocated this academic year?",
-      domains: ["highland.edu"],
+      domains: ["highlands.edu"],
       voter_role: "student",
       candidates: [
         { name: "Sports & Outdoor Activities (40%)", description: "Increase budget for sports trips, equipment, and club tournaments." },
@@ -355,7 +370,7 @@ export async function seedDemoData(): Promise<void> {
       election_id_blockchain: 117,
       name: "Annual Sustainability Referendum",
       description: "Multi-institution vote on which sustainability initiative to champion next year.",
-      domains: ["vtb.demo", "ufv.es", "highland.edu", "universidad.edu"],
+      domains: ["vtb.demo", "ufv.es", "highlands.edu", "universidad.edu"],
       voter_role: "student",
       candidates: [
         { name: "Zero-Waste Campus Initiative", description: "Eliminate single-use plastics and introduce composting across all facilities." },
@@ -456,7 +471,7 @@ export async function seedDemoData(): Promise<void> {
     // ADMINS
     { email: "admin@ufv.es",           name: "Admin UFV",             student_id: "ADMIN-UFV-001",  password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
     { email: "admin@universidad.edu",  name: "Admin Universidad",     student_id: "ADMIN-EDU-001",  password: "admin123",      role: "admin",      admin_domain: "universidad.edu" },
-    { email: "admin@highland.edu",     name: "Admin Highland",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highland.edu" },
+    { email: "admin@highlands.edu",     name: "Admin Highlands",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highlands.edu" },
     { email: "admin@eps.ufv.es",       name: "Admin EPS UFV",         student_id: "ADMIN-EPS-001",  password: "admin123",      role: "admin",      admin_domain: "eps.ufv.es" },
     // UFV STUDENTS
     { email: "carlos@ufv.es",          name: "Carlos López Fernández",   student_id: "UFV-2024-001", password: "demo123", role: "student", admin_domain: null },
@@ -466,9 +481,9 @@ export async function seedDemoData(): Promise<void> {
     { email: "andres@ufv.es",          name: "Andrés Navarro Gil",       student_id: "UFV-2024-005", password: "demo123", role: "student", admin_domain: null },
     { email: "patricia@ufv.es",        name: "Patricia Vega Moreno",     student_id: "UFV-2024-006", password: "demo123", role: "student", admin_domain: null },
     // HIGHLAND STUDENTS
-    { email: "student5@highland.edu",  name: "James Wilson",             student_id: "HLD-001",      password: "demo123", role: "student", admin_domain: null },
-    { email: "student6@highland.edu",  name: "Emma Thompson",            student_id: "HLD-002",      password: "demo123", role: "student", admin_domain: null },
-    { email: "student7@highland.edu",  name: "Oliver Davis",             student_id: "HLD-003",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student5@highlands.edu",  name: "James Wilson",             student_id: "HLD-001",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student6@highlands.edu",  name: "Emma Thompson",            student_id: "HLD-002",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student7@highlands.edu",  name: "Oliver Davis",             student_id: "HLD-003",      password: "demo123", role: "student", admin_domain: null },
     // EDU STUDENTS
     { email: "juan@universidad.edu",   name: "Juan García Martín",       student_id: "EDU-2024-001", password: "demo123", role: "student", admin_domain: null },
     { email: "maria@universidad.edu",  name: "María López Díaz",         student_id: "EDU-2024-002", password: "demo123", role: "student", admin_domain: null },
@@ -478,7 +493,7 @@ export async function seedDemoData(): Promise<void> {
     { email: "julio@ufv.es",           name: "Julio Martinez Campos",  student_id: "UFV-PROF-001",   password: "profesor123", role: "student", admin_domain: null },
     { email: "susana@eps.ufv.es",      name: "Susana Ferreira Blanco", student_id: "EPS-DIR-001",    password: "director123", role: "admin",   admin_domain: "eps.ufv.es" },
     { email: "olga@eps.ufv.es",        name: "Olga Navarro Ruiz",      student_id: "EPS-DIR-002",    password: "director123", role: "admin",   admin_domain: "eps.ufv.es" },
-    { email: "julio@highland.edu",     name: "Julio Martinez Campos (Highland)", student_id: "HLD-PROF-001", password: "profesor123", role: "student", admin_domain: null },
+    { email: "julio@highlands.edu",     name: "Julio Martinez Campos (Highlands)", student_id: "HLD-PROF-001", password: "profesor123", role: "student", admin_domain: null },
     // NEW UFV STUDENTS
     { email: "student8@ufv.es",   name: "María José García",       student_id: "UFV-2024-008", password: "demo123", role: "student", admin_domain: null },
     { email: "student9@ufv.es",   name: "Carlos Alberto López",    student_id: "UFV-2024-009", password: "demo123", role: "student", admin_domain: null },
@@ -486,9 +501,9 @@ export async function seedDemoData(): Promise<void> {
     { email: "student11@ufv.es",  name: "David Fernández Ruiz",    student_id: "UFV-2024-011", password: "demo123", role: "student", admin_domain: null },
     { email: "student12@ufv.es",  name: "Laura González Torres",   student_id: "UFV-2024-012", password: "demo123", role: "student", admin_domain: null },
     // NEW HIGHLAND STUDENTS
-    { email: "student8@highland.edu",  name: "William Johnson",    student_id: "HLD-008",      password: "demo123", role: "student", admin_domain: null },
-    { email: "student9@highland.edu",  name: "Charlotte Williams", student_id: "HLD-009",      password: "demo123", role: "student", admin_domain: null },
-    { email: "student10@highland.edu", name: "George Taylor",      student_id: "HLD-010",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student8@highlands.edu",  name: "William Johnson",    student_id: "HLD-008",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student9@highlands.edu",  name: "Charlotte Williams", student_id: "HLD-009",      password: "demo123", role: "student", admin_domain: null },
+    { email: "student10@highlands.edu", name: "George Taylor",      student_id: "HLD-010",      password: "demo123", role: "student", admin_domain: null },
     // NEW UNIVERSIDAD STUDENTS
     { email: "student8@universidad.edu", name: "Roberto Sánchez",  student_id: "EDU-2024-008", password: "demo123", role: "student", admin_domain: null },
     { email: "student9@universidad.edu", name: "Carmen Díaz",      student_id: "EDU-2024-009", password: "demo123", role: "student", admin_domain: null },
@@ -618,10 +633,10 @@ export async function seedDemoData(): Promise<void> {
     // ── HIGHLAND SCHOOL ──────────────────────────────────────────────
     {
       election_id_blockchain: 7,
-      name: "Highland School Council Election 2026",
+      name: "Highlands School Council Election 2026",
       description: "Vote for your student council representatives",
       start_time: past(3), end_time: future(365), is_active: 1,
-      domains: ["highland.edu"],
+      domains: ["highlands.edu"],
       candidates: [
         { name: "Alice Johnson",  description: "Student welfare and activities coordinator" },
         { name: "Bob Martinez",   description: "Academic support and resources" },
@@ -708,10 +723,10 @@ export async function seedDemoData(): Promise<void> {
     // ── NEW HIGHLAND ELECTIONS ───────────────────────────────────────
     {
       election_id_blockchain: 14,
-      name: "Highland School Prefect Election 2026",
+      name: "Highlands School Prefect Election 2026",
       description: "Vote for your school prefect representatives for the 2026 academic year",
       start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["highland.edu"],
+      domains: ["highlands.edu"],
       candidates: [
         { name: "James Wilson",    description: "Student welfare and inclusion champion" },
         { name: "Sophie Clarke",   description: "Academic excellence and peer support" },
@@ -721,10 +736,10 @@ export async function seedDemoData(): Promise<void> {
     },
     {
       election_id_blockchain: 15,
-      name: "Highland School Trip Destination Vote",
+      name: "Highlands School Trip Destination Vote",
       description: "Choose where the school trip should go this year",
       start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["highland.edu"],
+      domains: ["highlands.edu"],
       candidates: [
         { name: "Paris, France",         description: "Art, culture and the Eiffel Tower" },
         { name: "Rome, Italy",           description: "History, cuisine and the Colosseum" },
@@ -902,6 +917,10 @@ export async function seedDemoData(): Promise<void> {
 
   let voteCount = 0;
   for (const vote of precastVotes) {
+    if (!vote.userEmail.endsWith("@vtb.demo")) {
+      continue;
+    }
+
     const userId    = userIdMap[vote.userEmail];
     const electionId = electionIdMap[vote.electionName];
 
@@ -940,19 +959,19 @@ export async function seedDemoData(): Promise<void> {
   console.log("  🎓 sofia@ufv.es              / demo123  (ha votado en alguna)");
   console.log("  🎓 juan@universidad.edu      / demo123  (ha votado en alguna)");
   console.log("  🎓 elena@universidad.edu     / demo123  (puede votar)");
-  console.log("  👨‍💼 admin@highland.edu        / admin123");
+  console.log("  👨‍💼 admin@highlands.edu        / admin123");
   console.log("  👨‍💼 admin@eps.ufv.es          / admin123");
-  console.log("  🎓 student5@highland.edu     / demo123");
-  console.log("  🎓 student6@highland.edu     / demo123");
-  console.log("  🎓 student7@highland.edu     / demo123");
+  console.log("  🎓 student5@highlands.edu     / demo123");
+  console.log("  🎓 student6@highlands.edu     / demo123");
+  console.log("  🎓 student7@highlands.edu     / demo123");
   console.log("  🎓 student8@ufv.es           / demo123  (María José García)");
   console.log("  🎓 student9@ufv.es           / demo123  (Carlos Alberto López)");
   console.log("  🎓 student10@ufv.es          / demo123  (Ana Belén Martínez)");
   console.log("  🎓 student11@ufv.es          / demo123  (David Fernández Ruiz)");
   console.log("  🎓 student12@ufv.es          / demo123  (Laura González Torres)");
-  console.log("  🎓 student8@highland.edu     / demo123  (William Johnson)");
-  console.log("  🎓 student9@highland.edu     / demo123  (Charlotte Williams)");
-  console.log("  🎓 student10@highland.edu    / demo123  (George Taylor)");
+  console.log("  🎓 student8@highlands.edu     / demo123  (William Johnson)");
+  console.log("  🎓 student9@highlands.edu     / demo123  (Charlotte Williams)");
+  console.log("  🎓 student10@highlands.edu    / demo123  (George Taylor)");
   console.log("  🎓 student8@universidad.edu  / demo123  (Roberto Sánchez)");
   console.log("  🎓 student9@universidad.edu  / demo123  (Carmen Díaz)");
   console.log("\n🗳️  Estado de las elecciones:");
@@ -995,3 +1014,5 @@ const isMain = process.argv[1]?.includes("seedDatabase");
 if (isMain) {
   runSeedScript();
 }
+
+

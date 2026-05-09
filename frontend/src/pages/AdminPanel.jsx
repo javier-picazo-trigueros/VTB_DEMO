@@ -1422,7 +1422,7 @@ export const AdminPanel = () => {
                         {newElection.target_type === 'domain' && (
                           <input
                             type="text"
-                            placeholder="Email domains e.g. ufv.es, highland.edu"
+                            placeholder="Email domains e.g. ufv.es, highlands.edu"
                             value={newElection.domains || ''}
                             onChange={(e) => setNewElection(p => ({ ...p, domains: e.target.value }))}
                             className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
@@ -1858,7 +1858,7 @@ export const AdminPanel = () => {
                   {isSuperAdmin && (
                     <input
                       type="text"
-                      placeholder="Filter by domain (e.g. ufv.es, highland.edu)..."
+                      placeholder="Filter by domain (e.g. ufv.es, highlands.edu)..."
                       value={inboxDomainFilter}
                       onChange={e => setInboxDomainFilter(e.target.value)}
                       className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm"
@@ -2316,3 +2316,4 @@ const StatCard = ({ label, value, icon }) => (
 );
 
 export default AdminPanel;
+

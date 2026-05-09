@@ -134,7 +134,10 @@ app.get('/api/stats', async (req: any, res: Response) => {
     );
     const blockchainTransactions = await db.get<{ count: number }>(
       `SELECT COUNT(*) as count FROM nullifier_audit
-       WHERE tx_hash IS NOT NULL AND tx_hash != ''`
+       JOIN users u ON nullifier_audit.user_id = u.id
+       WHERE nullifier_audit.tx_hash IS NOT NULL AND nullifier_audit.tx_hash != ''
+       AND nullifier_audit.block_number IS NOT NULL
+       AND u.email NOT LIKE '%@vtb.demo'`
     );
     res.json({
       totalElections: totalElections?.count || 0,
@@ -190,6 +193,9 @@ app.get('/api/audit/public', async (req: any, res: Response) => {
          e.name as election_name
        FROM nullifier_audit na
        JOIN elections e ON na.election_id = e.id
+       JOIN users u ON na.user_id = u.id
+       WHERE u.email NOT LIKE '%@vtb.demo'
+       AND na.block_number IS NOT NULL
        ORDER BY na.generated_at DESC
        LIMIT 20`
     );

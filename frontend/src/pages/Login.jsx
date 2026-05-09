@@ -14,14 +14,14 @@ const voterDemoAccounts = [
   { label: "VTB Demo Student 2", email: "student2@vtb.demo", pwd: "demo123" },
   { label: "UFV Demo Student", email: "demo.ufv@ufv.es", pwd: "demo123" },
   { label: "UFV EPS Demo", email: "demo.eps@ufv.es", pwd: "demo123" },
-  { label: "Highlands Demo", email: "demo.highland@highland.edu", pwd: "demo123" },
+  { label: "Highlands Demo", email: "demo.highland@highlands.edu", pwd: "demo123" },
   { label: "Universidad Demo", email: "demo.universidad@universidad.edu", pwd: "demo123" },
 ];
 
 const adminDemoAccounts = [
   { label: "VTB Demo Admin", email: "admin@vtb.demo", pwd: "admin123" },
   { label: "UFV Demo Admin", email: "admin.demo@ufv.es", pwd: "admin123" },
-  { label: "Highlands Demo Admin", email: "admin.demo@highland.edu", pwd: "admin123" },
+  { label: "Highlands Demo Admin", email: "admin.demo@highlands.edu", pwd: "admin123" },
   { label: "Universidad Demo Admin", email: "admin.demo@universidad.edu", pwd: "admin123" },
   { label: "Demo Super Admin", email: "superadmin@vtb.demo", pwd: "superadmin123" },
 ];
@@ -29,11 +29,11 @@ const adminDemoAccounts = [
 const allDevAccounts = [
   { label: "VTB Demo Student", email: "student@vtb.demo", pwd: "demo123", color: "text-green-400", portal: "voter" },
   { label: "UFV Demo Student", email: "demo.ufv@ufv.es", pwd: "demo123", color: "text-green-400", portal: "voter" },
-  { label: "Highlands Demo", email: "demo.highland@highland.edu", pwd: "demo123", color: "text-green-400", portal: "voter" },
+  { label: "Highlands Demo", email: "demo.highland@highlands.edu", pwd: "demo123", color: "text-green-400", portal: "voter" },
   { label: "Universidad Demo", email: "demo.universidad@universidad.edu", pwd: "demo123", color: "text-green-400", portal: "voter" },
   { label: "VTB Demo Admin", email: "admin@vtb.demo", pwd: "admin123", color: "text-blue-400", portal: "admin" },
   { label: "UFV Demo Admin", email: "admin.demo@ufv.es", pwd: "admin123", color: "text-blue-400", portal: "admin" },
-  { label: "Highlands Demo Admin", email: "admin.demo@highland.edu", pwd: "admin123", color: "text-blue-400", portal: "admin" },
+  { label: "Highlands Demo Admin", email: "admin.demo@highlands.edu", pwd: "admin123", color: "text-blue-400", portal: "admin" },
   { label: "Universidad Demo Admin", email: "admin.demo@universidad.edu", pwd: "admin123", color: "text-blue-400", portal: "admin" },
   { label: "Demo Super Admin", email: "superadmin@vtb.demo", pwd: "superadmin123", color: "text-red-400", portal: "admin" },
 ];
@@ -496,3 +496,4 @@ function DevPanel({ accounts, onClose, onSelect, description, hint }) {
 }
 
 export default Login;
+

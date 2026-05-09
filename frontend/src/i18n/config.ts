@@ -184,9 +184,9 @@ const resources = {
         cta: "Start Voting Now",
         documentation: "Documentation",
         portalButton: "Go to Portal →",
-        domainPlaceholder: "e.g. ufv.es or highland.edu",
+        domainPlaceholder: "e.g. ufv.es or highlands.edu",
         domainRequired: "Please enter your institution domain.",
-        domainInvalid: "Please enter a valid domain (e.g. ufv.es or highland.edu).",
+        domainInvalid: "Please enter a valid domain (e.g. ufv.es or highlands.edu).",
         domainInstruction: "Enter your institution's domain to access your voting portal:",
       },
 
@@ -734,9 +734,9 @@ const resources = {
         cta: "Comienza a Votar Ahora",
         documentation: "Documentación",
         portalButton: "Ir al Portal →",
-        domainPlaceholder: "p. ej. ufv.es o highland.edu",
+        domainPlaceholder: "p. ej. ufv.es o highlands.edu",
         domainRequired: "Por favor ingresa el dominio de tu institución.",
-        domainInvalid: "Por favor ingresa un dominio válido (p. ej. ufv.es o highland.edu).",
+        domainInvalid: "Por favor ingresa un dominio válido (p. ej. ufv.es o highlands.edu).",
         domainInstruction: "Ingresa el dominio de tu institución para acceder a tu portal de votación:",
       },
 
@@ -1137,3 +1137,4 @@ i18n.use(LanguageDetector).use(initReactI18next).init({
 });
 
 export default i18n;
+

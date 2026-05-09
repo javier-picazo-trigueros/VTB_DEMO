@@ -153,7 +153,7 @@ export const Landing = () => {
 
   const institutions = [
     { key: "ufv", logo: "/logos/ufv.png", fallback: "UFV", name: "Universidad Francisco de Vitoria", domain: "@ufv.es" },
-    { key: "highland", logo: "/logos/highland.png", fallback: "HS", name: "Highlands School", domain: "@highland.edu" },
+    { key: "highland", logo: "/logos/highland.png", fallback: "HS", name: "Highlands School", domain: "@highlands.edu" },
   ];
 
   return (
@@ -473,3 +473,4 @@ export const Landing = () => {
 };
 
 export default Landing;
+

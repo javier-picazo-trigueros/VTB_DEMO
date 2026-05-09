@@ -490,7 +490,13 @@ router.get("/:id/results", async (req: Request, res: Response) => {
 
     const totalVoterCount = voterCount?.count || 0;
     const onChainCount = await db.get<{ count: number }>(
-      'SELECT COUNT(*) as count FROM nullifier_audit WHERE election_id = ? AND tx_hash IS NOT NULL',
+      `SELECT COUNT(*) as count
+       FROM nullifier_audit na
+       JOIN users u ON na.user_id = u.id
+       WHERE na.election_id = ?
+       AND na.tx_hash IS NOT NULL
+       AND na.block_number IS NOT NULL
+       AND u.email NOT LIKE '%@vtb.demo'`,
       [election.id]
     );
 
@@ -546,15 +552,22 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       generated_at: string;
       tx_hash: string | null;
       block_number: number | null;
+      email: string;
     }>(
-      "SELECT nullifier_hash, generated_at, tx_hash, block_number FROM nullifier_audit WHERE election_id = ? ORDER BY generated_at DESC",
+      `SELECT na.nullifier_hash, na.generated_at, na.tx_hash, na.block_number, u.email
+       FROM nullifier_audit na
+       JOIN users u ON na.user_id = u.id
+       WHERE na.election_id = ?
+       ORDER BY na.generated_at DESC`,
       [id]
     );
 
     const auditData = auditRecords.map((record) => {
+      const isDemo = record.email.endsWith("@vtb.demo");
+      const onChain = Boolean(record.tx_hash) && !isDemo && record.block_number !== null;
       const txHash = record.tx_hash ||
         `0x${createHash('sha256').update(record.nullifier_hash || '').digest('hex')}`;
-      const explorerLink = explorerUrl && record.tx_hash
+      const explorerLink = explorerUrl && onChain
         ? `${explorerUrl.replace(/\/$/, "")}/tx/${record.tx_hash}`
         : null;
       return {
@@ -563,7 +576,8 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         blockNumber: record.block_number,
         timestamp: record.generated_at,
         explorerLink,
-        onChain: !!record.tx_hash,
+        onChain,
+        isDemo,
       };
     });
 
