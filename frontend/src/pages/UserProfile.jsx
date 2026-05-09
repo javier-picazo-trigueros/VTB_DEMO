@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { clearAuthAndRedirect } from '../utils/auth';
+import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -16,14 +17,12 @@ export function UserProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
 
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState('');
-  const [pwSuccess, setPwSuccess] = useState('');
 
   const [activity, setActivity] = useState([]);
 
@@ -115,10 +114,9 @@ export function UserProfile() {
         }
       }
       setEditing(false);
-      setSuccess('Profile updated successfully');
-      setTimeout(() => setSuccess(''), 3000);
+      toast.success('Profile updated successfully');
     } catch (err) {
-      setError(err.response?.data?.error || 'Error saving profile');
+      toast.error(err.response?.data?.error || 'Error saving profile');
     } finally {
       setSaving(false);
     }
@@ -141,9 +139,8 @@ export function UserProfile() {
         { currentPassword: pwForm.current, newPassword: pwForm.next },
         { headers: getAuthHeader() }
       );
-      setPwSuccess('Password changed successfully!');
+      toast.success('Password changed successfully!');
       setPwForm({ current: '', next: '', confirm: '' });
-      setTimeout(() => setPwSuccess(''), 4000);
     } catch (err) {
       setPwError(err.response?.data?.error || 'Error changing password');
     } finally {
@@ -248,11 +245,6 @@ export function UserProfile() {
       {/* Content */}
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
 
-        {success && (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-3 text-sm text-green-700 dark:text-green-300">
-            ✅ {success}
-          </div>
-        )}
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-sm text-red-700 dark:text-red-300 flex items-center justify-between gap-3">
             <span>❌ {error}</span>
@@ -491,12 +483,6 @@ export function UserProfile() {
                 {pwError}
               </div>
             )}
-            {pwSuccess && (
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4 text-sm text-green-700 dark:text-green-300">
-                ✅ {pwSuccess}
-              </div>
-            )}
-
             <div className="space-y-4 max-w-sm">
               {[
                 { key: 'current', label: 'Current password' },

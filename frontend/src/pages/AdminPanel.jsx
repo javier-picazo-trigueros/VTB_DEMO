@@ -8,6 +8,8 @@ import { Navbar } from "../components/Navbar";
 import { OnboardingTour } from "../components/OnboardingTour";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { clearAuthAndRedirect } from "../utils/auth";
+import toast from 'react-hot-toast';
+import QRCode from 'react-qr-code';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -17,7 +19,11 @@ export const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [rejectReasonId, setRejectReasonId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [qrElection, setQrElection] = useState(null);
+  const [closeElectionConfirm, setCloseElectionConfirm] = useState(false);
 
   // Domain scoping — reads from vtb-user JSON (the only key AuthContext writes)
   const _vtbUser = (() => { try { return JSON.parse(localStorage.getItem('vtb-user') || '{}'); } catch { return {}; } })();
@@ -262,29 +268,26 @@ export const AdminPanel = () => {
       await axios.post(`${API_URL}/admin/users`, newUser, {
         headers: getAuthHeader(),
       });
-      setSuccess("User created successfully");
+      toast.success("User created successfully");
       setNewUser({ email: "", password: "", name: "", student_id: "", role: "student", admin_domain: "" });
       loadTabData();
-      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error creating user");
+      toast.error(err.response?.data?.error || "Error creating user");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm("Delete this user?")) return;
-
     try {
       await axios.delete(`${API_URL}/admin/users/${userId}`, {
         headers: getAuthHeader(),
       });
-      setSuccess("User deleted");
+      toast.success("User deleted");
+      setConfirmDeleteId(null);
       loadTabData();
-      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error deleting user");
+      toast.error(err.response?.data?.error || "Error deleting user");
     }
   };
 
@@ -357,7 +360,7 @@ export const AdminPanel = () => {
         }
       }
 
-      setSuccess("Election created successfully");
+      toast.success("Election created successfully");
       setNewElection({
         name: "",
         description: "",
@@ -374,9 +377,8 @@ export const AdminPanel = () => {
         voter_role: 'student',
       });
       loadTabData();
-      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error creating election");
+      toast.error(err.response?.data?.error || "Error creating election");
     } finally {
       setLoading(false);
     }
@@ -407,11 +409,10 @@ export const AdminPanel = () => {
         { is_active: !is_active },
         { headers: getAuthHeader() }
       );
-      setSuccess("Election updated");
+      toast.success("Election updated");
       loadTabData();
-      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error updating election");
+      toast.error(err.response?.data?.error || "Error updating election");
     }
   };
 
@@ -442,12 +443,11 @@ export const AdminPanel = () => {
       await axios.patch(`${API_URL}/admin/elections/${editingElection.id}`, payload, {
         headers: getAuthHeader(),
       });
-      setSuccess('Election updated');
+      toast.success('Election updated');
       setEditingElection(null);
       loadTabData();
-      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Error updating election');
+      toast.error(err.response?.data?.error || 'Error updating election');
     }
   };
 
@@ -455,11 +455,10 @@ export const AdminPanel = () => {
     try {
       if (!manageCensus.email.trim()) return;
       await axios.post(`${API_URL}/admin/elections/${electionId}/voters`, { email: manageCensus.email.trim() }, { headers: getAuthHeader() });
-      setSuccess("Voter added to census");
+      toast.success("Voter added to census");
       setManageCensus({ ...manageCensus, email: '' });
-      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error adding voter");
+      toast.error(err.response?.data?.error || "Error adding voter");
     }
   };
 
@@ -467,11 +466,10 @@ export const AdminPanel = () => {
     try {
       if (!manageCensus.domain.trim()) return;
       await axios.post(`${API_URL}/admin/elections/${electionId}/domains`, { domain: manageCensus.domain.trim() }, { headers: getAuthHeader() });
-      setSuccess("Domain added to census");
+      toast.success("Domain added to census");
       setManageCensus({ ...manageCensus, domain: '' });
-      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error adding domain");
+      toast.error(err.response?.data?.error || "Error adding domain");
     }
   };
 
@@ -507,12 +505,11 @@ export const AdminPanel = () => {
         { headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' } }
       );
       const r = res.data.results;
-      setSuccess(`CSV imported: ${r.created} users created, ${r.added} added, ${r.skipped} skipped`);
+      toast.success(`CSV imported: ${r.created} users created, ${r.added} added, ${r.skipped} skipped`);
       if (r.errors?.length) console.warn('Import errors:', r.errors);
       loadTabData();
-      setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error importing CSV");
+      toast.error(err.response?.data?.error || "Error importing CSV");
     }
     e.target.value = '';
   };
@@ -529,12 +526,11 @@ export const AdminPanel = () => {
         { headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' } }
       );
       const r = res.data.results;
-      setSuccess(`Users imported: ${r.created} created, ${r.skipped} skipped`);
+      toast.success(`Users imported: ${r.created} created, ${r.skipped} skipped`);
       if (r.errors?.length) console.warn('Import errors:', r.errors);
       loadTabData();
-      setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error importing users CSV");
+      toast.error(err.response?.data?.error || "Error importing users CSV");
     }
     e.target.value = '';
   };
@@ -562,19 +558,17 @@ export const AdminPanel = () => {
           password: response.data.tempPassword
         });
       } else {
-        setSuccess(`User approved. They can log in with the password they chose during registration.`);
-        setTimeout(() => setSuccess(""), 5000);
+        toast.success(`User approved. They can log in with the password they chose during registration.`);
       }
       loadTabData();
     } catch (err) {
-      setError(err.response?.data?.error || "Error approving request");
+      toast.error(err.response?.data?.error || "Error approving request");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRejectRequest = async (requestId) => {
-    const reason = prompt("Enter the rejection reason:");
+  const handleRejectRequest = async (requestId, reason) => {
     if (!reason?.trim()) return;
 
     setLoading(true);
@@ -584,11 +578,12 @@ export const AdminPanel = () => {
         { action: 'reject', reason },
         { headers: getAuthHeader() }
       );
-      setSuccess("Request rejected");
+      toast.success("Request rejected");
+      setRejectReasonId(null);
+      setRejectReason('');
       loadTabData();
-      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Error rejecting request");
+      toast.error(err.response?.data?.error || "Error rejecting request");
     } finally {
       setLoading(false);
     }
@@ -600,7 +595,7 @@ export const AdminPanel = () => {
       const res = await axios.get(`${API_URL}/admin/elections/${electionId}/stats`, { headers: getAuthHeader() });
       setSelectedElectionStats(res.data);
     } catch (err) {
-      setError(err.response?.data?.error || "Error loading election stats");
+      toast.error(err.response?.data?.error || "Error loading election stats");
     } finally {
       setLoadingElectionStats(false);
     }
@@ -649,16 +644,6 @@ export const AdminPanel = () => {
         </motion.div>
 
         {/* Alerts */}
-        {success && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 rounded-lg"
-          >
-            {success}
-          </motion.div>
-        )}
-
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -1124,12 +1109,30 @@ export const AdminPanel = () => {
                               </span>
                             </td>
                             <td className="py-3 px-4">
-                              <button
-                                onClick={() => handleDeleteUser(user.id)}
-                                className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 rounded font-medium transition text-xs"
-                              >
-                                Delete
-                              </button>
+                              {confirmDeleteId === user.id ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-red-600 dark:text-red-400 font-medium">Delete?</span>
+                                  <button
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteId(null)}
+                                    className="px-2 py-1 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 rounded text-xs font-medium transition"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setConfirmDeleteId(user.id)}
+                                  className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 rounded font-medium transition text-xs"
+                                >
+                                  Delete
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -1564,6 +1567,12 @@ export const AdminPanel = () => {
                                 >
                                   Manage Census
                                 </button>
+                                <button
+                                  onClick={() => setQrElection(election)}
+                                  className="px-4 py-2 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-300 rounded-lg transition font-medium text-sm w-36"
+                                >
+                                  📱 QR Code
+                                </button>
                               </div>
                             </div>
 
@@ -1882,15 +1891,42 @@ export const AdminPanel = () => {
                               >
                                 ✓ Approve
                               </motion.button>
-                              <motion.button
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => handleRejectRequest(request.id)}
-                                disabled={loading}
-                                className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
-                              >
-                                ✗ Reject
-                              </motion.button>
+                              {rejectReasonId === request.id ? (
+                                <div className="flex-1 space-y-2">
+                                  <textarea
+                                    rows={2}
+                                    placeholder="Rejection reason..."
+                                    value={rejectReason}
+                                    onChange={e => setRejectReason(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded resize-none focus:ring-2 focus:ring-red-500 outline-none"
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleRejectRequest(request.id, rejectReason)}
+                                      disabled={!rejectReason.trim() || loading}
+                                      className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition disabled:opacity-50"
+                                    >
+                                      Confirm Reject
+                                    </button>
+                                    <button
+                                      onClick={() => { setRejectReasonId(null); setRejectReason(''); }}
+                                      className="px-3 py-1.5 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 rounded text-sm transition"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <motion.button
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  onClick={() => { setRejectReasonId(request.id); setRejectReason(''); }}
+                                  disabled={loading}
+                                  className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
+                                >
+                                  ✗ Reject
+                                </motion.button>
+                              )}
                             </div>
                           )}
                           {request.status !== 'pending' && request.reviewed_at && (
@@ -2076,23 +2112,40 @@ export const AdminPanel = () => {
                       View Public Results
                     </button>
                     {selectedElectionStats.election.is_active && (
-                      <button
-                        onClick={async () => {
-                          if (!window.confirm('Close this election? This will deactivate it.')) return;
-                          try {
-                            await axios.put(`${API_URL}/admin/elections/${selectedElectionStats.election.id}`, { is_active: false }, { headers: getAuthHeader() });
-                            setSuccess('Election closed');
-                            setSelectedElectionStats(null);
-                            loadTabData();
-                            setTimeout(() => setSuccess(''), 3000);
-                          } catch (err) {
-                            setError(err.response?.data?.error || 'Error closing election');
-                          }
-                        }}
-                        className="px-4 py-2 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium transition"
-                      >
-                        Close Election
-                      </button>
+                      closeElectionConfirm ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-red-600 dark:text-red-400 font-medium">Close this election?</span>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await axios.put(`${API_URL}/admin/elections/${selectedElectionStats.election.id}`, { is_active: false }, { headers: getAuthHeader() });
+                                toast.success('Election closed');
+                                setCloseElectionConfirm(false);
+                                setSelectedElectionStats(null);
+                                loadTabData();
+                              } catch (err) {
+                                toast.error(err.response?.data?.error || 'Error closing election');
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition"
+                          >
+                            Yes, close
+                          </button>
+                          <button
+                            onClick={() => setCloseElectionConfirm(false)}
+                            className="px-3 py-1.5 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm transition"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setCloseElectionConfirm(true)}
+                          className="px-4 py-2 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium transition"
+                        >
+                          Close Election
+                        </button>
+                      )
                     )}
                     <button
                       onClick={() => setSelectedElectionStats(null)}
@@ -2107,6 +2160,48 @@ export const AdminPanel = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* QR Code Modal */}
+      {qrElection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-sm"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">📱 QR Code</h2>
+              <button
+                onClick={() => setQrElection(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 flex flex-col items-center gap-4">
+              <p className="text-sm text-slate-600 dark:text-slate-400 text-center font-medium">{qrElection.name}</p>
+              <div className="p-4 bg-white rounded-xl border border-slate-200">
+                <QRCode
+                  value={`${window.location.origin}/voting/${qrElection.id}`}
+                  size={180}
+                />
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center break-all">
+                {window.location.origin}/voting/{qrElection.id}
+              </p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/voting/${qrElection.id}`);
+                  toast.success('Link copied to clipboard');
+                }}
+                className="w-full py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition text-sm"
+              >
+                Copy Link
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Edit Election Modal */}
       {editingElection && (

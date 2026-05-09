@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
@@ -171,6 +171,7 @@ const ElectionCard = ({ election, eligibility, index, navigate, isAdminElection 
 export const Dashboard = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuth();
 
   const [elections, setElections] = useState([]);
@@ -183,6 +184,8 @@ export const Dashboard = () => {
 
   useEffect(() => {
     if (!isAuthenticated) { navigate("/login"); return; }
+    const redirect = searchParams.get('redirect');
+    if (redirect) { navigate(redirect, { replace: true }); return; }
     loadElections();
   }, [isAuthenticated]);
 

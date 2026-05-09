@@ -1,134 +1,189 @@
-# VTB - Inicio Rapido de Servicios
+# VTB — Quick Start
 
-Este archivo resume como levantar el MVP en local. Para una guia completa, lee `README.md`.
+This file covers the minimum steps to run VTB locally. For a full guide see [README.md](./README.md).
 
-## Antes de Empezar
+## Live Demo (no local setup required)
 
-Si has descargado el proyecto desde GitHub, recuerda que no incluye `.env`. Crea primero:
+The app is deployed and ready to use:
 
-- `backend/.env`
-- `frontend/.env.local`
-- `blockchain/.env` solo si vas a desplegar contratos
-
-Sin esos archivos el backend puede arrancar sin blockchain o fallar por falta de secretos.
-
-Web publicada:
-
-```text
-https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app/
+```
+https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app
 ```
 
-## Opcion Recomendada
+> **Cold start:** The Render backend (free tier) sleeps after 15 minutes of inactivity.
+> The first request after sleep takes 30–40 seconds. A banner appears in the UI while waiting.
 
-Usa dos terminales.
+**Quick demo accounts (work instantly — synthetic blockchain):**
 
-Terminal 1:
+| Role          | Email                | Password  |
+|---------------|----------------------|-----------|
+| Voter         | student@vtb.demo     | demo123   |
+| Administrator | admin@vtb.demo       | demo123   |
+
+These accounts bypass the real Ethereum blockchain. Votes are recorded in the database
+with a synthetic SHA-256 hash — no Hardhat or Sepolia needed.
+
+---
+
+## Local Setup (2 terminals minimum)
+
+### Prerequisites
+
+- Node.js 20+
+- `backend/.env` configured (copy from `backend/.env.example`)
+- `frontend/.env` configured (copy from `frontend/.env.example`, set `VITE_API_URL=http://localhost:3001`)
+
+### Terminal 1 — Backend
 
 ```bash
 cd backend
-npm install
-npm start
+npm install      # first time only
+npm run dev      # seeds database automatically on first run
 ```
 
-Terminal 2:
+Verify:
+```
+http://localhost:3001/health  →  {"status":"OK"}
+```
+
+### Terminal 2 — Frontend
 
 ```bash
 cd frontend
-npm install
+npm install      # first time only
 npm run dev
 ```
 
-Abre:
-
-```text
-http://localhost:3000
+Open:
+```
+http://localhost:5173
 ```
 
-Comprueba backend:
+---
 
-```text
-http://localhost:3001/health
-```
+## Terminal 3 — Blockchain (optional)
 
-## Blockchain Local Opcional
-
-Solo hace falta si quieres probar contrato local con Hardhat.
-
-Terminal 3:
+Only needed for real on-chain votes with `@ufv.es`, `@highland.edu`, etc. accounts.
+The `@vtb.demo` accounts always work without this.
 
 ```bash
 cd blockchain
-npm install
-npm run node
+npm install      # first time only
+npx hardhat node
 ```
 
-Terminal 4:
+In a fourth terminal, deploy the contract:
 
 ```bash
 cd blockchain
-npm run deploy:local
+npx hardhat run scripts/deploy.ts --network localhost
 ```
 
-Copia la direccion del contrato desplegado en `backend/.env` como `CONTRACT_ADDRESS`.
+Copy the deployed contract address to `backend/.env`:
+```env
+CONTRACT_ADDRESS=0x<address from deploy output>
+RPC_URL=http://localhost:8545
+```
 
-## Scripts del Repositorio
+Restart the backend after updating `.env`.
 
-Tambien existen scripts historicos:
+---
 
-| Script | Sistema | Nota |
-| --- | --- | --- |
-| `start.bat` | Windows | Abre servicios en ventanas separadas |
-| `start.ps1` | Windows PowerShell | Puede requerir politica de ejecucion |
-| `start.sh` | Linux/macOS/Git Bash | Lanza servicios desde terminal |
+## Demo Accounts
 
-Si algun script falla, usa la opcion recomendada de dos terminales. Es mas facil de depurar.
+### Quick Demo (vtb.demo — synthetic blockchain, always works)
 
-## Cuentas Demo
+| Role          | Email                | Password  |
+|---------------|----------------------|-----------|
+| Voter         | student@vtb.demo     | demo123   |
+| Administrator | admin@vtb.demo       | demo123   |
 
-| Rol | Email | Password |
-| --- | --- | --- |
-| Votante demo | `student@vtb.demo` | `demo123` |
-| Votante demo 2 | `student2@vtb.demo` | `demo123` |
-| Admin demo | `admin@vtb.demo` | `admin123` |
-| Superadmin demo | `superadmin@vtb.demo` | `superadmin123` |
+### Full Demo (real blockchain — requires Hardhat or Sepolia)
 
-Tambien puedes usar el selector de cuentas demo dentro del login.
+**UFV — Universidad Francisco de Vitoria**
 
-## Puertos
+| Email               | Password    | Role                |
+|---------------------|-------------|---------------------|
+| carlos@ufv.es       | demo123     | Voter               |
+| laura@ufv.es        | demo123     | Voter               |
+| miguel@ufv.es       | demo123     | Voter               |
+| sofia@ufv.es        | demo123     | Voter               |
+| julio@ufv.es        | profesor123 | Voter (professor)   |
+| admin@ufv.es        | admin123    | Admin (ufv.es)      |
+| susana@eps.ufv.es   | director123 | Admin (eps.ufv.es)  |
+| olga@eps.ufv.es     | director123 | Admin (eps.ufv.es)  |
+| admin@eps.ufv.es    | admin123    | Admin (eps.ufv.es)  |
 
-| Servicio | URL | Puerto |
-| --- | --- | --- |
-| Frontend | `http://localhost:3000` | 3000 |
-| Backend | `http://localhost:3001` | 3001 |
-| Hardhat | `http://localhost:8545` | 8545 |
+**Highlands School**
 
-## Problemas Frecuentes
+| Email                 | Password    | Role                  |
+|-----------------------|-------------|-----------------------|
+| student5@highland.edu | demo123     | Voter                 |
+| student6@highland.edu | demo123     | Voter                 |
+| julio@highland.edu    | profesor123 | Voter (professor)     |
+| admin@highland.edu    | admin123    | Admin (highland.edu)  |
 
-### Puerto 3001 ocupado
+**System**
 
-Comprueba si ya hay un backend VTB funcionando:
+| Email                  | Password       | Role        |
+|------------------------|----------------|-------------|
+| superadmin@vtb.system  | superadmin123  | Super Admin |
 
+---
+
+## Ports
+
+| Service   | URL                       | Port |
+|-----------|---------------------------|------|
+| Frontend  | http://localhost:5173     | 5173 |
+| Backend   | http://localhost:3001     | 3001 |
+| Hardhat   | http://localhost:8545     | 8545 |
+
+---
+
+## Startup Scripts (alternative)
+
+The repo includes platform-specific launch scripts. These open services in separate
+windows or tabs. If any script fails, use the manual two-terminal method above.
+
+| Script          | Platform          | Notes                           |
+|-----------------|-------------------|---------------------------------|
+| `start.bat`     | Windows CMD       | Opens services in new windows   |
+| `start.ps1`     | Windows PowerShell| May need execution policy set   |
+| `start.sh`      | Linux / macOS     | Requires bash                   |
+
+PowerShell execution policy (if blocked):
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+---
+
+## Troubleshooting
+
+### Port 3001 already in use
+
+Check if a VTB backend is already running:
 ```bash
 curl http://localhost:3001/health
 ```
 
-En Windows:
-
+Windows — find and kill the process:
 ```powershell
 Get-NetTCPConnection -LocalPort 3001 | Select-Object LocalAddress,LocalPort,State,OwningProcess
 Stop-Process -Id <PID>
 ```
 
-### PowerShell bloquea scripts
+### Vote fails with blockchain error
 
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
+For `@vtb.demo` accounts, the blockchain is bypassed — this should never fail.
+For real accounts, verify `RPC_URL`, `CONTRACT_ADDRESS`, and `PRIVATE_KEY` in `backend/.env`.
 
-### npm no existe
+### SQLite resets on Render after deploy
 
-Instala Node.js 20 desde:
+Expected behavior on Render free tier — the filesystem is ephemeral.
+Add a Render Persistent Disk ($5/month) to persist `vtb.db` between deploys.
 
-```text
-https://nodejs.org/
-```
+### Node.js not found
+
+Install Node.js 20 from: https://nodejs.org/

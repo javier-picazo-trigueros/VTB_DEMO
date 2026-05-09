@@ -7,6 +7,9 @@ import {
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import QRCode from 'react-qr-code';
 import { Navbar } from '../components/Navbar';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -33,6 +36,7 @@ const ElectionResults = () => {
   const [lastUpdatedSec, setLastUpdatedSec] = useState(0);
   const [chartType, setChartType] = useState('bar');
   const [copied, setCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   // Stable ref so the auto-refresh interval never captures a stale fetchResults
   const fetchResultsRef = useRef(null);
@@ -77,7 +81,7 @@ const ElectionResults = () => {
   };
 
   const exportCSV = () => {
-    if (!auditData || auditData.length === 0) { alert('No data to export'); return; }
+    if (!auditData || auditData.length === 0) { toast.error('No audit data to export'); return; }
     const headers = ['Nullifier', 'TxHash', 'BlockNumber', 'Timestamp'];
     const rows = auditData.map(r => [r.nullifier || '', r.txHash || '', r.blockNumber || '', r.timestamp || '']);
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
@@ -86,6 +90,234 @@ const ElectionResults = () => {
     link.href = URL.createObjectURL(blob);
     link.download = `audit-election-${id}.csv`;
     link.click();
+  };
+
+  const exportPDF = async () => {
+    // Load audit data if not already loaded
+    let currentAuditData = auditData;
+    if (currentAuditData.length === 0) {
+      const toastId = toast.loading('Loading audit data...');
+      try {
+        const response = await axios.get(
+          `${API_URL}/api/elections/${id}/audit`,
+          { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
+        );
+        currentAuditData = response.data || [];
+        setAuditData(currentAuditData);
+      } catch (err) {
+        console.error('Error loading audit for PDF:', err);
+      }
+      toast.dismiss(toastId);
+    }
+
+    const toastId = toast.loading('Generating PDF...');
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = 210;
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
+
+      // ── Header ──────────────────────────────────────────────
+      pdf.setFillColor(30, 64, 175);
+      pdf.rect(0, 0, 210, 30, 'F');
+
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('VTB — Vote Through Blockchain', margin, 13);
+
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Official Election Results Report', margin, 22);
+
+      pdf.setFontSize(9);
+      const now = new Date().toLocaleString('en-GB');
+      pdf.text(`Generated: ${now}`, pageWidth - margin - 55, 22);
+
+      y = 40;
+
+      // ── Election title ───────────────────────────────────────
+      pdf.setTextColor(30, 41, 59);
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(results?.election?.name || 'Election Results', margin, y);
+      y += 8;
+
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(100, 116, 139);
+      const status = results?.election?.status === 'active' ? 'ACTIVE' : 'CLOSED';
+      pdf.text(`Status: ${status}  |  Total Votes: ${results?.totalVotes || 0}  |  Participation: ${results?.participationRate || 0}%`, margin, y);
+      y += 5;
+
+      if (results?.election?.startDate) {
+        const start = new Date(results.election.startDate).toLocaleDateString('en-GB');
+        const end = new Date(results.election.endDate).toLocaleDateString('en-GB');
+        pdf.text(`Period: ${start} → ${end}`, margin, y);
+        y += 5;
+      }
+
+      y += 5;
+
+      // ── Divider ──────────────────────────────────────────────
+      pdf.setDrawColor(203, 213, 225);
+      pdf.setLineWidth(0.3);
+      pdf.line(margin, y, pageWidth - margin, y);
+      y += 7;
+
+      // ── Candidate results ────────────────────────────────────
+      pdf.setTextColor(30, 41, 59);
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Candidate Results', margin, y);
+      y += 7;
+
+      const candidates = results?.candidates || [];
+      const totalVotes = results?.totalVotes || 0;
+
+      candidates.forEach((c, i) => {
+        if (y > 260) {
+          pdf.addPage();
+          y = margin;
+        }
+
+        const isWinner = i === 0 && totalVotes > 0;
+        const pct = c.percentage || 0;
+        const barWidth = (pct / 100) * contentWidth;
+
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(isWinner ? 30 : 51, isWinner ? 64 : 65, isWinner ? 175 : 85);
+        const label = isWinner ? `Winner: ${c.name}` : `${i + 1}. ${c.name}`;
+        pdf.text(label, margin, y);
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(30, 64, 175);
+        pdf.text(`${c.votes} votes  (${pct.toFixed(1)}%)`, pageWidth - margin - 40, y);
+        y += 4;
+
+        pdf.setFillColor(226, 232, 240);
+        pdf.rect(margin, y, contentWidth, 4, 'F');
+
+        if (barWidth > 0) {
+          pdf.setFillColor(isWinner ? 16 : 59, isWinner ? 185 : 130, isWinner ? 129 : 246);
+          pdf.rect(margin, y, barWidth, 4, 'F');
+        }
+
+        y += 8;
+
+        if (c.description) {
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'italic');
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(c.description, margin + 4, y);
+          y += 5;
+        }
+        y += 2;
+      });
+
+      y += 5;
+
+      // ── Blockchain audit section ─────────────────────────────
+      if (currentAuditData && currentAuditData.length > 0) {
+        if (y > 230) { pdf.addPage(); y = margin; }
+
+        pdf.setDrawColor(203, 213, 225);
+        pdf.line(margin, y, pageWidth - margin, y);
+        y += 7;
+
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(30, 41, 59);
+        pdf.text('Blockchain Audit Trail', margin, y);
+        y += 5;
+
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(`${currentAuditData.length} votes recorded. Hashes are anonymous — no voter identity is stored.`, margin, y);
+        y += 7;
+
+        // Table header
+        pdf.setFillColor(30, 64, 175);
+        pdf.rect(margin, y, contentWidth, 6, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(7);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('#', margin + 2, y + 4);
+        pdf.text('Nullifier Hash', margin + 10, y + 4);
+        pdf.text('TX Hash', margin + 80, y + 4);
+        pdf.text('Timestamp', margin + 148, y + 4);
+        y += 6;
+
+        const limit = Math.min(currentAuditData.length, 30);
+        currentAuditData.slice(0, limit).forEach((record, idx) => {
+          if (y > 270) { pdf.addPage(); y = margin; }
+
+          const rowBg = idx % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+          pdf.setFillColor(...rowBg);
+          pdf.rect(margin, y, contentWidth, 5, 'F');
+
+          pdf.setTextColor(30, 41, 59);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(6.5);
+
+          const nullifier = record.nullifier
+            ? record.nullifier.slice(0, 10) + '...' + record.nullifier.slice(-6)
+            : '—';
+          const txHash = record.txHash
+            ? record.txHash.slice(0, 10) + '...' + record.txHash.slice(-6)
+            : 'pending';
+          const ts = record.timestamp
+            ? new Date(record.timestamp).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+            : '—';
+
+          pdf.text(String(idx + 1), margin + 2, y + 3.5);
+          pdf.text(nullifier, margin + 10, y + 3.5);
+          pdf.setTextColor(record.txHash ? 30 : 150, record.txHash ? 64 : 150, record.txHash ? 175 : 150);
+          pdf.text(txHash, margin + 80, y + 3.5);
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(ts, margin + 148, y + 3.5);
+          y += 5;
+        });
+
+        if (currentAuditData.length > 30) {
+          y += 3;
+          pdf.setFontSize(8);
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(`... and ${currentAuditData.length - 30} more records. Export full audit via the CSV button.`, margin, y);
+          y += 5;
+        }
+      }
+
+      // ── Footer ───────────────────────────────────────────────
+      const pageCount = pdf.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(7);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `VTB — Vote Through Blockchain  |  All votes verified on Ethereum  |  Page ${i} of ${pageCount}`,
+          margin, 293
+        );
+        if (results?.onChainVerified) {
+          pdf.setTextColor(16, 185, 129);
+          pdf.text('Verified on-chain', pageWidth - margin - 35, 293);
+        }
+      }
+
+      // ── Save ─────────────────────────────────────────────────
+      const filename = `VTB_Results_${(results?.election?.name || 'election').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      pdf.save(filename);
+      toast.dismiss(toastId);
+      toast.success('PDF exported successfully');
+    } catch (err) {
+      console.error('PDF export error:', err);
+      toast.dismiss(toastId);
+      toast.error('Error generating PDF');
+    }
   };
 
   // Auto-refresh for active elections — stale-closure-safe via ref
@@ -180,16 +412,37 @@ const ElectionResults = () => {
               )}
             </div>
 
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-sm transition"
-            >
-              {copied ? `✓ ${t('results.copied')}` : `🔗 ${t('results.share')}`}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* PDF Export */}
+              <button
+                onClick={exportPDF}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition"
+              >
+                📄 Export PDF
+              </button>
+
+              {/* QR Code — only for active elections */}
+              {election?.status === 'active' && (
+                <button
+                  onClick={() => setShowQR(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition"
+                >
+                  📱 QR Code
+                </button>
+              )}
+
+              {/* Share / copy link */}
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-sm transition"
+              >
+                {copied ? `✓ ${t('results.copied')}` : `🔗 ${t('results.share')}`}
+              </button>
+            </div>
           </div>
         </motion.div>
 
@@ -484,11 +737,42 @@ const ElectionResults = () => {
           </motion.div>
         )}
       </main>
+
+      {/* QR Code Modal */}
+      {showQR && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl">
+            <h3 className="font-bold text-slate-900 dark:text-white mb-1">{election?.name}</h3>
+            <p className="text-xs text-slate-500 mb-4">Scan to vote</p>
+            <div className="bg-white p-4 rounded-xl inline-block shadow-inner mb-4">
+              <QRCode value={`${window.location.origin}/voting/${id}`} size={180} />
+            </div>
+            <p className="text-xs text-slate-400 font-mono break-all mb-4">
+              {window.location.origin}/voting/{id}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowQR(false)}
+                className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl text-sm transition hover:bg-slate-50 dark:hover:bg-slate-700"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/voting/${id}`);
+                  toast.success('Link copied');
+                }}
+                className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition"
+              >
+                Copy Link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 
 export default ElectionResults;
-
-

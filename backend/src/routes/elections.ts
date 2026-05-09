@@ -665,6 +665,33 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       return;
     }
 
+    // Check if this is a vtb.demo account — use synthetic fallback immediately
+    const isDemo = decoded.email?.endsWith('@vtb.demo');
+
+    if (isDemo) {
+      const { createHash } = await import('crypto');
+      const syntheticTx = '0x' + createHash('sha256')
+        .update(`demo:${decoded.userId}:${electionId}:${Date.now()}`)
+        .digest('hex');
+
+      try {
+        await db.exec(
+          'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, generated_at) VALUES (?, ?, ?, ?, ?, NULL, ?, datetime("now"))',
+          [decoded.userId, electionId, nullifier, candidateId ? String(candidateId) : null, syntheticTx, candidateId ?? null]
+        );
+      } catch (auditErr) {
+        console.warn('Demo audit insert warning:', auditErr);
+      }
+
+      return res.json({
+        success: true,
+        txHash: syntheticTx,
+        blockNumber: null,
+        isDemo: true,
+        message: 'Demo vote registered (synthetic — not on real blockchain)',
+      });
+    }
+
     // Si no est configurada la conexin blockchain, retornar error
     const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "";
     const PRIVATE_KEY = process.env.PRIVATE_KEY || "";

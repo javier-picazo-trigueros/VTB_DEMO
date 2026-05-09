@@ -1,336 +1,236 @@
-# VTB - Vote Through Blockchain
+# VTB — Vote Through Blockchain
 
-VTB es una plataforma de votacion institucional que combina autenticacion Web2 con registro y auditoria Web3. El objetivo del MVP es permitir que universidades, colegios u organizaciones creen elecciones, asignen censos, reciban votos anonimos y muestren resultados auditables.
+> Anonymous. Verifiable. Democratic.
 
-Web publicada:
+VTB is a hybrid Web2+Web3 institutional voting platform. Every vote is
+cryptographically secured with HMAC-SHA256 nullifiers and recorded immutably
+on Ethereum Sepolia. Anyone can verify the vote count on Etherscan without
+a login or account.
 
-```text
-https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app/
-```
+## Live Demo
 
-> Nota: la demo publica depende de que el backend desplegado este activo. En servicios gratuitos puede tardar unos segundos en despertar.
+| Service   | URL                                                                            |
+|-----------|--------------------------------------------------------------------------------|
+| Frontend  | https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app      |
+| Backend   | https://vtb-backend-4emv.onrender.com                                          |
+| Contract  | https://sepolia.etherscan.io/address/0xF6909eaF37D33b5133a282c4b3750981Bc768a4 |
 
-## Que Incluye
+> **Note:** The Render backend runs on the free tier and sleeps after 15 minutes
+> of inactivity. The first request may take 30–40 seconds to wake it up.
+> Subsequent requests are instant.
 
-| Capa | Tecnologia | Funcion |
-| --- | --- | --- |
-| Frontend | React 18, Vite, Tailwind, i18next | Interfaz de votante, panel admin, resultados, auditoria publica, tema claro/oscuro |
-| Backend | Express, TypeScript, SQLite | Autenticacion, censo, elecciones, resultados, relayer blockchain |
-| Blockchain | Solidity, Hardhat, Sepolia | Contrato `ElectionRegistry` para registrar nullifiers y hashes de voto |
-| Privacidad | JWT, bcrypt, HMAC-SHA256 | Un voto por usuario y eleccion sin publicar identidad en blockchain |
+## Demo Accounts
 
-## Funcionalidades del MVP
+### Quick Demo (no Hardhat required — synthetic blockchain)
 
-- Login de votantes, administradores y superadmin.
-- Portal institucional por dominio.
-- Solicitud de acceso y aprobacion por administradores.
-- Panel admin para crear usuarios, elecciones, candidatos y censos.
-- Importacion CSV de usuarios.
-- Dashboard de elecciones asignadas.
-- Cabina de voto con prevencion de doble voto.
-- Registro de voto con nullifier anonimo.
-- Resultados y participacion.
-- Auditoria publica de transacciones/nullifiers.
-- Tema claro/oscuro, selector de idioma y onboarding por cuenta.
+These accounts work instantly on the live Vercel deployment.
+Votes are recorded in the database but NOT on the real Ethereum blockchain.
+A synthetic SHA-256 hash is shown in place of a real `txHash`.
 
-## Probar la Web Publicada
+| Account              | Password  | Role          |
+|----------------------|-----------|---------------|
+| student@vtb.demo     | demo123   | Voter         |
+| admin@vtb.demo       | demo123   | Administrator |
 
-Abre:
+### Full Demo (requires local backend + Hardhat running)
 
-```text
-https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app/
-```
+These accounts go through the real blockchain flow.
+Votes are recorded on Ethereum Sepolia with a real `txHash` viewable on Etherscan.
 
-Puedes entrar desde el selector de demo del login o usar estas cuentas:
+**UFV — Universidad Francisco de Vitoria**
 
-| Tipo | Email | Password |
-| --- | --- | --- |
-| Votante demo | `student@vtb.demo` | `demo123` |
-| Votante demo 2 | `student2@vtb.demo` | `demo123` |
-| Votante UFV | `demo.ufv@ufv.es` | `demo123` |
-| Votante Highland | `demo.highland@highland.edu` | `demo123` |
-| Votante Universidad | `demo.universidad@universidad.edu` | `demo123` |
-| Admin demo | `admin@vtb.demo` | `admin123` |
-| Admin UFV | `admin.demo@ufv.es` | `admin123` |
-| Superadmin demo | `superadmin@vtb.demo` | `superadmin123` |
+| Account             | Password    | Role                                              |
+|---------------------|-------------|---------------------------------------------------|
+| carlos@ufv.es       | demo123     | Voter (student)                                   |
+| laura@ufv.es        | demo123     | Voter (student)                                   |
+| miguel@ufv.es       | demo123     | Voter (student)                                   |
+| sofia@ufv.es        | demo123     | Voter (student)                                   |
+| julio@ufv.es        | profesor123 | Voter (professor — can vote, cannot admin)        |
+| admin@ufv.es        | admin123    | Admin (ufv.es domain)                             |
+| susana@eps.ufv.es   | director123 | Admin (eps.ufv.es — EPS Director)                 |
+| olga@eps.ufv.es     | director123 | Admin (eps.ufv.es — EPS Director)                 |
+| admin@eps.ufv.es    | admin123    | Admin (eps.ufv.es)                                |
 
-## Importante si lo Descargas de GitHub
+**Highlands School**
 
-El proyecto no se puede ejecutar directamente despues de clonar el repositorio porque los archivos `.env` no se suben a GitHub. Esto es intencionado: contienen secretos, claves privadas, URLs de RPC, direcciones de contrato y configuracion local.
+| Account               | Password    | Role                      |
+|-----------------------|-------------|---------------------------|
+| student5@highland.edu | demo123     | Voter (student)           |
+| student6@highland.edu | demo123     | Voter (student)           |
+| julio@highland.edu    | profesor123 | Voter (no admin access)   |
+| admin@highland.edu    | admin123    | Admin (highland.edu)      |
 
-Si lo clonas, debes crear tus propios archivos de entorno:
+**System**
 
-- `backend/.env`
-- `frontend/.env.local`
-- `blockchain/.env` solo si vas a desplegar contratos
+| Account                | Password       | Role                       |
+|------------------------|----------------|----------------------------|
+| superadmin@vtb.system  | superadmin123  | Super Admin (all domains)  |
 
-Hay plantillas copiables en:
+> **Account hierarchy note:**
+> `susana@eps.ufv.es` and `olga@eps.ufv.es` are directors of EPS (Escuela Politécnica
+> Superior). They can create elections targeting the `eps.ufv.es` domain, which includes
+> `julio@ufv.es` as a voter. `julio@ufv.es` has `role: student` — he can vote but cannot
+> access the admin panel.
 
-- `backend/.env.example`
-- `frontend/.env.example`
-- `blockchain/.env.example`
+## Stack
 
-Sin esos archivos, el backend puede fallar al arrancar con errores como:
+| Layer      | Technology                                           |
+|------------|------------------------------------------------------|
+| Frontend   | React 18 + Vite + Tailwind CSS + Framer Motion       |
+| Backend    | Express + TypeScript + SQLite3                       |
+| Blockchain | Solidity (ElectionRegistry.sol) on Ethereum Sepolia  |
+| Auth       | JWT + bcrypt + HMAC-SHA256 nullifiers                |
+| Deploy     | Vercel (frontend) + Render (backend)                 |
+| Testing    | Vitest + Supertest                                   |
 
-```text
-FATAL: JWT_SECRET environment variable is not set
-```
+## Local Setup
 
-o los votos no podran enviarse a blockchain porque faltan `CONTRACT_ADDRESS`, `PRIVATE_KEY` o `RPC_URL`.
+### Prerequisites
 
-## Requisitos Locales
-
-- Node.js 20.x
-- npm
+- Node.js 20+
 - Git
-- Opcional: wallet Sepolia con ETH de test
-- Opcional: RPC Sepolia de Alchemy, Infura u otro proveedor
 
-Instala dependencias en cada carpeta, no en la raiz:
+### 1. Clone the repository
 
 ```bash
-cd backend
-npm install
-
-cd ../frontend
-npm install
-
-cd ../blockchain
-npm install
+git clone https://github.com/javier-picazo-trigueros/VTB_DEMO.git
+cd VTB_DEMO
 ```
 
-## Configuracion de Entorno
+### 2. Install dependencies
 
-### Backend
+```bash
+cd backend && npm install && cd ..
+cd frontend && npm install && cd ..
+cd blockchain && npm install && cd ..
+```
 
-Crea `backend/.env`:
+### 3. Configure environment variables
 
 ```bash
 cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+cp blockchain/.env.example blockchain/.env
 ```
+
+Edit `backend/.env` with your values. The minimum required fields are:
 
 ```env
 PORT=3001
 NODE_ENV=development
-
-JWT_SECRET=replace_with_random_64_char_hex
-NULLIFIER_SECRET=replace_with_random_64_char_hex
-
+JWT_SECRET=<random 64-char hex>
+NULLIFIER_SECRET=<random 64-char hex>
 DATABASE_PATH=./vtb.db
-
-CORS_ORIGINS=http://localhost:3000,http://localhost:5173
-
+CORS_ORIGINS=http://localhost:5173
 RPC_URL=http://localhost:8545
 CONTRACT_ADDRESS=0x0000000000000000000000000000000000000000
 PRIVATE_KEY=0x0000000000000000000000000000000000000000000000000000000000000000
 EXPLORER_URL=http://localhost:8545
 ```
 
-Genera secretos seguros:
+Generate secrets with:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Para usar Sepolia real, cambia:
+For real Sepolia votes, set:
 
 ```env
 RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
-CONTRACT_ADDRESS=YOUR_DEPLOYED_CONTRACT_ADDRESS
+CONTRACT_ADDRESS=0xF6909eaF37D33b5133a282c4b3750981Bc768a4
 PRIVATE_KEY=0xYOUR_SEPOLIA_RELAYER_PRIVATE_KEY
 EXPLORER_URL=https://sepolia.etherscan.io
 ```
 
-### Frontend
+### 4. Start services (2–3 terminals)
 
-Crea `frontend/.env.local`:
-
-```bash
-cp frontend/.env.example frontend/.env.local
-```
-
-```env
-VITE_API_URL=http://localhost:3001
-VITE_EXPLORER_URL=https://sepolia.etherscan.io
-```
-
-No pongas claves privadas en variables `VITE_*`. Todo lo que empieza por `VITE_` queda visible en el navegador.
-
-### Blockchain
-
-Crea `blockchain/.env` si quieres desplegar el contrato:
-
-```bash
-cp blockchain/.env.example blockchain/.env
-```
-
-```env
-SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
-DEPLOYER_PRIVATE_KEY=0xYOUR_PRIVATE_KEY
-ETHERSCAN_API_KEY=optional
-```
-
-## Ejecutar en Local
-
-Abre dos terminales.
-
-Terminal 1, backend:
+**Terminal 1 — Backend:**
 
 ```bash
 cd backend
-npm start
+npm run dev
+# Database seeds automatically on first run
 ```
 
-Comprueba que responde:
-
-```bash
-curl http://localhost:3001/health
-```
-
-Terminal 2, frontend:
+**Terminal 2 — Frontend:**
 
 ```bash
 cd frontend
 npm run dev
+# Open http://localhost:5173
 ```
 
-Abre:
-
-```text
-http://localhost:3000
-```
-
-El backend inicializa SQLite y carga datos demo al arrancar.
-
-## Blockchain Local Opcional
-
-Si quieres probar con Hardhat local:
-
-Terminal 1:
+**Terminal 3 — Blockchain (optional, only for real on-chain votes):**
 
 ```bash
 cd blockchain
-npm run node
+npx hardhat node
+# In a 4th terminal: npx hardhat run scripts/deploy.ts --network localhost
 ```
 
-Terminal 2:
+### 5. Run tests
 
 ```bash
-cd blockchain
-npm run deploy:local
+cd backend && npx vitest run
+cd frontend && npm run build
 ```
 
-Copia la direccion desplegada a `backend/.env` como `CONTRACT_ADDRESS`.
+## Architecture
 
-Para Sepolia:
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for full architecture documentation.
 
-```bash
-cd blockchain
-npm run deploy:sepolia
-```
+## API Documentation
 
-## Flujo de Uso Recomendado
+See [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) for all endpoints.
 
-1. Entra como admin o superadmin.
-2. Crea o revisa usuarios.
-3. Crea una eleccion con candidatos.
-4. Asigna votantes al censo.
-5. Entra como votante.
-6. Abre el dashboard y vota.
-7. Consulta resultados y auditoria.
+## Key Features
 
-## URLs Locales Utiles
+- **Multi-tenant:** supports multiple institutions with isolated data per domain
+- **Anonymous voting:** HMAC-SHA256 nullifiers prevent double voting without revealing identity
+- **Public auditability:** `/transparency` page requires no login — anyone can verify vote counts
+- **Two-tier demo:** vtb.demo accounts use synthetic hashes; real accounts use Ethereum Sepolia
+- **QR code sharing:** admins generate QR codes linking directly to elections (`/voting/:id`)
+- **PDF export:** download election results with full blockchain audit trail (jsPDF)
+- **Guided onboarding:** react-joyride tour on first login, persisted per-user in localStorage
+- **i18n:** full English and Spanish support (i18next)
+- **Dark mode:** system preference + manual toggle
 
-| Recurso | URL |
-| --- | --- |
-| Landing | `http://localhost:3000/landing` |
-| Login | `http://localhost:3000/login` |
-| Dashboard | `http://localhost:3000/dashboard` |
-| Admin | `http://localhost:3000/admin` |
-| Auditoria publica | `http://localhost:3000/transparency` |
-| Backend health | `http://localhost:3001/health` |
-| Stats API | `http://localhost:3001/api/stats` |
-| Auditoria API | `http://localhost:3001/api/audit/public` |
+## Security Notes
 
-## Validacion
+- JWT stored in localStorage (planned migration to httpOnly cookies)
+- SQLite resets on Render free tier deploys — add a persistent disk for production
+- Results are computed from SQLite, not from per-candidate blockchain commitments
+- The relayer private key signs all blockchain transactions; use a dedicated demo wallet
+- See [ARCHITECTURE.md](./ARCHITECTURE.md) Known Limitations section for full details
 
-Backend:
+## Local URLs
 
-```bash
-cd backend
-npm test
-npm run typecheck
-```
+| Resource           | URL                                 |
+|--------------------|-------------------------------------|
+| Landing            | http://localhost:5173/landing       |
+| Login              | http://localhost:5173/login         |
+| Dashboard          | http://localhost:5173/dashboard     |
+| Admin panel        | http://localhost:5173/admin         |
+| Public audit       | http://localhost:5173/transparency  |
+| Backend health     | http://localhost:3001/health        |
+| Public stats API   | http://localhost:3001/api/stats     |
 
-Frontend:
+## Troubleshooting
 
-```bash
-cd frontend
-npm run build
-```
+### Frontend runs on port 5173, not 3000
 
-Blockchain:
+Vite defaults to port 5173. Make sure `CORS_ORIGINS` in `backend/.env` includes `http://localhost:5173`.
 
-```bash
-cd blockchain
-npm run compile
-```
+### Vote fails with blockchain error
 
-## Problemas Frecuentes
+For `@vtb.demo` accounts, the blockchain is bypassed automatically — votes always succeed with a synthetic hash.
+For real accounts, you need a valid `RPC_URL`, `CONTRACT_ADDRESS`, and a `PRIVATE_KEY` with Sepolia ETH.
 
-### El puerto 3001 esta ocupado
+### The onboarding tour reappears
 
-Ya hay un backend corriendo o un proceso usando ese puerto.
+The tour is saved in `localStorage` with a per-user key. Clearing browser storage, switching browsers, or using incognito mode will reset it. You can also reset it manually from the profile page.
 
-Windows:
+### Backend cold start on Render
 
-```powershell
-Get-NetTCPConnection -LocalPort 3001 | Select-Object LocalAddress,LocalPort,State,OwningProcess
-Stop-Process -Id <PID>
-```
-
-Antes de pararlo, puedes comprobar si ya es VTB:
-
-```bash
-curl http://localhost:3001/health
-```
-
-### No puedo iniciar sesion
-
-Revisa:
-
-- Backend levantado en `http://localhost:3001`.
-- `frontend/.env.local` apunta al backend correcto.
-- `backend/.env` tiene `JWT_SECRET` y `NULLIFIER_SECRET`.
-- La cuenta esta aprobada.
-- El password es correcto.
-
-### El voto falla por blockchain
-
-Para voto real on-chain necesitas:
-
-- `RPC_URL` valido.
-- `CONTRACT_ADDRESS` valido.
-- `PRIVATE_KEY` del relayer con ETH de Sepolia.
-- Eleccion creada o sincronizada con el contrato.
-
-En modo MVP puede existir fallback local para demo si una eleccion no esta registrada on-chain, pero la auditoria indicara si hay transaccion real.
-
-### El tutorial vuelve a salir
-
-El onboarding se guarda en `localStorage` con una clave por usuario. Si borras datos del navegador, cambias de navegador o usas modo incognito, volvera a mostrarse. Desde el perfil puedes reiniciarlo manualmente.
-
-## Documentacion del Repositorio
-
-- `README.md`: guia principal de instalacion, uso y demo.
-- `ARCHITECTURE.md`: arquitectura tecnica del MVP.
-- `API_DOCUMENTATION.md`: referencia de endpoints.
-- `START_SERVICES.md`: comandos rapidos para levantar servicios.
-
-## Seguridad
-
-- No subas `.env`, `.env.local`, bases de datos ni claves privadas.
-- No uses wallets con fondos reales.
-- No pongas `PRIVATE_KEY` en variables del frontend.
-- Usa secretos largos y aleatorios para JWT/nullifiers.
-- Para produccion real, sustituir SQLite temporal por una base persistente y revisar el modelo de custodia del relayer.
+The Render free tier hibernates after 15 minutes of inactivity. The first request after sleep can take 30–40 seconds. A banner appears in the frontend while waiting.

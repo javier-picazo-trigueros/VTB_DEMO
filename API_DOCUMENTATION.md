@@ -1,32 +1,33 @@
-# VTB - API Documentation
+# VTB — API Documentation
 
-Base local:
+**Base URL (local):** `http://localhost:3001`
+**Base URL (production):** `https://vtb-backend-4emv.onrender.com`
 
-```text
-http://localhost:3001
-```
+The API is organized into four prefixes:
 
-La API se organiza en:
+| Prefix          | Scope                                    |
+|-----------------|------------------------------------------|
+| `/health`       | Server liveness probe                    |
+| `/auth`         | Authentication and user profile          |
+| `/api`          | Public + authenticated election data     |
+| `/admin`        | Admin-only management endpoints          |
+| `/registration` | Registration request flow                |
 
-- `/auth` para autenticacion y perfil.
-- `/api` para elecciones, resultados, auditoria publica y datos publicos.
-- `/admin` para panel de administracion.
-- `/registration` para solicitudes de acceso.
-
-Los endpoints privados requieren:
+Protected endpoints require:
 
 ```http
 Authorization: Bearer <JWT>
 ```
 
+---
+
 ## Health
 
 ### GET `/health`
 
-Comprueba que el backend esta vivo.
+Liveness probe. No auth required.
 
-Response:
-
+**Response:**
 ```json
 {
   "status": "OK",
@@ -38,16 +39,17 @@ Response:
 
 ### GET `/api/health`
 
-Alias con la misma funcion.
+Alias — same response.
 
-## Autenticacion
+---
+
+## Authentication
 
 ### POST `/auth/login`
 
-Valida email y password. Devuelve JWT y datos basicos del usuario.
+Authenticates with email + password. Returns JWT and user data.
 
-Request:
-
+**Request:**
 ```json
 {
   "email": "student@vtb.demo",
@@ -55,8 +57,7 @@ Request:
 }
 ```
 
-Response:
-
+**Response:**
 ```json
 {
   "success": true,
@@ -64,121 +65,156 @@ Response:
   "user": {
     "id": 1,
     "email": "student@vtb.demo",
-    "name": "Demo Student VTB",
-    "student_id": "VTB-DEMO-001",
+    "name": "Demo Student",
+    "student_id": "DEMO-STU-001",
     "role": "student",
     "adminDomain": null
   }
 }
 ```
 
-Errores habituales:
+**Error codes:**
 
-| Codigo | Motivo |
-| --- | --- |
-| 400 | Faltan email o password |
-| 401 | Credenciales incorrectas |
-| 403 | Cuenta pendiente de aprobacion |
-| 429 | Demasiados intentos |
+| Code | Reason                          |
+|------|---------------------------------|
+| 400  | Missing email or password       |
+| 401  | Wrong credentials               |
+| 403  | Account pending approval        |
+| 429  | Too many attempts (rate limited)|
+
+### POST `/auth/register`
+
+Creates a user account directly (used by admin-flow registration). Returns JWT on success.
 
 ### GET `/auth/me`
 
-Devuelve el usuario actual a partir del JWT. Se usa para persistir sesion.
+Returns the current user from the JWT. Used for session persistence on page reload.
 
 ### GET `/auth/verify`
 
-Verifica si el token sigue siendo valido.
+Validates whether the current token is still valid.
+
+**Response:**
+```json
+{ "valid": true, "user": { ... } }
+```
 
 ### PATCH `/auth/change-password`
 
-Cambia password del usuario autenticado.
+Changes the authenticated user's password.
 
-Request:
-
+**Request:**
 ```json
 {
   "currentPassword": "demo123",
-  "newPassword": "newpass123"
+  "newPassword": "newsecure456"
 }
 ```
 
 ### GET `/auth/me/profile`
 
-Devuelve perfil completo del usuario autenticado.
+Returns the full profile of the authenticated user including academic data.
 
 ### PATCH `/auth/me/profile`
 
-Actualiza campos editables del perfil.
+Updates editable profile fields.
 
-## Solicitudes de Registro
+**Request (partial):**
+```json
+{
+  "name": "New Name",
+  "school": "Escuela Politécnica Superior",
+  "degree": "Ingeniería Informática",
+  "year": 3
+}
+```
+
+---
+
+## Registration Requests
 
 ### POST `/registration/request`
 
-Crea una solicitud de acceso.
+Submits an access request. If the email domain is whitelisted, it may be auto-approved.
 
-Request:
-
+**Request:**
 ```json
 {
-  "full_name": "Nuevo Alumno",
+  "full_name": "New Student",
   "email": "nuevo@ufv.es",
   "student_id": "UFV-2026-001",
   "password": "demo123",
-  "school": "Facultad",
-  "degree": "Grado",
+  "school": "Escuela Politécnica Superior",
+  "degree": "Ingeniería Informática",
   "year": 2,
   "study_group": "A"
 }
 ```
 
-Si el email esta en whitelist, puede aprobarse automaticamente. Si no, queda pendiente para un admin.
+---
 
-## Organizaciones y Datos Publicos
+## Public / Organization Data
 
 ### GET `/api/stats`
 
-Devuelve estadisticas publicas para landing.
+Public. Returns aggregate statistics for the landing page and transparency page.
+
+**Response:**
+```json
+{
+  "totalElections": 12,
+  "totalVotes": 347,
+  "institutions": 3,
+  "onChainVerified": true
+}
+```
 
 ### GET `/api/audit/public`
 
-Devuelve ultimos registros publicos de auditoria.
+Public. Returns recent nullifier audit entries (no personal identity exposed).
+
+**Response:**
+```json
+[
+  {
+    "nullifier": "0x...",
+    "txHash": "0x...",
+    "blockNumber": 12345678,
+    "timestamp": "2026-05-08 10:00:00",
+    "explorerLink": "https://sepolia.etherscan.io/tx/0x...",
+    "onChain": true
+  }
+]
+```
 
 ### GET `/api/organizations/:domain`
 
-Devuelve branding de una organizacion.
+Returns branding data for an institution.
 
-Ejemplos:
-
-```text
-/api/organizations/ufv.es
-/api/organizations/highland.edu
-/api/organizations/vtb.demo
+**Examples:**
+```
+GET /api/organizations/ufv.es
+GET /api/organizations/highland.edu
+GET /api/organizations/vtb.demo
 ```
 
 ### GET `/api/org-units`
 
-Lista unidades organizativas. Acepta:
-
-```text
-/api/org-units?domain=ufv.es
-```
+Lists organizational units. Accepts optional `?domain=ufv.es` filter.
 
 ### GET `/api/schools-degrees`
 
-Lista escuelas y grados. Acepta:
+Lists school + degree combinations. Accepts optional `?domain=ufv.es` filter.
 
-```text
-/api/schools-degrees?domain=ufv.es
-```
+---
 
-## Elecciones
+## Elections (Authenticated)
 
 ### GET `/api/elections`
 
-Privado. Lista elecciones asignadas al usuario autenticado.
+Lists elections assigned to the authenticated user (census-filtered).
 
-Response:
-
+**Response:**
 ```json
 {
   "elections": [
@@ -201,42 +237,29 @@ Response:
 
 ### GET `/api/elections/:id`
 
-Privado. Devuelve detalle de eleccion y candidatos.
+Returns election detail + candidate list.
 
 ### GET `/api/elections/:id/eligibility`
 
-Privado. Comprueba si el usuario puede votar.
+Checks whether the authenticated user can vote in this election.
 
-Response elegible:
-
+**Response (eligible):**
 ```json
-{
-  "eligible": true
-}
+{ "eligible": true }
 ```
 
-Response no elegible:
-
+**Response (ineligible):**
 ```json
-{
-  "eligible": false,
-  "reason": "already_voted"
-}
+{ "eligible": false, "reason": "already_voted" }
 ```
 
-Razones habituales:
-
-- `not_found`
-- `not_active`
-- `not_eligible`
-- `already_voted`
+**Reason values:** `not_found`, `not_active`, `not_eligible`, `already_voted`
 
 ### POST `/api/elections/register-vote`
 
-Privado. Registra un voto.
+Registers a vote. The backend generates the nullifier.
 
-Request:
-
+**Request:**
 ```json
 {
   "electionId": 1,
@@ -245,48 +268,53 @@ Request:
 }
 ```
 
-Response:
-
+**Response (real blockchain):**
 ```json
 {
   "success": true,
   "txHash": "0xdeadbeef...",
   "blockNumber": 12345678,
-  "message": "Voto registrado exitosamente en blockchain",
-  "voting": {
-    "nullifier": "0x...",
-    "electionId": 1,
-    "voteHashReceived": "0xabc123..."
-  }
+  "isDemo": false
 }
 ```
 
-Notas:
+**Response (vtb.demo account — synthetic hash):**
+```json
+{
+  "success": true,
+  "txHash": "0xSYNTHETIC_SHA256_HASH...",
+  "blockNumber": null,
+  "isDemo": true,
+  "message": "Demo vote registered (synthetic — not on real blockchain)"
+}
+```
 
-- El backend genera el nullifier, no el frontend.
-- Si la eleccion no existe on-chain, el MVP puede registrar voto local de demo con `blockNumber: null`.
-- Un segundo voto del mismo usuario en la misma eleccion devuelve conflicto.
+**Error codes:**
+
+| Code | Reason                               |
+|------|--------------------------------------|
+| 409  | User already voted in this election  |
+| 403  | User not eligible / not in census    |
+| 500  | Blockchain connection error          |
 
 ### GET `/api/elections/:id/results`
 
-Devuelve resultados y participacion.
+Returns vote counts and participation. Public for active/closed elections.
 
-Response:
-
+**Response:**
 ```json
 {
   "election": {
     "id": 1,
     "name": "Demo Election",
-    "description": "",
     "status": "active",
     "startDate": "2026-05-08T10:00:00.000Z",
     "endDate": "2026-05-09T10:00:00.000Z",
     "totalVoters": 20
   },
   "candidates": [
-    { "id": 1, "name": "Candidate A", "description": "", "votes": 4, "percentage": 66.7 },
-    { "id": 2, "name": "Candidate B", "description": "", "votes": 2, "percentage": 33.3 }
+    { "id": 1, "name": "Candidate A", "votes": 4, "percentage": 66.7 },
+    { "id": 2, "name": "Candidate B", "votes": 2, "percentage": 33.3 }
   ],
   "totalVotes": 6,
   "participationRate": 30,
@@ -296,10 +324,9 @@ Response:
 
 ### GET `/api/elections/:id/audit`
 
-Publico. Devuelve auditoria de una eleccion sin identidad personal.
+Public. Returns nullifier audit records for an election without personal data.
 
-Response:
-
+**Response:**
 ```json
 [
   {
@@ -315,122 +342,164 @@ Response:
 
 ### GET `/api/elections/blockchain-sync-status`
 
-Comprueba si los IDs locales cuadran con el contrato.
+Checks whether local election IDs match the on-chain contract state.
 
 ### PATCH `/api/elections/fix-blockchain-ids`
 
-Corrige IDs blockchain locales en entorno de desarrollo. En produccion requiere admin.
+Developer utility — corrects local blockchain IDs. Admin-only in production.
 
-## Admin
+---
 
-Todos requieren rol `admin` o `superadmin`.
+## Admin Endpoints
+
+All require role `admin` or `superadmin`. Domain-scoped admins only see their own domain's data.
 
 ### Dashboard
 
-| Metodo | Endpoint | Funcion |
-| --- | --- | --- |
-| GET | `/admin/dashboard` | KPIs y graficas del panel |
-| GET | `/admin/blockchain-status` | Estado RPC/contrato |
+| Method | Endpoint               | Description                        |
+|--------|------------------------|------------------------------------|
+| GET    | `/admin/dashboard`     | KPI cards, charts, recent votes    |
+| GET    | `/admin/blockchain-status` | RPC + contract connectivity    |
 
-### Usuarios
+### Users
 
-| Metodo | Endpoint | Funcion |
-| --- | --- | --- |
-| GET | `/admin/users` | Lista usuarios |
-| POST | `/admin/users` | Crea usuario aprobado |
-| PATCH | `/admin/users/:id` | Actualiza usuario |
-| DELETE | `/admin/users/:id` | Elimina usuario si aplica |
-| POST | `/admin/users/import` | Importa CSV |
-| GET | `/admin/email-whitelist` | Lista whitelist |
-| POST | `/admin/email-whitelist` | Anade emails a whitelist |
+| Method | Endpoint                    | Description                              |
+|--------|-----------------------------|------------------------------------------|
+| GET    | `/admin/users`              | List all users (domain-filtered)         |
+| POST   | `/admin/users`              | Create an approved user                  |
+| PATCH  | `/admin/users/:id/approval` | Approve or update user status            |
+| DELETE | `/admin/users/:id`          | Delete a user                            |
+| POST   | `/admin/users/import`       | Bulk import users from CSV               |
 
-### Solicitudes
+**CSV import format for `/admin/users/import`:**
+```csv
+email,full_name,student_id,send_email,role
+student@ufv.es,New Student,UFV-001,true,student
+```
 
-| Metodo | Endpoint | Funcion |
-| --- | --- | --- |
-| GET | `/admin/registration-requests` | Lista solicitudes |
-| PATCH | `/admin/registration-requests/:id` | Aprueba o rechaza |
+### Registration Requests (Inbox)
 
-### Elecciones
+| Method | Endpoint                              | Description             |
+|--------|---------------------------------------|-------------------------|
+| GET    | `/admin/registration-requests`        | List requests (`?status=pending\|all`) |
+| PATCH  | `/admin/registration-requests/:id`    | Approve or reject       |
 
-| Metodo | Endpoint | Funcion |
-| --- | --- | --- |
-| GET | `/admin/elections` | Lista elecciones administrables |
-| POST | `/admin/elections` | Crea eleccion |
-| PUT | `/admin/elections/:id` | Edita eleccion |
-| POST | `/admin/elections/:id/voters` | Anade votante |
-| DELETE | `/admin/elections/:id/voters/:userId` | Quita votante |
-| POST | `/admin/elections/:id/candidates` | Anade candidato |
-| DELETE | `/admin/elections/:id/candidates/:candidateId` | Quita candidato |
-| GET | `/admin/elections/:id/stats` | Estadisticas de participacion |
+**Approve request:**
+```json
+{ "action": "approve" }
+```
 
-## Codigos de Estado
+**Reject request:**
+```json
+{ "action": "reject", "reason": "Not enrolled in this institution" }
+```
 
-| Codigo | Significado |
-| --- | --- |
-| 200 | OK |
-| 201 | Creado |
-| 400 | Request invalida |
-| 401 | Falta JWT o token invalido |
-| 403 | Sin permisos |
-| 404 | No encontrado |
-| 409 | Conflicto, por ejemplo voto duplicado |
-| 429 | Rate limit |
-| 500 | Error interno |
+### Elections
 
-## Ejemplos cURL
+| Method | Endpoint                              | Description                           |
+|--------|---------------------------------------|---------------------------------------|
+| GET    | `/admin/elections`                    | List manageable elections             |
+| POST   | `/admin/elections`                    | Create election                       |
+| PUT    | `/admin/elections/:id`                | Toggle active status / full edit      |
+| PATCH  | `/admin/elections/:id`                | Partial edit (name, description, end_time) |
+| POST   | `/admin/elections/:id/image`          | Upload election banner image          |
+| POST   | `/admin/elections/:id/voters`         | Add voter to election census          |
+| POST   | `/admin/elections/:id/domains`        | Add domain to election census         |
+| POST   | `/admin/elections/:id/candidates`     | Add candidate                         |
+| POST   | `/admin/elections/:id/import-voters`  | Bulk import voters from CSV           |
+| GET    | `/admin/elections/:id/stats`          | Participation stats + drill-down      |
 
-Login:
+**CSV import format for `/admin/elections/:id/import-voters`:**
+```csv
+email,full_name,student_id,send_email
+student@ufv.es,Student Name,UFV-001,true
+```
 
+### Audit & Stats
+
+| Method | Endpoint               | Description                         |
+|--------|------------------------|-------------------------------------|
+| GET    | `/admin/audit`         | Full nullifier audit log (filtered) |
+| GET    | `/admin/stats/voters`  | Per-election participation stats    |
+
+### Org Units & Domains
+
+| Method | Endpoint               | Description                         |
+|--------|------------------------|-------------------------------------|
+| GET    | `/admin/org-units`     | List organizational units           |
+| POST   | `/admin/org-units`     | Create organizational unit          |
+| GET    | `/admin/domains`       | List available domains              |
+| GET    | `/admin/domain-admins` | List domain administrators          |
+| POST   | `/admin/domain-admins` | Assign domain admin role            |
+
+---
+
+## HTTP Status Codes
+
+| Code | Meaning                                   |
+|------|-------------------------------------------|
+| 200  | OK                                        |
+| 201  | Created                                   |
+| 400  | Bad request (missing or invalid fields)   |
+| 401  | Missing or invalid JWT                    |
+| 403  | Insufficient permissions                  |
+| 404  | Not found                                 |
+| 409  | Conflict (e.g. duplicate vote)            |
+| 429  | Rate limited                              |
+| 500  | Internal server error                     |
+
+---
+
+## cURL Examples
+
+**Login:**
 ```bash
 curl -X POST http://localhost:3001/auth/login \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"student@vtb.demo\",\"password\":\"demo123\"}"
+  -d '{"email":"student@vtb.demo","password":"demo123"}'
 ```
 
-Health:
-
+**Health check:**
 ```bash
 curl http://localhost:3001/health
 ```
 
-Stats publicas:
-
+**Public stats:**
 ```bash
 curl http://localhost:3001/api/stats
 ```
 
-Elecciones asignadas:
-
+**My elections (authenticated):**
 ```bash
 curl http://localhost:3001/api/elections \
   -H "Authorization: Bearer <JWT>"
 ```
 
-## Variables Necesarias
+**Vote:**
+```bash
+curl -X POST http://localhost:3001/api/elections/register-vote \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"electionId":1,"candidateId":2,"voteHash":"0xabc123"}'
+```
 
-El backend necesita `.env`. Si el proyecto viene de GitHub, crealo manualmente. Minimo:
+---
 
+## Required Environment Variables
+
+**Backend `.env` minimum:**
 ```env
 PORT=3001
-JWT_SECRET=replace_me
-NULLIFIER_SECRET=replace_me
+JWT_SECRET=<64-char random hex>
+NULLIFIER_SECRET=<64-char random hex>
 DATABASE_PATH=./vtb.db
 RPC_URL=http://localhost:8545
 CONTRACT_ADDRESS=0x0000000000000000000000000000000000000000
 PRIVATE_KEY=0x0000000000000000000000000000000000000000000000000000000000000000
 ```
 
-El frontend necesita:
-
+**Frontend `.env` minimum:**
 ```env
 VITE_API_URL=http://localhost:3001
+VITE_EXPLORER_URL=https://sepolia.etherscan.io
 ```
-
-## Seguridad
-
-- No subir `.env`.
-- No exponer `PRIVATE_KEY` en frontend.
-- Usar secretos aleatorios para JWT/nullifiers.
-- Usar wallet de demo para Sepolia.
-- Revisar persistencia de base de datos antes de produccion real.

@@ -110,13 +110,17 @@ export async function seedDemoData(): Promise<void> {
     { email: "admin@universidad.edu",  name: "Admin Universidad",     student_id: "ADMIN-EDU-001",  password: "admin123",      role: "admin",      admin_domain: "universidad.edu" },
     { email: "admin@highland.edu",     name: "Admin Highland",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highland.edu" },
     { email: "admin@eps.ufv.es",       name: "Admin EPS UFV",         student_id: "ADMIN-EPS-001",  password: "admin123",      role: "admin",      admin_domain: "eps.ufv.es" },
-    { email: "admin@vtb.demo",         name: "Demo Admin VTB",        student_id: "ADMIN-VTB-001",  password: "admin123",      role: "admin",      admin_domain: "vtb.demo" },
+    { email: "admin@vtb.demo",         name: "Demo Administrator",    student_id: "DEMO-ADM-001",   password: "demo123",       role: "admin",      admin_domain: "vtb.demo" },
     { email: "admin.demo@ufv.es",      name: "Demo Admin UFV",        student_id: "ADMIN-UFV-DEMO", password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
     { email: "admin.demo@highland.edu",name: "Demo Admin Highland",   student_id: "ADMIN-HLD-DEMO", password: "admin123",      role: "admin",      admin_domain: "highland.edu" },
     { email: "admin.demo@universidad.edu", name: "Demo Admin Universidad", student_id: "ADMIN-EDU-DEMO", password: "admin123", role: "admin",      admin_domain: "universidad.edu" },
     { email: "superadmin@vtb.demo",    name: "Demo Super Admin",      student_id: "SUPERADMIN-DEMO", password: "superadmin123", role: "superadmin", admin_domain: null },
-    { email: "student@vtb.demo",       name: "Demo Student VTB",      student_id: "VTB-DEMO-001",   password: "demo123",       role: "student",    admin_domain: null },
+    { email: "student@vtb.demo",       name: "Demo Student",          student_id: "DEMO-STU-001",   password: "demo123",       role: "student",    admin_domain: null },
     { email: "student2@vtb.demo",      name: "Demo Student VTB 2",    student_id: "VTB-DEMO-002",   password: "demo123",       role: "student",    admin_domain: null },
+    { email: "julio@ufv.es",           name: "Julio Martinez Campos",  student_id: "UFV-PROF-001",   password: "profesor123",   role: "student",    admin_domain: null },
+    { email: "susana@eps.ufv.es",      name: "Susana Ferreira Blanco", student_id: "EPS-DIR-001",    password: "director123",   role: "admin",      admin_domain: "eps.ufv.es" },
+    { email: "olga@eps.ufv.es",        name: "Olga Navarro Ruiz",      student_id: "EPS-DIR-002",    password: "director123",   role: "admin",      admin_domain: "eps.ufv.es" },
+    { email: "julio@highland.edu",     name: "Julio Martinez Campos (Highland)", student_id: "HLD-PROF-001", password: "profesor123", role: "student", admin_domain: null },
     { email: "demo.ufv@ufv.es",        name: "Demo Student UFV",      student_id: "UFV-DEMO-001",   password: "demo123",       role: "student",    admin_domain: null },
     { email: "demo.eps@ufv.es",        name: "Demo Student EPS UFV",  student_id: "UFV-DEMO-002",   password: "demo123",       role: "student",    admin_domain: null },
     { email: "demo.highland@highland.edu", name: "Demo Student Highlands", student_id: "HLD-DEMO-001", password: "demo123",    role: "student",    admin_domain: null },
@@ -158,6 +162,7 @@ export async function seedDemoData(): Promise<void> {
 
   // Update school/degree/year for known UFV demo students
   const studentAcademicData = [
+    { email: 'julio@ufv.es',  school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', year: null },
     { email: 'carlos@ufv.es', school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', year: 3 },
     { email: 'laura@ufv.es',  school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', year: 2 },
     { email: 'miguel@ufv.es', school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Derecho', year: 1 },
@@ -469,6 +474,11 @@ export async function seedDemoData(): Promise<void> {
     { email: "maria@universidad.edu",  name: "María López Díaz",         student_id: "EDU-2024-002", password: "demo123", role: "student", admin_domain: null },
     { email: "elena@universidad.edu",  name: "Elena Castro Ruiz",        student_id: "EDU-2024-003", password: "demo123", role: "student", admin_domain: null },
     { email: "roberto@universidad.edu",name: "Roberto Sánchez Leal",     student_id: "EDU-2024-004", password: "demo123", role: "student", admin_domain: null },
+    // UFV PROFESSOR / NEW STAFF
+    { email: "julio@ufv.es",           name: "Julio Martinez Campos",  student_id: "UFV-PROF-001",   password: "profesor123", role: "student", admin_domain: null },
+    { email: "susana@eps.ufv.es",      name: "Susana Ferreira Blanco", student_id: "EPS-DIR-001",    password: "director123", role: "admin",   admin_domain: "eps.ufv.es" },
+    { email: "olga@eps.ufv.es",        name: "Olga Navarro Ruiz",      student_id: "EPS-DIR-002",    password: "director123", role: "admin",   admin_domain: "eps.ufv.es" },
+    { email: "julio@highland.edu",     name: "Julio Martinez Campos (Highland)", student_id: "HLD-PROF-001", password: "profesor123", role: "student", admin_domain: null },
     // NEW UFV STUDENTS
     { email: "student8@ufv.es",   name: "María José García",       student_id: "UFV-2024-008", password: "demo123", role: "student", admin_domain: null },
     { email: "student9@ufv.es",   name: "Carlos Alberto López",    student_id: "UFV-2024-009", password: "demo123", role: "student", admin_domain: null },

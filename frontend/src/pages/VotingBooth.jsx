@@ -153,6 +153,12 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         {t("votingBooth.transactionHash")}
       </p>
 
+      {txData.isDemo && (
+        <div className="mb-3 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
+          🔵 Demo Hash (not on Sepolia)
+        </div>
+      )}
+
       <div className="bg-slate-900 dark:bg-slate-900 rounded-xl p-3 mb-4 font-mono text-xs text-cyan-400 break-all leading-relaxed select-all">
         {txData.txHash}
       </div>
@@ -165,7 +171,7 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         {copied ? t("results.copied") : t("votingBooth.copyTxHash")}
       </button>
 
-      {txData.txHash && explorerUrl && txData.blockNumber !== null ? (
+      {!txData.isDemo && txData.txHash && explorerUrl && txData.blockNumber !== null ? (
         <a
           href={`${explorerUrl.replace(/\/$/, "")}/tx/${txData.txHash}`}
           target="_blank"
@@ -174,9 +180,13 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         >
           {t("votingBooth.viewExplorer")}
         </a>
-      ) : txData.blockNumber === null ? (
+      ) : !txData.isDemo && txData.blockNumber === null ? (
         <p className="text-center text-xs text-amber-600 dark:text-amber-400 mb-3 px-2">
           {t("votingBooth.localDemoVote")}
+        </p>
+      ) : txData.isDemo ? (
+        <p className="text-center text-xs text-blue-600 dark:text-blue-400 mb-3 px-2">
+          This vote was recorded in the demo database. No Sepolia transaction was created.
         </p>
       ) : null}
 
@@ -265,7 +275,7 @@ export const VotingBoothContent = () => {
   // Cargar datos de la elección y verificar elegibilidad
   useEffect(() => {
     const token = localStorage.getItem("vtb-token");
-    if (!token) { navigate("/login"); return; }
+    if (!token) { navigate(`/login?redirect=/voting/${electionId}`); return; }
     if (!electionId) { setError(t("errors.invalidElection")); setLoading(false); return; }
     loadElectionData();
   }, [electionId]);
@@ -467,7 +477,7 @@ export const VotingBoothContent = () => {
       const response = await voteRequest;
       await new Promise(r => setTimeout(r, 600));
 
-      setTxData({ txHash: response.data.txHash, blockNumber: response.data.blockNumber ?? null });
+      setTxData({ txHash: response.data.txHash, blockNumber: response.data.blockNumber ?? null, isDemo: response.data.isDemo === true });
       setVoteStatus("success");
       setSelectedCandidate(null);
     } catch (err) {
