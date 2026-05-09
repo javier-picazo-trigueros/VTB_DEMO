@@ -29,7 +29,7 @@ create an Etherscan transaction.
 |---|---|---|
 | `student@vtb.demo` | `demo123` | Voter |
 | `student2@vtb.demo` | `demo123` | Voter |
-| `admin@vtb.demo` | `demo123` | Admin |
+| `admin@vtb.demo` | `admin123` | Admin |
 | `superadmin@vtb.demo` | `superadmin123` | Super admin |
 
 ### Real blockchain demo accounts

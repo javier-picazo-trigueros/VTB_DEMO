@@ -125,7 +125,7 @@ export async function seedDemoData(): Promise<void> {
     { email: "admin@universidad.edu",  name: "Admin Universidad",     student_id: "ADMIN-EDU-001",  password: "admin123",      role: "admin",      admin_domain: "universidad.edu" },
     { email: "admin@highlands.edu",     name: "Admin Highlands",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highlands.edu" },
     { email: "admin@eps.ufv.es",       name: "Admin EPS UFV",         student_id: "ADMIN-EPS-001",  password: "admin123",      role: "admin",      admin_domain: "eps.ufv.es" },
-    { email: "admin@vtb.demo",         name: "Demo Administrator",    student_id: "DEMO-ADM-001",   password: "demo123",       role: "admin",      admin_domain: "vtb.demo" },
+    { email: "admin@vtb.demo",         name: "Demo Administrator",    student_id: "DEMO-ADM-001",   password: "admin123",      role: "admin",      admin_domain: "vtb.demo" },
     { email: "admin.demo@ufv.es",      name: "Demo Admin UFV",        student_id: "ADMIN-UFV-DEMO", password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
     { email: "admin.demo@highlands.edu",name: "Demo Admin Highlands",   student_id: "ADMIN-HLD-DEMO", password: "admin123",      role: "admin",      admin_domain: "highlands.edu" },
     { email: "admin.demo@universidad.edu", name: "Demo Admin Universidad", student_id: "ADMIN-EDU-DEMO", password: "admin123", role: "admin",      admin_domain: "universidad.edu" },
@@ -148,6 +148,7 @@ export async function seedDemoData(): Promise<void> {
     { email: "patricia@ufv.es",        name: "Patricia Vega Moreno",    student_id: "UFV-2024-006", password: "demo123",       role: "student",    admin_domain: null },
     { email: "student5@highlands.edu",  name: "James Wilson",            student_id: "HLD-001",      password: "demo123",       role: "student",    admin_domain: null },
     { email: "student6@highlands.edu",  name: "Emma Thompson",           student_id: "HLD-002",      password: "demo123",       role: "student",    admin_domain: null },
+    { email: "student7@highlands.edu",  name: "Oliver Davis",            student_id: "HLD-003",      password: "demo123",       role: "student",    admin_domain: null },
     { email: "juan@universidad.edu",   name: "Juan García Martín",      student_id: "EDU-2024-001", password: "demo123",       role: "student",    admin_domain: null },
     { email: "elena@universidad.edu",  name: "Elena Castro Ruiz",       student_id: "EDU-2024-003", password: "demo123",       role: "student",    admin_domain: null },
   ];
