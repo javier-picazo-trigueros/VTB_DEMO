@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  const CONTRACT_ADDRESS = "0xF6909eaF37D33b51333a282c4b3750981Bc768a4";
+  const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "0x92110ea2a133567a0d6237e8991Fff336cd70778";
   const abi = [
     "function createElection(string memory _name, uint256 _startTime, uint256 _endTime) external",
     "function electionCount() view returns (uint256)"

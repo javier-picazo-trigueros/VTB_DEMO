@@ -13,7 +13,7 @@ configured Ethereum network and receive a real transaction hash.
 |---|---|
 | Frontend | https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app |
 | Backend | https://vtb-backend-4emv.onrender.com |
-| Sepolia contract | https://sepolia.etherscan.io/address/0xF6909eaF37D33b5133a282c4b3750981Bc768a4 |
+| Sepolia contract | https://sepolia.etherscan.io/address/0x92110ea2a133567a0d6237e8991Fff336cd70778 |
 
 Render free-tier backends can sleep after inactivity. The first request after a
 sleep may take 30-40 seconds.
@@ -141,7 +141,7 @@ NODE_ENV=development
 JWT_SECRET=REPLACE_WITH_RANDOM_64_CHAR_HEX
 NULLIFIER_SECRET=REPLACE_WITH_RANDOM_64_CHAR_HEX
 DATABASE_PATH=./vtb.db
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:4173
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:4173
 RPC_URL=http://localhost:8545
 CONTRACT_ADDRESS=0x0000000000000000000000000000000000000000
 PRIVATE_KEY=0x0000000000000000000000000000000000000000000000000000000000000000
@@ -162,7 +162,7 @@ For Sepolia voting, set `backend/.env` to your real relayer values:
 
 ```env
 RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
-CONTRACT_ADDRESS=0xF6909eaF37D33b5133a282c4b3750981Bc768a4
+CONTRACT_ADDRESS=0x92110ea2a133567a0d6237e8991Fff336cd70778
 PRIVATE_KEY=0xYOUR_SEPOLIA_RELAYER_PRIVATE_KEY
 EXPLORER_URL=https://sepolia.etherscan.io
 ```
@@ -195,7 +195,7 @@ cd frontend
 npm run dev
 ```
 
-4. Open http://localhost:5173.
+4. Open http://localhost:3000.
 
 On backend startup, VTB seeds SQLite and then starts election sync in the
 background. You can also trigger it manually:
@@ -260,7 +260,7 @@ cd frontend
 npm run dev
 ```
 
-Open http://localhost:5173.
+Open http://localhost:3000.
 
 ## Verification Commands
 
@@ -344,11 +344,11 @@ Blockchain:
 
 | Resource | URL |
 |---|---|
-| Landing | http://localhost:5173/landing |
-| Login | http://localhost:5173/login |
-| Dashboard | http://localhost:5173/dashboard |
-| Admin panel | http://localhost:5173/admin |
-| Public audit | http://localhost:5173/transparency |
+| Landing | http://localhost:3000/landing |
+| Login | http://localhost:3000/login |
+| Dashboard | http://localhost:3000/dashboard |
+| Admin panel | http://localhost:3000/admin |
+| Public audit | http://localhost:3000/transparency |
 | Backend health | http://localhost:3001/health |
 | Public stats API | http://localhost:3001/api/stats |
 
@@ -374,10 +374,12 @@ kill -9 <PID>
 You can also use another backend port by changing `PORT` in `backend/.env` and
 `VITE_API_URL` in `frontend/.env`.
 
-### Frontend is on 5173, not 3000
+### Frontend port
 
-Vite defaults to port 5173. Make sure `CORS_ORIGINS` in `backend/.env` includes
-`http://localhost:5173`.
+This repo pins Vite to `http://localhost:3000` in `frontend/vite.config.js`.
+Make sure `CORS_ORIGINS` in `backend/.env` includes `http://localhost:3000`.
+`http://localhost:5173` is also allowed for compatibility with Vite defaults in
+other setups.
 
 ### PowerShell blocks npm or npx
 
@@ -414,7 +416,7 @@ SQLite elections on the configured blockchain.
 Only Sepolia transactions are visible on Etherscan. Check:
 
 - `backend/.env` uses a Sepolia `RPC_URL`
-- `CONTRACT_ADDRESS=0xF6909eaF37D33b5133a282c4b3750981Bc768a4`
+- `CONTRACT_ADDRESS=0x92110ea2a133567a0d6237e8991Fff336cd70778`
 - `EXPLORER_URL=https://sepolia.etherscan.io`
 - the relayer `PRIVATE_KEY` has Sepolia ETH
 - the account is not `@vtb.demo`
