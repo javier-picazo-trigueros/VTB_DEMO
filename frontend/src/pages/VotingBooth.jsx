@@ -489,6 +489,19 @@ export const VotingBoothContent = () => {
         return;
       }
 
+      if (
+        err.response?.status === 503 &&
+        err.response?.data?.code === "ELECTION_NOT_ON_CHAIN"
+      ) {
+        setVoteError({
+          type: "sync_needed",
+          message: "Esta elección no está registrada en Sepolia todavía.",
+          detail: "Un administrador debe sincronizar las elecciones con el blockchain. Inténtalo de nuevo en unos minutos.",
+        });
+        setVoteStatus("error");
+        return;
+      }
+
       const responseError = err.response?.data;
       const errMsg = [
         responseError?.error,
@@ -656,6 +669,24 @@ export const VotingBoothContent = () => {
                 >
                   {t("votingBooth.retry")}
                 </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {voteError?.type === "sync_needed" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-5"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">Sync</span>
+              <div>
+                <p className="font-semibold text-blue-800 dark:text-blue-300">
+                  {voteError.message}
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+                  {voteError.detail}
+                </p>
               </div>
             </div>
           </motion.div>

@@ -772,10 +772,11 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       // Graceful fallback: election not yet registered on-chain (seeded elections)
       const isElectionMissing =
         blockchainError.message?.includes("election does not exist") ||
+        blockchainError.message?.includes("ERR: election") ||
         (blockchainError.code === "CALL_EXCEPTION" &&
           blockchainError.reason?.includes("election does not exist"));
 
-      if (isElectionMissing) {
+      if (isElectionMissing && decoded.email?.endsWith("@vtb.demo")) {
         const syntheticTx = `0x${createHash('sha256')
           .update(nullifier + String(electionId) + String(Date.now()))
           .digest('hex')}`;
@@ -798,16 +799,27 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         }
       }
 
+      if (isElectionMissing) {
+        return res.status(503).json({
+          error: "Esta elección aún no está sincronizada en Sepolia",
+          details: "El administrador debe ejecutar la sincronización de blockchain.",
+          code: "ELECTION_NOT_ON_CHAIN",
+        });
+      }
+
       // Diferenciar otros errores de blockchain
       if (blockchainError.code === "INVALID_ARGUMENT") {
         res.status(400).json({
           error: "Datos inválidos para blockchain",
           details: blockchainError.message,
         });
-      } else if (blockchainError.message?.includes("already voted")) {
+      } else if (
+        blockchainError.message?.includes("already voted") ||
+        blockchainError.message?.includes("nullifier already used")
+      ) {
         res.status(409).json({
           error: "Ya has votado en esta elección",
-          details: "Nullifier duplicado detectado",
+          details: "Nullifier duplicado detectado en blockchain",
         });
       } else {
         res.status(500).json({

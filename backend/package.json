@@ -9,6 +9,7 @@
     "dev": "nodemon --exec tsx src/index.ts",
     "build": "tsc",
     "seed": "tsx src/scripts/seedDatabase.ts",
+    "sync-blockchain": "node --loader ts-node/esm src/scripts/syncElections.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

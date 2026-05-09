@@ -4,6 +4,8 @@ import express, { Express, Response } from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { getDatabase } from "./config/database.js";
+import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
+import { verifyToken } from "./utils/auth.js";
 import authRoutes from "./routes/auth.js";
 import electionRoutes from "./routes/elections.js";
 import adminRoutes from "./routes/admin.js";
@@ -139,6 +141,38 @@ app.get('/api/stats', async (req: any, res: Response) => {
       totalVotes: totalVotes?.count || 0,
       activeInstitutions: activeInstitutions?.count || 0,
       blockchainTransactions: blockchainTransactions?.count || 0,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/sync-blockchain', async (req: any, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Token required' });
+    }
+
+    const decoded = verifyToken(authHeader.substring(7));
+    if (!decoded?.userId) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const db = getDatabase();
+    const user = await db.get<{ role: string }>(
+      'SELECT role FROM users WHERE id = ?',
+      [decoded.userId]
+    );
+
+    if (!user || !['admin', 'superadmin'].includes(user.role)) {
+      return res.status(403).json({ error: 'Admin required' });
+    }
+
+    res.json({ message: 'Sync started', status: 'running' });
+
+    syncElectionsToBlockchain().catch(err => {
+      console.error('Manual sync error:', err);
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

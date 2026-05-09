@@ -1,6 +1,7 @@
 import { app } from "./app.js";
 import { getDatabase } from "./config/database.js";
 import { seedDemoData } from "./scripts/seedDatabase.js";
+import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
 import net from "node:net";
 
 const PORT = Number(process.env.PORT || 3001);
@@ -69,6 +70,10 @@ async function start() {
       console.log(`🌐 Servidor: http://localhost:${PORT}`);
       console.log(`💡 Health check: http://localhost:${PORT}/health`);
       console.log("=".repeat(60) + "\n");
+
+      syncElectionsToBlockchain().catch(err => {
+        console.warn("Election sync warning:", err.message);
+      });
     });
     server.on("error", handleListenError);
   } catch (error) {

@@ -36,6 +36,7 @@ export const AdminPanel = () => {
   const [dashboardData, setDashboardData] = useState({ recentVotes: [], electionParticipation: [], requestsTrend: [] });
   const [pendingBadge, setPendingBadge] = useState(0);
   const [blockchainStatus, setBlockchainStatus] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Audit filters
   const [auditFilter, setAuditFilter] = useState({
@@ -163,6 +164,27 @@ export const AdminPanel = () => {
     const tabId = cardTabMap[key];
     if (tabId) {
       setActiveTab(tabId);
+    }
+  };
+
+  const handleSyncBlockchain = async () => {
+    setSyncing(true);
+    try {
+      await axios.post(
+        `${API_URL}/api/admin/sync-blockchain`,
+        {},
+        { headers: getAuthHeader() }
+      );
+      toast.success('Blockchain sync started - check backend logs');
+      setTimeout(() => {
+        axios.get(`${API_URL}/admin/blockchain-status`, { headers: getAuthHeader() })
+          .then(r => setBlockchainStatus(r.data))
+          .catch(() => {});
+      }, 15000);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Sync failed');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -805,6 +827,13 @@ export const AdminPanel = () => {
                           </p>
                         )}
                       </div>
+                      <button
+                        onClick={handleSyncBlockchain}
+                        disabled={syncing}
+                        className="shrink-0 text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition font-medium"
+                      >
+                        {syncing ? 'Syncing...' : 'Sync Elections'}
+                      </button>
                       {blockchainStatus.connected && blockchainStatus.explorerUrl && (
                         <a
                           href={`${blockchainStatus.explorerUrl}/address/${blockchainStatus.contractAddress}`}
