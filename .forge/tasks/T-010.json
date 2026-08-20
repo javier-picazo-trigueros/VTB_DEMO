@@ -1,0 +1,16 @@
+{
+  "id": "T-010",
+  "title": "Aplicar el diseno a las pantallas de la aplicacion",
+  "description": "Implement: Aplicar el diseno a las pantallas de la aplicacion",
+  "status": "pending",
+  "assigned_to": "codex",
+  "task_type": "implement",
+  "depends_on": [],
+  "locked_files": [],
+  "acceptance_criteria": [],
+  "created_at": "2026-08-20T11:25:45.355378300Z",
+  "updated_at": "2026-08-20T11:25:45.355378300Z",
+  "completed_at": null,
+  "plan_version": 1,
+  "retry_count": 0
+}

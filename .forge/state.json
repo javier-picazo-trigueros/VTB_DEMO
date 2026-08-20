@@ -1,0 +1,54 @@
+{
+  "version": "1.1.0",
+  "project_name": "VTB_DEMO",
+  "created_at": "2026-08-20T11:25:45.283573300Z",
+  "updated_at": "2026-08-20T11:31:53.826761500Z",
+  "tools": [
+    {
+      "name": "claude",
+      "agent_type": "claude",
+      "version": "2.1.116 (Claude Code)",
+      "path": "C:\\Users\\javie\\AppData\\Roaming\\npm\\claude",
+      "available": true
+    },
+    {
+      "name": "codex",
+      "agent_type": "codex",
+      "version": null,
+      "path": "C:\\Users\\javie\\AppData\\Roaming\\npm\\codex",
+      "available": true
+    },
+    {
+      "name": "agy",
+      "agent_type": "gemini",
+      "version": "1.1.16",
+      "path": "C:\\Users\\javie\\AppData\\Local\\agy\\bin\\agy.exe",
+      "available": true
+    }
+  ],
+  "brain": {
+    "provider": "rule-based",
+    "model": null
+  },
+  "task_summary": {
+    "total": 11,
+    "pending": 11,
+    "in_progress": 0,
+    "completed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "active_locks": {},
+  "agent_auth": {},
+  "agent_permissions": {},
+  "git": {
+    "auto_commit": true,
+    "strategy": "single"
+  },
+  "scheduler": {
+    "rotation": false,
+    "pacing_min_secs": 64,
+    "pacing_max_secs": 179
+  },
+  "dashboard_mode": "piped"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "T-001",
+  "title": "Eliminar archivos basura del repositorio",
+  "description": "Implement: Eliminar archivos basura del repositorio",
+  "status": "completed",
+  "assigned_to": "claude",
+  "task_type": "implement",
+  "depends_on": [],
+  "locked_files": [],
+  "acceptance_criteria": [],
+  "created_at": "2026-08-20T11:25:45.355266700Z",
+  "updated_at": "2026-08-20T11:31:53.825011500Z",
+  "completed_at": "2026-08-20T11:31:53.822827Z",
+  "plan_version": 1,
+  "retry_count": 0
+}

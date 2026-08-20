@@ -1,0 +1,16 @@
+{
+  "id": "T-006",
+  "title": "Reducir los tipos any del backend",
+  "description": "Review existing implementation of: Reducir los tipos any del backend",
+  "status": "pending",
+  "assigned_to": "claude",
+  "task_type": "review",
+  "depends_on": [],
+  "locked_files": [],
+  "acceptance_criteria": [],
+  "created_at": "2026-08-20T11:25:45.355337400Z",
+  "updated_at": "2026-08-20T11:25:45.355337400Z",
+  "completed_at": null,
+  "plan_version": 1,
+  "retry_count": 0
+}

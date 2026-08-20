@@ -88,3 +88,4 @@ build_error.log
 .github/instructions/codacy.instructions.md
 backend/node_modules/
 frontend/node_modules/
+blockchain/node_modules/

@@ -1,0 +1,16 @@
+{
+  "id": "T-007",
+  "title": "Partir admin.ts en sub-routers",
+  "description": "Review existing implementation of: Partir admin.ts en sub-routers",
+  "status": "pending",
+  "assigned_to": "claude",
+  "task_type": "review",
+  "depends_on": [],
+  "locked_files": [],
+  "acceptance_criteria": [],
+  "created_at": "2026-08-20T11:25:45.355340400Z",
+  "updated_at": "2026-08-20T11:25:45.355340400Z",
+  "completed_at": null,
+  "plan_version": 1,
+  "retry_count": 0
+}
