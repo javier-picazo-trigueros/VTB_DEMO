@@ -2,31 +2,31 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import axios from "axios";
 import { Navbar } from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
-
-const voterDemoAccounts = [
+// DevPanel data — only bundled in development builds.
+// import.meta.env.DEV is statically false in production; Rollup eliminates
+// everything inside these expressions from the output bundle.
+const voterDemoAccounts = import.meta.env.DEV ? [
   { label: "VTB Demo Student", email: "student@vtb.demo", pwd: "demo123" },
   { label: "VTB Demo Student 2", email: "student2@vtb.demo", pwd: "demo123" },
   { label: "UFV Demo Student", email: "demo.ufv@ufv.es", pwd: "demo123" },
   { label: "UFV EPS Demo", email: "demo.eps@ufv.es", pwd: "demo123" },
   { label: "Highlands Demo", email: "demo.highland@highlands.edu", pwd: "demo123" },
   { label: "Universidad Demo", email: "demo.universidad@universidad.edu", pwd: "demo123" },
-];
+] : [];
 
-const adminDemoAccounts = [
+const adminDemoAccounts = import.meta.env.DEV ? [
   { label: "VTB Demo Admin", email: "admin@vtb.demo", pwd: "admin123" },
   { label: "UFV Demo Admin", email: "admin.demo@ufv.es", pwd: "admin123" },
   { label: "Highlands Demo Admin", email: "admin.demo@highlands.edu", pwd: "admin123" },
   { label: "Universidad Demo Admin", email: "admin.demo@universidad.edu", pwd: "admin123" },
   { label: "Demo Super Admin", email: "superadmin@vtb.demo", pwd: "superadmin123" },
-];
+] : [];
 
-const allDevAccounts = [
+const allDevAccounts = import.meta.env.DEV ? [
   { label: "VTB Demo Student", email: "student@vtb.demo", pwd: "demo123", color: "text-green-400", portal: "voter" },
   { label: "UFV Demo Student", email: "demo.ufv@ufv.es", pwd: "demo123", color: "text-green-400", portal: "voter" },
   { label: "Highlands Demo", email: "demo.highland@highlands.edu", pwd: "demo123", color: "text-green-400", portal: "voter" },
@@ -36,13 +36,13 @@ const allDevAccounts = [
   { label: "Highlands Demo Admin", email: "admin.demo@highlands.edu", pwd: "admin123", color: "text-blue-400", portal: "admin" },
   { label: "Universidad Demo Admin", email: "admin.demo@universidad.edu", pwd: "admin123", color: "text-blue-400", portal: "admin" },
   { label: "Demo Super Admin", email: "superadmin@vtb.demo", pwd: "superadmin123", color: "text-red-400", portal: "admin" },
-];
+] : [];
 
 export const Login = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { setAuthUser } = useAuth();
+  const { login, setAuthUser } = useAuth();
   const { theme } = useTheme();
 
   const [portal, setPortal] = useState(null);
@@ -66,12 +66,13 @@ export const Login = () => {
     const { name, value } = event.target;
     setFormData((previous) => ({ ...previous, [name]: value }));
     setError("");
-    if (name === "email" && value.includes("@vtb.demo")) {
+    if (import.meta.env.DEV && name === "email" && value.includes("@vtb.demo")) {
       setShowDevPanel(true);
     }
   };
 
   const handleTitleClick = () => {
+    if (!import.meta.env.DEV) return;
     const nextClicks = logoClicks + 1;
     setLogoClicks(nextClicks);
     if (nextClicks >= 5) {
@@ -97,31 +98,19 @@ export const Login = () => {
     setError("");
 
     try {
-      const response = await axios.post(
-        `${API_URL}/auth/login`,
-        {
-          email: formData.email,
-          password: formData.password,
-        },
-        { timeout: 15000 }
-      );
+      const result = await login(formData.email, formData.password);
 
-      const { token, user } = response.data;
-
-      if (portal === "admin" && user.role !== "admin" && user.role !== "superadmin") {
-        setError(t("login.notAdmin"));
-        setLoading(false);
+      if (!result.success) {
+        setError(result.error || t("login.loginError"));
         return;
       }
 
-      localStorage.setItem("vtb-token", token);
-      localStorage.setItem("vtb-role", user.role);
-      localStorage.setItem("vtb-user-id", user.id);
-      localStorage.setItem("vtb-email", user.email);
-      localStorage.setItem("vtb-name", user.name);
-      localStorage.setItem("vtb-admin-domain", user.adminDomain || "");
+      const { user } = result;
 
-      setAuthUser({ id: user.id, email: user.email, name: user.name, role: user.role });
+      if (portal === "admin" && user.role !== "admin" && user.role !== "superadmin") {
+        setError(t("login.notAdmin"));
+        return;
+      }
 
       if (portal === "admin" && (user.role === "admin" || user.role === "superadmin")) {
         navigate("/admin");
@@ -130,13 +119,7 @@ export const Login = () => {
       }
     } catch (err) {
       console.error("Login error:", err);
-      if (err.code === "ECONNABORTED") {
-        setError(t("login.timeoutError"));
-      } else if (!err.response) {
-        setError(t("login.networkError", { apiUrl: API_URL }));
-      } else {
-        setError(err.response?.data?.error || t("login.loginError"));
-      }
+      setError(t("login.loginError"));
     } finally {
       setLoading(false);
     }
@@ -239,7 +222,7 @@ export const Login = () => {
           {t("login.footerText")}
         </p>
 
-        {showDevPanel && (
+        {import.meta.env.DEV && showDevPanel && (
           <DevPanel
             accounts={allDevAccounts}
             onClose={() => setShowDevPanel(false)}
@@ -374,30 +357,32 @@ export const Login = () => {
             </motion.button>
           </form>
 
-          <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-700">
-            <button
-              onClick={() => setShowDemo((previous) => !previous)}
-              className="flex w-full items-center gap-1 text-xs text-slate-500 transition hover:text-slate-700 dark:hover:text-slate-300"
-            >
-              {isVoter ? t("login.demoVoterAccounts") : t("login.demoAdminAccounts")} {showDemo ? "▲" : "▼"}
-            </button>
-            {showDemo && (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {demoAccounts.map((account) => (
-                  <button
-                    key={account.email}
-                    onClick={() => fillCredentials(account.email, account.pwd)}
-                    className={`rounded-lg border p-2 text-left transition ${accentDemoBtn}`}
-                  >
-                    <p className={`text-xs font-bold ${accentDemoText}`}>{account.label}</p>
-                    <p className="truncate text-xs text-slate-500">{account.email}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {import.meta.env.DEV && (
+            <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-700">
+              <button
+                onClick={() => setShowDemo((previous) => !previous)}
+                className="flex w-full items-center gap-1 text-xs text-slate-500 transition hover:text-slate-700 dark:hover:text-slate-300"
+              >
+                {isVoter ? t("login.demoVoterAccounts") : t("login.demoAdminAccounts")} {showDemo ? "▲" : "▼"}
+              </button>
+              {showDemo && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {demoAccounts.map((account) => (
+                    <button
+                      key={account.email}
+                      onClick={() => fillCredentials(account.email, account.pwd)}
+                      className={`rounded-lg border p-2 text-left transition ${accentDemoBtn}`}
+                    >
+                      <p className={`text-xs font-bold ${accentDemoText}`}>{account.label}</p>
+                      <p className="truncate text-xs text-slate-500">{account.email}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-          {showDevPanel && (
+          {import.meta.env.DEV && showDevPanel && (
             <DevPanel
               accounts={allDevAccounts}
               onClose={() => setShowDevPanel(false)}

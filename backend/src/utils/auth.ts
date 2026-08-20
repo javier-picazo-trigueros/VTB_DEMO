@@ -3,6 +3,10 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 
+export const COOKIE_NAME_ACCESS  = 'vtb_auth';
+export const COOKIE_NAME_REFRESH = 'vtb_refresh';
+export const COOKIE_NAME_CSRF    = 'vtb_csrf';
+
 dotenv.config({ quiet: true });
 
 /**
@@ -84,6 +88,12 @@ if (!isProduction && !process.env.JWT_SECRET) {
 const REQUIRED_HMAC_SECRET: string = HMAC_SECRET;
 const REQUIRED_JWT_SECRET: string = JWT_SECRET;
 
+// Derived from JWT_SECRET so no extra env var is needed.
+// A separate env var (CSRF_SECRET) can override it in production.
+const CSRF_SECRET =
+  process.env.CSRF_SECRET ||
+  crypto.createHmac('sha256', REQUIRED_JWT_SECRET).update('csrf-derive').digest('hex');
+
 /**
  * @dev Hash de contraseña usando bcrypt (más seguro que SHA-512)
  * bcrypt incluye salt y factor de costo automáticamente
@@ -135,18 +145,22 @@ export function generateNullifier(userId: number, electionId: number): string {
  * 
  * Token contiene: userId, email, rol (sin nullifier, sin electionId)
  */
+interface JwtPayload {
+  userId: number;
+  email: string;
+  role: string;
+  adminDomain?: string;
+}
+
 export function generateToken(
   userId: number,
   email: string,
   role: string = "student",
   adminDomain: string | null = null
 ): string {
-  const payload: any = { userId, email, role };
-  if (adminDomain) {
-    payload.adminDomain = adminDomain;
-  }
-  const token = jwt.sign(payload, REQUIRED_JWT_SECRET, { expiresIn: "24h" });
-  return token;
+  const payload: JwtPayload = { userId, email, role };
+  if (adminDomain) payload.adminDomain = adminDomain;
+  return jwt.sign(payload, REQUIRED_JWT_SECRET, { expiresIn: '15m' });
 }
 
 /**
@@ -163,14 +177,14 @@ export function verifyToken(
   adminDomain?: string | null;
 } | null {
   try {
-    const decoded = jwt.verify(token, REQUIRED_JWT_SECRET) as any;
+    const decoded = jwt.verify(token, REQUIRED_JWT_SECRET) as JwtPayload;
     return {
       userId: decoded.userId,
       email: decoded.email,
       role: decoded.role || "student",
-      adminDomain: decoded.adminDomain || null,
+      adminDomain: decoded.adminDomain ?? null,
     };
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -184,4 +198,62 @@ export function verifyToken(
 export function generateVoteHash(vote: string, salt: string): string {
   const payload = `${vote}:${salt}`;
   return "0x" + crypto.createHash("sha256").update(payload).digest("hex");
+}
+
+// ── One-time secure tokens (refresh + password reset share this generator) ────
+
+/**
+ * Generates a cryptographically secure opaque token.
+ * plaintext → sent to client/email  |  hash (SHA-256) → stored in DB.
+ */
+export function generateSecureToken(): { plaintext: string; hash: string } {
+  const plaintext = crypto.randomBytes(32).toString('hex'); // 64-char hex
+  const hash = crypto.createHash('sha256').update(plaintext).digest('hex');
+  return { plaintext, hash };
+}
+
+export function hashSecureToken(plaintext: string): string {
+  return crypto.createHash('sha256').update(plaintext).digest('hex');
+}
+
+// ── Refresh tokens ────────────────────────────────────────────────────────────
+
+export const REFRESH_TOKEN_BYTES = 32;
+export const REFRESH_TOKEN_TTL_DAYS = 7;
+
+/** Returns a plaintext token (to send to client) and its SHA-256 hash (to store in DB). */
+export function generateRefreshToken(): { plaintext: string; hash: string } {
+  const plaintext = crypto.randomBytes(REFRESH_TOKEN_BYTES).toString('hex');
+  const hash = crypto.createHash('sha256').update(plaintext).digest('hex');
+  return { plaintext, hash };
+}
+
+export function hashRefreshToken(plaintext: string): string {
+  return crypto.createHash('sha256').update(plaintext).digest('hex');
+}
+
+// ── CSRF tokens ───────────────────────────────────────────────────────────────
+
+/**
+ * Derives a stateless CSRF token from user identity.
+ * The frontend reads this from the `vtb_csrf` non-httpOnly cookie and
+ * sends it as the `X-CSRF-Token` request header on all mutating requests.
+ * Attacks can't forge it because CSRF_SECRET is server-only.
+ */
+export function generateCsrfToken(userId: number, email: string): string {
+  return crypto
+    .createHmac('sha256', CSRF_SECRET)
+    .update(`${userId}:${email}`)
+    .digest('hex');
+}
+
+export function validateCsrfToken(token: string, userId: number, email: string): boolean {
+  try {
+    const expected = generateCsrfToken(userId, email);
+    const a = Buffer.from(token.padEnd(64, '0').slice(0, 64), 'hex');
+    const b = Buffer.from(expected, 'hex');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }

@@ -26,8 +26,9 @@ export function CookieBanner() {
   };
 
   const storageItems = [
-    { key: 'vtb-token', desc: 'Authentication JWT - expires in 24h', required: true },
-    { key: 'vtb-role', desc: 'Your role for UI routing', required: true },
+    { key: 'vtb_auth (httpOnly cookie)', desc: 'Session access token — 15 min, set by server', required: true },
+    { key: 'vtb_refresh (httpOnly cookie)', desc: 'Refresh token — 7 days, set by server', required: true },
+    { key: 'vtb_csrf (cookie)', desc: 'CSRF protection token, readable by JS', required: true },
     { key: 'vtb-tour-done-{user}', desc: 'Onboarding tour completion flag per user', required: false },
     { key: 'vtb-cookie-consent', desc: 'Your consent choice (this banner)', required: false },
     { key: 'i18nextLng', desc: 'Preferred language (EN/ES)', required: false },

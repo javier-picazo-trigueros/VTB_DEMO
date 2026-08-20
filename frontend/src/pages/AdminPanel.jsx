@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import axios from "axios";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Navbar } from "../components/Navbar";
 import { OnboardingTour } from "../components/OnboardingTour";
@@ -10,8 +9,7 @@ import LoadingSpinner from "../components/LoadingSpinner";
 import { clearAuthAndRedirect } from "../utils/auth";
 import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import { api } from "../utils/apiClient";
 
 export const AdminPanel = () => {
   const navigate = useNavigate();
@@ -124,18 +122,6 @@ export const AdminPanel = () => {
     return matchSearch && matchElection && matchDateFrom && matchDateTo;
   });
 
-  // Verificar admin al montar
-  useEffect(() => {
-    const token = localStorage.getItem("vtb-token");
-    let role = '';
-    try { role = JSON.parse(localStorage.getItem('vtb-user') || '{}').role || ''; } catch { /* ignore */ }
-
-    if (!token || (role !== "admin" && role !== "superadmin")) {
-      navigate("/login");
-      return;
-    }
-  }, [navigate]);
-
   // Cargar datos según tab
   useEffect(() => {
     loadTabData();
@@ -143,14 +129,10 @@ export const AdminPanel = () => {
 
   // Load pending badge count on mount
   useEffect(() => {
-    axios.get(`${API_URL}/admin/registration-requests?status=pending`, { headers: getAuthHeader() })
+    api.get('/admin/registration-requests?status=pending')
       .then(r => setPendingBadge(r.data.total || 0))
       .catch(() => {});
   }, []);
-
-  const getAuthHeader = () => ({
-    Authorization: `Bearer ${localStorage.getItem("vtb-token")}`,
-  });
 
   const cardTabMap = {
     "totalUsers": "users",
@@ -170,14 +152,13 @@ export const AdminPanel = () => {
   const handleSyncBlockchain = async () => {
     setSyncing(true);
     try {
-      await axios.post(
-        `${API_URL}/api/admin/sync-blockchain`,
-        {},
-        { headers: getAuthHeader() }
+      await api.post(
+        `/api/admin/sync-blockchain`,
+        {}
       );
       toast.success('Blockchain sync started - check backend logs');
       setTimeout(() => {
-        axios.get(`${API_URL}/admin/blockchain-status`, { headers: getAuthHeader() })
+        api.get(`/admin/blockchain-status`)
           .then(r => setBlockchainStatus(r.data))
           .catch(() => {});
       }, 15000);
@@ -194,9 +175,7 @@ export const AdminPanel = () => {
     try {
       switch (activeTab) {
         case "dashboard": {
-          const dashRes = await axios.get(`${API_URL}/admin/dashboard`, {
-            headers: getAuthHeader(),
-          });
+          const dashRes = await api.get(`/admin/dashboard`);
           setStats(dashRes.data.stats);
           setDashboardData({
             recentVotes: dashRes.data.recentVotes || [],
@@ -204,42 +183,34 @@ export const AdminPanel = () => {
             requestsTrend: dashRes.data.requestsTrend || [],
           });
           // Blockchain status (best-effort, don't block dashboard)
-          axios.get(`${API_URL}/admin/blockchain-status`, { headers: getAuthHeader() })
+          api.get(`/admin/blockchain-status`)
             .then(r => setBlockchainStatus(r.data))
             .catch(() => setBlockchainStatus({ connected: false, reason: 'Request failed' }));
           break;
         }
         case "users": {
-          const usersRes = await axios.get(`${API_URL}/admin/users`, {
-            headers: getAuthHeader(),
-          });
+          const usersRes = await api.get(`/admin/users`);
           setUsers(usersRes.data.users);
           setUsersPage(1);
           break;
         }
         case "elections": {
-          const electRes = await axios.get(`${API_URL}/admin/elections`, {
-            headers: getAuthHeader(),
-          });
+          const electRes = await api.get(`/admin/elections`);
           setElections(electRes.data.elections);
           try {
-            const domainsRes = await axios.get(`${API_URL}/admin/domains`, {
-              headers: getAuthHeader(),
-            });
+            const domainsRes = await api.get(`/admin/domains`);
             setAvailableDomains(domainsRes.data.domains || []);
           } catch {
             // ignore
           }
           try {
-            const orgRes = await axios.get(`${API_URL}/admin/org-units`, {
-              headers: getAuthHeader(),
-            });
+            const orgRes = await api.get(`/admin/org-units`);
             setOrgUnits(orgRes.data.units || []);
           } catch {
             // ignore
           }
           try {
-            const schRes = await axios.get(`${API_URL}/api/schools-degrees`, { headers: getAuthHeader() });
+            const schRes = await api.get(`/api/schools-degrees`);
             setSchoolsData(schRes.data.schools_degrees || []);
           } catch {
             // ignore
@@ -247,27 +218,21 @@ export const AdminPanel = () => {
           break;
         }
         case "audit": {
-          const auditRes = await axios.get(`${API_URL}/admin/audit`, {
-            headers: getAuthHeader(),
-          });
+          const auditRes = await api.get(`/admin/audit`);
           setAudit(auditRes.data.audit);
           if (elections.length === 0) {
-            const electRes = await axios.get(`${API_URL}/admin/elections`, { headers: getAuthHeader() });
+            const electRes = await api.get(`/admin/elections`);
             setElections(electRes.data.elections);
           }
           break;
         }
         case "stats": {
-          const statsRes = await axios.get(`${API_URL}/admin/stats/voters`, {
-            headers: getAuthHeader(),
-          });
+          const statsRes = await api.get(`/admin/stats/voters`);
           setStats2(statsRes.data.stats);
           break;
         }
         case "inbox": {
-          const regRes = await axios.get(`${API_URL}/admin/registration-requests?status=all`, {
-            headers: getAuthHeader(),
-          });
+          const regRes = await api.get(`/admin/registration-requests?status=all`);
           setRegistrationRequests(regRes.data.requests);
           break;
         }
@@ -287,9 +252,7 @@ export const AdminPanel = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post(`${API_URL}/admin/users`, newUser, {
-        headers: getAuthHeader(),
-      });
+      await api.post(`/admin/users`, newUser);
       toast.success("User created successfully");
       setNewUser({ email: "", password: "", name: "", student_id: "", role: "student", admin_domain: "" });
       loadTabData();
@@ -302,9 +265,7 @@ export const AdminPanel = () => {
 
   const handleDeleteUser = async (userId) => {
     try {
-      await axios.delete(`${API_URL}/admin/users/${userId}`, {
-        headers: getAuthHeader(),
-      });
+      await api.delete(`/admin/users/${userId}`);
       toast.success("User deleted");
       setConfirmDeleteId(null);
       loadTabData();
@@ -354,16 +315,14 @@ export const AdminPanel = () => {
         target_schools: newElection.target_schools || [],
       };
 
-      const res = await axios.post(`${API_URL}/admin/elections`, electionPayload, {
-        headers: getAuthHeader(),
-      });
+      const res = await api.post(`/admin/elections`, electionPayload);
       const newElectionId = res.data.electionId;
 
       // Add candidates
       const validCandidates = newElection.candidates.filter(c => c.name.trim() !== "");
       for (const candidate of validCandidates) {
         try {
-          await axios.post(`${API_URL}/admin/elections/${newElectionId}/candidates`, candidate, { headers: getAuthHeader() });
+          await api.post(`/admin/elections/${newElectionId}/candidates`, candidate);
         } catch (e) {
           console.error("Error adding candidate:", e);
         }
@@ -374,9 +333,7 @@ export const AdminPanel = () => {
         try {
           const formData = new FormData();
           formData.append('file', newElection.image);
-          await axios.post(`${API_URL}/admin/elections/${newElectionId}/image`, formData, {
-            headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
-          });
+          await api.post(`/admin/elections/${newElectionId}/image`, formData);
         } catch (e) {
           console.error("Error uploading election image:", e);
         }
@@ -426,10 +383,9 @@ export const AdminPanel = () => {
 
   const handleToggleElection = async (electionId, is_active) => {
     try {
-      await axios.put(
-        `${API_URL}/admin/elections/${electionId}`,
-        { is_active: !is_active },
-        { headers: getAuthHeader() }
+      await api.put(
+        `/admin/elections/${electionId}`,
+        { is_active: !is_active }
       );
       toast.success("Election updated");
       loadTabData();
@@ -462,9 +418,7 @@ export const AdminPanel = () => {
           ? Math.floor(new Date(editingElection.end_time).getTime() / 1000)
           : undefined,
       };
-      await axios.patch(`${API_URL}/admin/elections/${editingElection.id}`, payload, {
-        headers: getAuthHeader(),
-      });
+      await api.patch(`/admin/elections/${editingElection.id}`, payload);
       toast.success('Election updated');
       setEditingElection(null);
       loadTabData();
@@ -476,7 +430,7 @@ export const AdminPanel = () => {
   const handleAddVoter = async (electionId) => {
     try {
       if (!manageCensus.email.trim()) return;
-      await axios.post(`${API_URL}/admin/elections/${electionId}/voters`, { email: manageCensus.email.trim() }, { headers: getAuthHeader() });
+      await api.post(`/admin/elections/${electionId}/voters`, { email: manageCensus.email.trim() });
       toast.success("Voter added to census");
       setManageCensus({ ...manageCensus, email: '' });
     } catch (err) {
@@ -487,7 +441,7 @@ export const AdminPanel = () => {
   const handleAddDomain = async (electionId) => {
     try {
       if (!manageCensus.domain.trim()) return;
-      await axios.post(`${API_URL}/admin/elections/${electionId}/domains`, { domain: manageCensus.domain.trim() }, { headers: getAuthHeader() });
+      await api.post(`/admin/elections/${electionId}/domains`, { domain: manageCensus.domain.trim() });
       toast.success("Domain added to census");
       setManageCensus({ ...manageCensus, domain: '' });
     } catch (err) {
@@ -521,10 +475,9 @@ export const AdminPanel = () => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await axios.post(
-        `${API_URL}/admin/elections/${electionId}/import-voters`,
-        formData,
-        { headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' } }
+      const res = await api.post(
+        `/admin/elections/${electionId}/import-voters`,
+        formData
       );
       const r = res.data.results;
       toast.success(`CSV imported: ${r.created} users created, ${r.added} added, ${r.skipped} skipped`);
@@ -542,10 +495,9 @@ export const AdminPanel = () => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await axios.post(
-        `${API_URL}/admin/users/import`,
-        formData,
-        { headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' } }
+      const res = await api.post(
+        `/admin/users/import`,
+        formData
       );
       const r = res.data.results;
       toast.success(`Users imported: ${r.created} created, ${r.skipped} skipped`);
@@ -569,10 +521,9 @@ export const AdminPanel = () => {
   const handleApproveRequest = async (requestId, email) => {
     setLoading(true);
     try {
-      const response = await axios.patch(
-        `${API_URL}/admin/registration-requests/${requestId}`,
-        { action: 'approve' },
-        { headers: getAuthHeader() }
+      const response = await api.patch(
+        `/admin/registration-requests/${requestId}`,
+        { action: 'approve' }
       );
       if (response.data.tempPassword) {
         setTempPasswordInfo({
@@ -595,10 +546,9 @@ export const AdminPanel = () => {
 
     setLoading(true);
     try {
-      await axios.patch(
-        `${API_URL}/admin/registration-requests/${requestId}`,
-        { action: 'reject', reason },
-        { headers: getAuthHeader() }
+      await api.patch(
+        `/admin/registration-requests/${requestId}`,
+        { action: 'reject', reason }
       );
       toast.success("Request rejected");
       setRejectReasonId(null);
@@ -614,7 +564,7 @@ export const AdminPanel = () => {
   const loadElectionStats = async (electionId) => {
     setLoadingElectionStats(true);
     try {
-      const res = await axios.get(`${API_URL}/admin/elections/${electionId}/stats`, { headers: getAuthHeader() });
+      const res = await api.get(`/admin/elections/${electionId}/stats`);
       setSelectedElectionStats(res.data);
     } catch (err) {
       toast.error(err.response?.data?.error || "Error loading election stats");
@@ -1824,7 +1774,7 @@ export const AdminPanel = () => {
                   {/* Privacy Notice */}
                   <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4 rounded-lg">
                     <p className="text-sm text-emerald-800 dark:text-emerald-200">
-                      <strong>Vote privacy guaranteed:</strong> This audit log confirms participation without revealing candidate choices. Vote hashes are cryptographically anonymous and cannot be reversed.
+                      <strong>Registro inmutable en blockchain:</strong> Este registro de auditoría confirma la participación. El nullifier y el hash de voto almacenados on-chain no identifican al votante en la cadena. El recuento es irrevocable y auditable públicamente.
                     </p>
                   </div>
                 </motion.div>
@@ -2147,7 +2097,7 @@ export const AdminPanel = () => {
                           <button
                             onClick={async () => {
                               try {
-                                await axios.put(`${API_URL}/admin/elections/${selectedElectionStats.election.id}`, { is_active: false }, { headers: getAuthHeader() });
+                                await api.put(`/admin/elections/${selectedElectionStats.election.id}`, { is_active: false });
                                 toast.success('Election closed');
                                 setCloseElectionConfirm(false);
                                 setSelectedElectionStats(null);

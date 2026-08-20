@@ -1,8 +1,13 @@
 import { app } from "./app.js";
 import { getDatabase } from "./config/database.js";
-import { seedDemoData } from "./scripts/seedDatabase.js";
+import { getDbClient } from "./db/index.js";
+import { PgClient } from "./db/postgres.js";
 import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
+import { ethers } from "ethers";
 import net from "node:net";
+import { retryPendingEmails } from "./services/email/queue.js";
+import { sendCensusInvitation, sendElectionOpen, sendElectionClose } from "./services/email/index.js";
+import { generateSecureToken } from "./utils/auth.js";
 
 const PORT = Number(process.env.PORT || 3001);
 
@@ -43,7 +48,6 @@ async function initializeDatabase() {
     const db = getDatabase();
     await db.initialize();
     console.log('✅ Base de datos SQLite inicializada');
-    await seedDemoData();
   } catch (error) {
     console.error('❌ Error al inicializar BD:', error);
     process.exit(1);
@@ -62,6 +66,19 @@ async function start() {
       console.log(`✅ Blockchain configurado: ${process.env.CONTRACT_ADDRESS}`);
     }
 
+    // TOCTOU warning: the vote uniqueness guarantee is only atomic on PostgreSQL.
+    // On SQLite, SqliteAdapter.acquireVoteLock does a SELECT + app-level check,
+    // which is still vulnerable to a concurrent duplicate vote under high load.
+    // Switch to DB_CLIENT=postgres for production use.
+    if (!process.env.DB_CLIENT || process.env.DB_CLIENT !== 'postgres') {
+      console.warn('\n' + '!'.repeat(60));
+      console.warn('⚠️  AVISO DE SEGURIDAD: DB_CLIENT != postgres');
+      console.warn('   El cerrojo anti-doble-voto (TOCTOU) NO está garantizado');
+      console.warn('   en modo SQLite. Un usuario podría votar dos veces bajo');
+      console.warn('   carga concurrente. Usa DB_CLIENT=postgres en producción.');
+      console.warn('!'.repeat(60) + '\n');
+    }
+
     const server = app.listen(PORT);
     server.on("listening", () => {
       console.log("\n" + "=".repeat(60));
@@ -74,6 +91,175 @@ async function start() {
       syncElectionsToBlockchain().catch(err => {
         console.warn("Election sync warning:", err.message);
       });
+
+      // ── Job periódico: reintento de emails huérfanos + notificaciones ────────
+      // Corre cada 5 minutos independientemente del motor de BD.
+      // Recupera emails en 'queued'/'failed' que no se enviaron antes de un
+      // reinicio del servidor (el cuerpo queda guardado en email_log).
+      // También detecta cambios de estado en elecciones y envía notificaciones.
+      const FIVE_MIN = 5 * 60 * 1000;
+      const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+      const INVITATION_TTL_DAYS = 7;
+      const MAX_NOTIFY_BATCH = 1000;
+
+      async function checkElectionNotifications(): Promise<void> {
+        const db = getDbClient();
+        const now = Math.floor(Date.now() / 1000);
+
+        // ── Elecciones que acaban de abrir ──────────────────────────────────
+        const toOpen = await db.run<{
+          id: number; name: string; start_time: number; end_time: number;
+        }>(
+          `SELECT id, name, start_time, end_time FROM elections
+           WHERE start_time <= ? AND is_active = 1
+             AND notify_open_sent_at IS NULL`,
+          [now],
+        ).catch(() => []);
+
+        for (const election of toOpen) {
+          const voters = await db.run<{
+            id: number; email: string; name: string; must_change_password: number;
+          }>(
+            `SELECT u.id, u.email, u.name, u.must_change_password
+               FROM election_voters ev
+               JOIN users u ON u.id = ev.user_id
+              WHERE ev.election_id = ?
+                AND u.deleted_at IS NULL
+                AND u.email NOT LIKE '%@vtb.demo'
+              LIMIT ${MAX_NOTIFY_BATCH}`,
+            [election.id],
+          ).catch(() => []);
+
+          for (const v of voters) {
+            if (v.must_change_password) {
+              // Punto 2: usuario no ha activado su cuenta todavía.
+              // Regeneramos el token de invitación para que pueda acceder.
+              try {
+                await db.exec(
+                  `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP
+                   WHERE user_id = ? AND type = 'invitation' AND used_at IS NULL`,
+                  [v.id],
+                );
+                const { plaintext, hash } = generateSecureToken();
+                const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 86400 * 1000);
+                await db.exec(
+                  `INSERT INTO password_reset_tokens (user_id, token_hash, type, expires_at)
+                   VALUES (?, ?, 'invitation', ?)`,
+                  [v.id, hash, expiresAt.toISOString()],
+                );
+                sendCensusInvitation({
+                  to:              v.email,
+                  name:            v.name,
+                  electionName:    election.name,
+                  institutionName: 'tu institución',
+                  setPasswordUrl:  `${frontendUrl}/auth/set-password?token=${plaintext}`,
+                  expiresAt,
+                });
+              } catch (err) {
+                console.error(`[notify-open] error regenerando token para ${v.email}:`, err);
+              }
+            } else {
+              sendElectionOpen({
+                to:           v.email,
+                name:         v.name,
+                electionName: election.name,
+                startTime:    new Date(election.start_time * 1000),
+                endTime:      new Date(election.end_time   * 1000),
+                voteUrl:      `${frontendUrl}/elections/${election.id}`,
+              });
+            }
+          }
+
+          await db.exec(
+            'UPDATE elections SET notify_open_sent_at = CURRENT_TIMESTAMP WHERE id = ?',
+            [election.id],
+          ).catch(err => console.error('[notify-open] update failed:', err));
+
+          console.log(`[notify-open] "${election.name}" → ${voters.length} emails encolados`);
+        }
+
+        // ── Elecciones que acaban de cerrar ─────────────────────────────────
+        const toClose = await db.run<{
+          id: number; name: string; end_time: number;
+        }>(
+          `SELECT id, name, end_time FROM elections
+           WHERE end_time <= ? AND notify_close_sent_at IS NULL`,
+          [now],
+        ).catch(() => []);
+
+        for (const election of toClose) {
+          const voters = await db.run<{ email: string; name: string }>(
+            `SELECT u.email, u.name
+               FROM election_voters ev
+               JOIN users u ON u.id = ev.user_id
+              WHERE ev.election_id = ?
+                AND u.deleted_at IS NULL
+                AND u.email NOT LIKE '%@vtb.demo'
+              LIMIT ${MAX_NOTIFY_BATCH}`,
+            [election.id],
+          ).catch(() => []);
+
+          for (const v of voters) {
+            sendElectionClose({
+              to:           v.email,
+              name:         v.name,
+              electionName: election.name,
+              closedAt:     new Date(election.end_time * 1000),
+              resultsUrl:   `${frontendUrl}/elections/${election.id}/results`,
+            });
+          }
+
+          await db.exec(
+            'UPDATE elections SET notify_close_sent_at = CURRENT_TIMESTAMP WHERE id = ?',
+            [election.id],
+          ).catch(err => console.error('[notify-close] update failed:', err));
+
+          console.log(`[notify-close] "${election.name}" → ${voters.length} emails encolados`);
+        }
+      }
+
+      setInterval(() => {
+        retryPendingEmails().catch(err =>
+          console.error('[email:retry-job] error:', err),
+        );
+        checkElectionNotifications().catch(err =>
+          console.error('[notify-job] error:', err),
+        );
+      }, FIVE_MIN);
+
+      console.log('✅ Job de email (retry + notificaciones electorales) activo (cada 5 min)');
+
+      // ── Job de limpieza de votos huérfanos — solo cuando el motor es PostgreSQL
+      const dbClient = getDbClient();
+      if (dbClient instanceof PgClient) {
+        const THIRTY_MIN = 30 * 60 * 1000;
+
+        // Busca el evento VoteCast indexado por nullifier para confirmar la tx.
+        // nullifier es bytes32 indexed en el contrato → se puede filtrar sin electionId.
+        const checkOnChain = async (nullifierHash: string): Promise<{ txHash: string; blockNumber: number | null } | null> => {
+          const addr = process.env.CONTRACT_ADDRESS;
+          if (!addr) return null;
+          try {
+            const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || 'http://localhost:8545');
+            const abi = ['event VoteCast(uint256 indexed electionId, bytes32 indexed nullifier, bytes32 voteHash, uint256 timestamp)'];
+            const contract = new ethers.Contract(addr, abi, provider);
+            const events = await contract.queryFilter(contract.filters.VoteCast(null, nullifierHash));
+            if (events.length === 0) return null;
+            const ev = events[0] as ethers.EventLog;
+            return { txHash: ev.transactionHash, blockNumber: ev.blockNumber };
+          } catch {
+            return null;
+          }
+        };
+
+        setInterval(() => {
+          dbClient.cleanupStaleVoteAttempts(checkOnChain).catch(err => {
+            console.error('[cleanup] Error limpiando votos huérfanos:', err);
+          });
+        }, THIRTY_MIN);
+
+        console.log('✅ Job de limpieza de votos huérfanos activo (cada 30 min)');
+      }
     });
     server.on("error", handleListenError);
   } catch (error) {

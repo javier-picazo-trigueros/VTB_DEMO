@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { clearAuthAndRedirect } from '../utils/auth';
 import toast from 'react-hot-toast';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { api } from '../utils/apiClient';
 
 export function UserProfile() {
   const navigate = useNavigate();
@@ -26,10 +24,6 @@ export function UserProfile() {
 
   const [activity, setActivity] = useState([]);
 
-  const getAuthHeader = () => ({
-    Authorization: `Bearer ${localStorage.getItem('vtb-token')}`,
-  });
-
   useEffect(() => {
     loadProfile();
   }, []);
@@ -37,15 +31,8 @@ export function UserProfile() {
   const loadProfile = async () => {
     setLoading(true);
     setError('');
-    const token = localStorage.getItem('vtb-token');
-    if (!token) {
-      clearAuthAndRedirect(navigate);
-      return;
-    }
     try {
-      const res = await axios.get(`${API_URL}/auth/me/profile`, {
-        headers: getAuthHeader(),
-      });
+      const res = await api.get('/auth/me/profile');
       setProfile(res.data.user);
       setEditForm({
         name: res.data.user.name || '',
@@ -58,10 +45,7 @@ export function UserProfile() {
       if (res.data.user.email) {
         const domain = res.data.user.email.split('@')[1];
         try {
-          const schoolRes = await axios.get(
-            `${API_URL}/api/schools-degrees?domain=${domain}`,
-            { headers: getAuthHeader() }
-          );
+          const schoolRes = await api.get(`/api/schools-degrees?domain=${domain}`);
           setSchoolsData(schoolRes.data.schools_degrees || []);
         } catch {
           // ignore — domain may not have schools configured
@@ -69,9 +53,7 @@ export function UserProfile() {
       }
 
       try {
-        const actRes = await axios.get(`${API_URL}/api/elections`, {
-          headers: getAuthHeader(),
-        });
+        const actRes = await api.get('/api/elections');
         const elections = actRes.data.elections || actRes.data || [];
         setActivity(Array.isArray(elections) ? elections.slice(0, 10) : []);
       } catch {
@@ -96,22 +78,11 @@ export function UserProfile() {
     setSaving(true);
     setError('');
     try {
-      const res = await axios.patch(
-        `${API_URL}/auth/me/profile`,
-        editForm,
-        { headers: getAuthHeader() }
-      );
+      const res = await api.patch('/auth/me/profile', editForm);
       setProfile(res.data.user);
+      // Update the in-memory user object (no localStorage)
       if (setAuthUser && res.data.user.name) {
-        const stored = localStorage.getItem('vtb-user');
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            const updated = { ...parsed, name: res.data.user.name };
-            localStorage.setItem('vtb-user', JSON.stringify(updated));
-            setAuthUser(updated);
-          } catch { /* ignore */ }
-        }
+        setAuthUser(prev => ({ ...prev, name: res.data.user.name }));
       }
       setEditing(false);
       toast.success('Profile updated successfully');
@@ -134,11 +105,10 @@ export function UserProfile() {
     setPwLoading(true);
     setPwError('');
     try {
-      await axios.patch(
-        `${API_URL}/auth/change-password`,
-        { currentPassword: pwForm.current, newPassword: pwForm.next },
-        { headers: getAuthHeader() }
-      );
+      await api.patch('/auth/change-password', {
+        currentPassword: pwForm.current,
+        newPassword: pwForm.next,
+      });
       toast.success('Password changed successfully!');
       setPwForm({ current: '', next: '', confirm: '' });
     } catch (err) {

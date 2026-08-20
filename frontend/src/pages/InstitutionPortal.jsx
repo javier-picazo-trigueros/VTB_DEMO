@@ -11,10 +11,9 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import axios from "axios";
 import { useAuth } from "../context/AuthContext";
+import { api, apiFetch } from "../utils/apiClient";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 // ─── Loading spinner ──────────────────────────────────────────────────────────
 const LoadingSpinner = ({ color = "#3b82f6" }) => (
@@ -48,7 +47,7 @@ const ALL_ADMIN_DEMOS = [
 const PortalLoginForm = ({ primaryColor, domain }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { setAuthUser } = useAuth();
+  const { login, setAuthUser } = useAuth();
 
   const [portal, setPortal]   = useState(null); // null | 'voter' | 'admin'
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -76,31 +75,19 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
     setError("");
 
     try {
-      const { data } = await axios.post(
-        `${API_URL}/auth/login`,
-        {
-          email: formData.email,
-          password: formData.password,
-        },
-        { timeout: 15000 }
-      );
+      const result = await login(formData.email, formData.password);
 
-      const { token, user } = data;
-
-      if (portal === "admin" && user.role !== "admin" && user.role !== "superadmin") {
-        setError(t("login.notAdmin"));
-        setLoading(false);
+      if (!result.success) {
+        setError(result.error || t("login.loginError"));
         return;
       }
 
-      localStorage.setItem("vtb-token",        token);
-      localStorage.setItem("vtb-role",          user.role);
-      localStorage.setItem("vtb-user-id",       user.id);
-      localStorage.setItem("vtb-email",         user.email);
-      localStorage.setItem("vtb-name",          user.name);
-      localStorage.setItem("vtb-admin-domain",  user.adminDomain || "");
+      const { user } = result;
 
-      setAuthUser({ id: user.id, email: user.email, name: user.name, role: user.role });
+      if (portal === "admin" && user.role !== "admin" && user.role !== "superadmin") {
+        setError(t("login.notAdmin"));
+        return;
+      }
 
       if (portal === "admin" && (user.role === "admin" || user.role === "superadmin")) {
         navigate("/admin");
@@ -108,13 +95,7 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
         navigate("/dashboard");
       }
     } catch (err) {
-      if (err.code === "ECONNABORTED") {
-        setError(t("login.timeoutError"));
-      } else if (!err.response) {
-        setError(t("login.networkError", { apiUrl: API_URL }));
-      } else {
-        setError(err.response?.data?.error || t("login.loginError"));
-      }
+      setError(t("login.loginError"));
     } finally {
       setLoading(false);
     }
@@ -391,8 +372,8 @@ export const InstitutionPortal = () => {
 
     (async () => {
       try {
-        const res = await fetch(
-          `${API_URL}/api/organizations/${encodeURIComponent(domain)}`,
+        const res = await apiFetch(
+          `/api/organizations/${encodeURIComponent(domain)}`,
           { signal: ctrl.signal }
         );
         if (res.status === 404) { setStatus("not_found"); return; }

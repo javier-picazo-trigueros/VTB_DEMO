@@ -7,5 +7,7 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     exclude: ['node_modules/**', 'dist/**'],
     setupFiles: ['./src/__tests__/setup.ts'],
+    hookTimeout: 60000,
+    pool: 'vmForks',
   },
 });

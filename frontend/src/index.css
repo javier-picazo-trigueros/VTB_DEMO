@@ -5,119 +5,141 @@
  * Incluye Tailwind CSS y personalizaciones.
  */
 
+/* IBM Plex Sans + IBM Plex Mono — tipografía institucional */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-* {
-  @apply transition-colors duration-200;
+/* ── Design tokens ─────────────────────────────────────────────── */
+:root {
+  --vtb-primary:        #1B4D6A;
+  --vtb-primary-hover:  #163E57;
+  --vtb-primary-wash:   #EAF2F7;
+  --vtb-ground:         #F5F3EF;
+  --vtb-border-warm:    #E2DDD8;
+  --vtb-muted:          #6B6560;
+  --vtb-success:        #1E5C3A;
+  --vtb-warning:        #8C4A00;
+  --font-mono-vtb:      'IBM Plex Mono', 'SF Mono', 'Consolas', 'Fira Code', monospace;
 }
+
+/* Tabular numbers utility — use on any numeric data */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.font-mono-vtb {
+  font-family: var(--font-mono-vtb);
+}
+
+/* Removed global * { transition-colors } — it causes layout jank and
+   forces GPU compositing on every element. Apply transitions per-component. */
 
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 font-sans;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  @apply bg-white text-slate-900 antialiased;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI Variable', 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* Scrollbar personalizado */
+/* Scrollbar — neutral to match light theme */
 ::-webkit-scrollbar {
   @apply w-2 h-2;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-900;
+  @apply bg-slate-100;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-emerald-500 rounded-full hover:bg-emerald-400;
+  @apply bg-slate-300 rounded-full hover:bg-slate-400;
 }
 
-/* Animaciones personalizadas */
+/* Animations */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
-  }
+  0%, 100% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.2); }
+  50%       { box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out;
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
 }
 
-.animate-slideInRight {
-  animation: slideInRight 0.3s ease-out;
+.animate-fadeIn      { animation: fadeIn 0.3s ease-out; }
+.animate-slideInRight { animation: slideInRight 0.3s ease-out; }
+.animate-pulse-glow  { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* ── VTB Design-system component classes ────────────────────────────── */
+
+/* Primary button — brand navy */
+.vtb-btn-primary {
+  @apply inline-flex items-center justify-center gap-2
+         px-5 py-2.5 rounded-lg
+         bg-brand-600 text-white font-semibold text-sm
+         hover:bg-brand-700 active:bg-brand-800
+         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2
+         disabled:opacity-50 disabled:cursor-not-allowed
+         transition-colors duration-150;
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+/* Secondary button — outlined */
+.vtb-btn-secondary {
+  @apply inline-flex items-center justify-center gap-2
+         px-5 py-2.5 rounded-lg
+         border border-slate-300 bg-white text-slate-700 font-semibold text-sm
+         hover:bg-slate-50 active:bg-slate-100
+         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2
+         disabled:opacity-50 disabled:cursor-not-allowed
+         transition-colors duration-150;
 }
 
-/* Clases de componentes reutilizables */
-.btn-primary {
-  @apply px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition;
+/* Danger button */
+.vtb-btn-danger {
+  @apply inline-flex items-center justify-center gap-2
+         px-5 py-2.5 rounded-lg
+         bg-danger-600 text-white font-semibold text-sm
+         hover:bg-danger-700 active:bg-danger-800
+         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-500 focus-visible:ring-offset-2
+         disabled:opacity-50 disabled:cursor-not-allowed
+         transition-colors duration-150;
 }
 
-.btn-secondary {
-  @apply px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold rounded-lg transition;
+/* Card */
+.vtb-card {
+  @apply bg-white border border-slate-200 rounded-xl shadow-sm;
 }
 
-.card-vtb {
-  @apply bg-slate-800 border border-emerald-500/20 rounded-lg p-6 hover:border-emerald-500/50 transition;
+/* Text input / select */
+.vtb-input {
+  @apply w-full px-4 py-2.5 rounded-lg
+         border border-slate-300 bg-white text-slate-900 text-sm
+         placeholder:text-slate-400
+         focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500
+         disabled:bg-slate-50 disabled:text-slate-400
+         transition-colors duration-150;
 }
 
-.input-vtb {
-  @apply px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none transition;
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  @apply rounded;
 }
 
-.badge-active {
-  @apply px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400;
-}
-
-.badge-inactive {
-  @apply px-3 py-1 rounded-full text-xs font-semibold bg-slate-700/50 text-slate-400;
-}
-
-/* Gradientes personalizados */
-.gradient-text {
-  @apply bg-gradient-to-r from-emerald-400 to-emerald-500 bg-clip-text text-transparent;
-}
-
-.gradient-border {
-  @apply bg-gradient-to-r from-emerald-500 to-emerald-600 p-px rounded-lg;
-}
-
-/* Efectos de hover mejorados */
-.hover-lift {
-  @apply transition-transform hover:-translate-y-1;
-}
-
-.hover-glow {
-  @apply transition-all hover:shadow-lg hover:shadow-emerald-500/20;
-}

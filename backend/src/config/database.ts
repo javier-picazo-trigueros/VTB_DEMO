@@ -193,6 +193,22 @@ export class Database {
     await this.exec("ALTER TABLE users ADD COLUMN org_unit TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN org_unit TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE elections ADD COLUMN voter_role TEXT DEFAULT 'student'").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT 0").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN deleted_at DATETIME DEFAULT NULL").catch(() => {});
+
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at DATETIME NOT NULL,
+        revoked INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    await this.exec(
+      'CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)'
+    ).catch(() => {});
 
     // New attribute-based org structure
     await this.exec("ALTER TABLE users ADD COLUMN school TEXT DEFAULT NULL").catch(() => {});
@@ -233,6 +249,59 @@ export class Database {
     // Los superadmin y admin creados directamente en BD ya están aprobados
     await this.exec(
       "UPDATE users SET is_approved = 1, approved_at = CURRENT_TIMESTAMP WHERE role IN ('admin', 'superadmin') AND is_approved = 0"
+    ).catch(() => {});
+
+    // ── Email infrastructure ─────────────────────────────────────────────────
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS email_log (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipient     TEXT NOT NULL,
+        template_name TEXT NOT NULL,
+        subject       TEXT NOT NULL,
+        html_body     TEXT DEFAULT NULL,
+        text_body     TEXT DEFAULT NULL,
+        resend_id     TEXT DEFAULT NULL,
+        status        TEXT NOT NULL DEFAULT 'queued',
+        attempts      INTEGER NOT NULL DEFAULT 0,
+        last_error    TEXT DEFAULT NULL,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        sent_at       DATETIME DEFAULT NULL
+      )
+    `).catch(() => {});
+    // Migrations para DBs existentes antes de añadir las columnas de cuerpo
+    await this.exec('ALTER TABLE email_log ADD COLUMN html_body TEXT DEFAULT NULL').catch(() => {});
+    await this.exec('ALTER TABLE email_log ADD COLUMN text_body TEXT DEFAULT NULL').catch(() => {});
+    await this.exec(
+      'CREATE INDEX IF NOT EXISTS idx_email_log_recipient ON email_log(recipient)'
+    ).catch(() => {});
+    await this.exec(
+      'CREATE INDEX IF NOT EXISTS idx_email_log_status ON email_log(status, created_at)'
+    ).catch(() => {});
+
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        type       TEXT NOT NULL DEFAULT 'reset',
+        expires_at DATETIME NOT NULL,
+        used_at    DATETIME DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    await this.exec(
+      'CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id)'
+    ).catch(() => {});
+    await this.exec(
+      'CREATE INDEX IF NOT EXISTS idx_prt_hash ON password_reset_tokens(token_hash)'
+    ).catch(() => {});
+
+    // Tracking de notificaciones de elección (apertura / cierre)
+    await this.exec(
+      'ALTER TABLE elections ADD COLUMN notify_open_sent_at DATETIME DEFAULT NULL'
+    ).catch(() => {});
+    await this.exec(
+      'ALTER TABLE elections ADD COLUMN notify_close_sent_at DATETIME DEFAULT NULL'
     ).catch(() => {});
   }
 

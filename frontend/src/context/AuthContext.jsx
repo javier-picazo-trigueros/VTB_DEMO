@@ -1,126 +1,75 @@
-import React, { createContext, useState, useContext, useEffect } from 'react'
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { api } from '../utils/apiClient';
 
-const AuthContext = createContext()
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
-
-function isTokenValid(token) {
-  try {
-    if (!token) return false
-    const parts = token.split('.')
-    if (parts.length !== 3) return false
-    const payload = JSON.parse(atob(parts[1]))
-    if (payload.exp && payload.exp * 1000 < Date.now()) return false
-    return true
-  } catch (error) {
-    return false
-  }
-}
+const AuthContext = createContext();
 
 export const useAuth = () => {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth debe ser usado dentro de AuthProvider')
-  return context
-}
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth debe ser usado dentro de AuthProvider');
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [backendSleeping, setBackendSleeping] = useState(false)
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [backendSleeping, setBackendSleeping] = useState(false);
 
-  const clearAuth = () => {
-    const keys = ['vtb-token', 'vtb-user', 'vtb-role', 'vtb-user-id', 'vtb-email', 'vtb-name', 'vtb-admin-domain'];
-    keys.forEach(k => localStorage.removeItem(k));
+  // Hydrate session from server on mount.
+  // No localStorage involved — the httpOnly access cookie carries the identity.
+  useEffect(() => {
+    api.get('/auth/me')
+      .then(({ data }) => {
+        setUser({
+          id:          data.user.id,
+          email:       data.user.email,
+          name:        data.user.name,
+          role:        data.user.role,
+          adminDomain: data.user.adminDomain || '',
+        });
+      })
+      .catch(err => {
+        // Network error or timeout → backend might be sleeping (cold start)
+        if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED' || err.code === 'ERR_CANCELED') {
+          setBackendSleeping(true);
+        }
+        // 401 is normal (not logged in) — no action needed
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const login = async (email, password) => {
+    setBackendSleeping(false);
+    try {
+      const { data } = await api.post('/auth/login', { email, password });
+      const userData = {
+        id:          data.user.id,
+        email:       data.user.email,
+        name:        data.user.name,
+        role:        data.user.role,
+        adminDomain: data.user.adminDomain || '',
+        mustChangePassword: !!data.user.mustChangePassword,
+      };
+      setUser(userData);
+      return { success: true, user: userData };
+    } catch (err) {
+      if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') {
+        setBackendSleeping(true);
+      }
+      return { success: false, error: err.response?.data?.error ?? 'Error de red' };
+    }
+  };
+
+  const logout = () => {
+    // Revoke refresh token + clear httpOnly cookies server-side (fire-and-forget)
+    api.post('/auth/logout').catch(() => {});
     setUser(null);
   };
 
-  useEffect(() => {
-    const validateToken = async () => {
-      const token = localStorage.getItem('vtb-token')
-      if (!token) {
-        setLoading(false)
-        return
-      }
-      if (!isTokenValid(token)) {
-        clearAuth()
-        setLoading(false)
-        return
-      }
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      try {
-        const response = await fetch(`${API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: controller.signal,
-        })
-        clearTimeout(timeoutId);
-        if (response.ok) {
-          const data = await response.json()
-          const userData = {
-            id: data.user.id,
-            email: data.user.email,
-            name: data.user.name,
-            role: data.user.role,
-            adminDomain: data.user.adminDomain || '',
-          }
-          setUser(userData)
-          localStorage.setItem('vtb-user', JSON.stringify(userData))
-        } else {
-          // 401 or 404 — user no longer exists in DB (e.g. after backend restart)
-          clearAuth()
-        }
-      } catch (err) {
-        clearTimeout(timeoutId);
-        // Network error or timeout — fall back to stored user so offline sessions survive
-        const storedUser = localStorage.getItem('vtb-user')
-        if (storedUser) {
-          try { setUser(JSON.parse(storedUser)) } catch (e) {}
-        }
-        if (err instanceof TypeError || err.name === 'AbortError') {
-          setBackendSleeping(true)
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
+  // Update the in-memory user object (e.g. after profile edit).
+  // Never touches localStorage.
+  const setAuthUser = (userData) => setUser(userData);
 
-    validateToken()
-  }, [])
-
-  const login = async (email, password) => {
-    setBackendSleeping(false)
-    try {
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      if (!response.ok) throw new Error('Credenciales invalidas')
-      const data = await response.json()
-      const token = data.token
-      const userData = data.user
-      localStorage.setItem('vtb-token', token)
-      localStorage.setItem('vtb-user', JSON.stringify(userData))
-      setUser(userData)
-      return true
-    } catch (error) {
-      console.error('Error en login:', error)
-      if (error instanceof TypeError) {
-        setBackendSleeping(true)
-      }
-      return false
-    }
-  }
-
-  const logout = () => {
-    clearAuth()
-  }
-
-  const setAuthUser = (userData) => {
-    setUser(userData)
-    localStorage.setItem('vtb-user', JSON.stringify(userData))
-  }
-
-  const hasRole = (role) => user && (user.role === role || user.role === 'superadmin')
+  const hasRole = (role) => user && (user.role === role || user.role === 'superadmin');
 
   const value = {
     user,
@@ -131,12 +80,11 @@ export const AuthProvider = ({ children }) => {
     setAuthUser,
     hasRole,
     isAuthenticated: !!user,
-    isTokenValid,
-  }
+  };
 
   return (
     <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
-  )
-}
+  );
+};

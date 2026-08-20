@@ -5,15 +5,13 @@ import {
   PieChart, Pie, Legend,
 } from 'recharts';
 import { motion } from 'framer-motion';
-import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import jsPDF from 'jspdf';
 import QRCode from 'react-qr-code';
 import { Navbar } from '../components/Navbar';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { api } from '../utils/apiClient';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const EXPLORER_URL = import.meta.env.VITE_EXPLORER_URL || '';
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -24,8 +22,6 @@ const ElectionResults = () => {
   const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
-  const token = localStorage.getItem('vtb-token');
-
   const [activeTab, setActiveTab] = useState('results');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,10 +40,7 @@ const ElectionResults = () => {
   const fetchResults = async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
-      const response = await axios.get(
-        `${API_URL}/api/elections/${id}/results`,
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
-      );
+      const response = await api.get(`/api/elections/${id}/results`);
       setResults(response.data);
       setLastUpdatedSec(0);
       setError(null);
@@ -68,10 +61,7 @@ const ElectionResults = () => {
   const loadAudit = async () => {
     try {
       setAuditLoading(true);
-      const response = await axios.get(
-        `${API_URL}/api/elections/${id}/audit`,
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
-      );
+      const response = await api.get(`/api/elections/${id}/audit`);
       setAuditData(response.data || []);
     } catch (err) {
       console.error('Error loading audit:', err);
@@ -98,10 +88,7 @@ const ElectionResults = () => {
     if (currentAuditData.length === 0) {
       const toastId = toast.loading('Loading audit data...');
       try {
-        const response = await axios.get(
-          `${API_URL}/api/elections/${id}/audit`,
-          { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
-        );
+        const response = await api.get(`/api/elections/${id}/audit`);
         currentAuditData = response.data || [];
         setAuditData(currentAuditData);
       } catch (err) {
@@ -112,6 +99,9 @@ const ElectionResults = () => {
 
     const toastId = toast.loading('Generating PDF...');
     try {
+      // Dynamic import: jsPDF (~250 KB) is loaded on demand when the user
+      // clicks "Export PDF" so it is excluded from the initial bundle.
+      const { default: jsPDF } = await import('jspdf');
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = 210;
       const margin = 15;
@@ -236,7 +226,7 @@ const ElectionResults = () => {
         pdf.setFontSize(8);
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(100, 116, 139);
-        pdf.text(`${currentAuditData.length} votes recorded. Hashes are anonymous — no voter identity is stored.`, margin, y);
+        pdf.text(`${currentAuditData.length} votes recorded. Nullifier and vote hash on-chain do not identify the voter in the blockchain.`, margin, y);
         y += 7;
 
         // Table header

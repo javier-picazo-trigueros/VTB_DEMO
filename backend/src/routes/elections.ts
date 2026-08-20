@@ -1,11 +1,20 @@
 import express, { Request, Response } from "express";
 import { ethers } from "ethers";
 import { createHash } from "crypto";
-import { getDatabase } from "../config/database.js";
-import { verifyToken, generateNullifier } from "../utils/auth.js";
+import { getDbClient, VoteConflictError } from "../db/index.js";
+import { z } from "zod";
+import { generateNullifier, verifyToken, COOKIE_NAME_ACCESS } from "../utils/auth.js";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { sendVoteConfirmation } from "../services/email/index.js";
 
 const router = express.Router();
-const db = getDatabase();
+const db = getDbClient();
+
+const registerVoteSchema = z.object({
+  electionId:  z.number().int().positive(),
+  voteHash:    z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'voteHash debe ser un hash hex de 32 bytes'),
+  candidateId: z.number().int().positive().optional(),
+});
 
 /**
  * @title Election Routes - VTB Backend
@@ -40,24 +49,9 @@ function getWallet() {
  * FIX D: Filtra elecciones por usuario - solo devuelve elecciones donde
  * el usuario est en la tabla election_voters
  */
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", requireAuth, async (req: Request, res: Response) => {
   try {
-    // Extraer y verificar JWT
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Token requerido' });
-      return;
-    }
-    
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    
-    if (!decoded) {
-      res.status(401).json({ error: 'Token inválido' });
-      return;
-    }
-    
-    const userId = decoded.userId;
+    const userId = req.user!.userId;
     
     // Obtener TODAS las elecciones donde este usuario est en election_voters
     const elections = await db.run<{
@@ -170,34 +164,8 @@ router.get("/blockchain-sync-status", async (_req: Request, res: Response) => {
  * @route PATCH /elections/fix-blockchain-ids
  * @desc Resets local blockchain ids to sequential on-chain ids in SQLite order.
  */
-router.patch("/fix-blockchain-ids", async (req: Request, res: Response) => {
+router.patch("/fix-blockchain-ids", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const isDevelopment = process.env.NODE_ENV === "development";
-
-    if (!isDevelopment) {
-      const authHeader = req.headers.authorization;
-      if (!authHeader?.startsWith("Bearer ")) {
-        res.status(401).json({ error: "Auth required" });
-        return;
-      }
-
-      const decoded = verifyToken(authHeader.substring(7));
-      if (!decoded?.userId) {
-        res.status(401).json({ error: "Invalid token" });
-        return;
-      }
-
-      const admin = await db.get<{ role: string }>(
-        "SELECT role FROM users WHERE id = ?",
-        [decoded.userId]
-      );
-
-      if (!admin || !["admin", "superadmin"].includes(admin.role)) {
-        res.status(403).json({ error: "Admin required" });
-        return;
-      }
-    }
-
     const elections = await db.run<{ id: number }>(
       "SELECT id FROM elections ORDER BY id ASC"
     );
@@ -232,6 +200,15 @@ router.patch("/fix-blockchain-ids", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+
+    // Auth opcional: si el usuario tiene sesión activa calculamos hasVoted real.
+    // Si no, el campo vale false (S10 fix: ya no está hardcodeado).
+    const rawToken = (req as { cookies?: Record<string, string> }).cookies?.[COOKIE_NAME_ACCESS];
+    let currentUserId: number | null = null;
+    if (typeof rawToken === 'string' && rawToken) {
+      const decoded = verifyToken(rawToken);
+      if (decoded?.userId) currentUserId = decoded.userId;
+    }
 
     const election = await db.get<{
       id: number;
@@ -291,6 +268,16 @@ router.get("/:id", async (req: Request, res: Response) => {
     const now = Math.floor(Date.now() / 1000);
     const isActive = election.is_active && now >= election.start_time && now <= election.end_time;
 
+    // S10 fix: hasVoted real en lugar de hardcodeado a false
+    let hasVoted = false;
+    if (currentUserId !== null) {
+      const voted = await db.get<{ id: number }>(
+        "SELECT id FROM nullifier_audit WHERE user_id = ? AND election_id = ?",
+        [currentUserId, election.id],
+      );
+      hasVoted = Boolean(voted);
+    }
+
     res.json({
       election: {
         id: election.id,
@@ -304,7 +291,7 @@ router.get("/:id", async (req: Request, res: Response) => {
         status: isActive ? "active" : (now < election.start_time ? "pending" : "closed"),
         candidates: candidates || [],
         eligible: true,
-        hasVoted: false,
+        hasVoted,
         imageUrl: election.image_url || null,
         bannerColor: election.banner_color || '#1E3A5F',
         voterRole: election.voter_role || 'student',
@@ -330,26 +317,10 @@ router.get("/:id", async (req: Request, res: Response) => {
  * 4. Ya vot? ' already_voted
  * 5. OK ' eligible: true
  */
-router.get("/:id/eligibility", async (req: Request, res: Response) => {
+router.get("/:id/eligibility", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
-    // Verificar JWT
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Token requerido' });
-      return;
-    }
-    
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    
-    if (!decoded) {
-      res.status(401).json({ error: 'Token inválido' });
-      return;
-    }
-    
-    const userId = decoded.userId;
+    const userId = req.user!.userId;
 
     // 1. Verificar que existe la eleccin
     const election = await db.get<{
@@ -607,38 +578,20 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
  * - Backend does not custody the user's private key; it only generates nullifier
  * - Blockchain only sees nullifier hash and voteHash
  * - Personal identity is not stored on-chain
- */router.post("/register-vote", async (req: Request, res: Response) => {
+ */router.post("/register-vote", requireAuth, async (req: Request, res: Response) => {
   try {
-    // CAMBIO: Ahora obtener token de Authorization header
-    const authHeader = req.headers.authorization;
-    const { electionId, voteHash, candidateId } = req.body;
-
-    // Validaciones
-    if (!authHeader?.startsWith("Bearer ")) {
-      res.status(401).json({ error: "Token no proporcionado" });
+    const parsed = registerVoteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' });
       return;
     }
+    const { electionId, voteHash, candidateId } = parsed.data;
 
-    const token = authHeader.substring(7);
-
-    if (!electionId || !voteHash) {
-      res.status(400).json({
-        error: "Faltan datos requeridos",
-        required: ["electionId", "voteHash"],
-      });
-      return;
-    }
-
-    // Verificar JWT y extraer userId (ya NO contiene nullifier ni electionId)
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) {
-      res.status(401).json({ error: "Token inválido o expirado" });
-      return;
-    }
+    const decoded = req.user!;
 
     // Verificar que eleccin existe en BD local
-    const election = await db.get<{ id: number; election_id_blockchain: number }>(
-      "SELECT id, election_id_blockchain FROM elections WHERE id = ? AND is_active = 1",
+    const election = await db.get<{ id: number; election_id_blockchain: number; name: string }>(
+      "SELECT id, election_id_blockchain, name FROM elections WHERE id = ? AND is_active = 1",
       [electionId]
     );
 
@@ -662,21 +615,35 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       return;
     }
 
-    // GENERAR NULLIFIER EN ESTE MOMENTO (CAMBIO CRTICO)
+    // Verificar que el usuario está habilitado para votar
+    const voter = await db.get<{ is_eligible: number; name: string }>(
+      "SELECT is_eligible, name FROM users WHERE id = ?",
+      [decoded.userId]
+    );
+    if (!voter || !voter.is_eligible) {
+      return res.status(403).json({ error: "Tu cuenta no está habilitada para votar" });
+    }
+
+    // Verificar que el usuario está en el censo de esta elección
+    const inCensus = await db.get<{ election_id: number }>(
+      "SELECT election_id FROM election_voters WHERE election_id = ? AND user_id = ?",
+      [election.id, decoded.userId]
+    );
+    if (!inCensus) {
+      return res.status(403).json({ error: "No estás en el censo de esta elección" });
+    }
+
+    // GENERAR NULLIFIER EN ESTE MOMENTO (CAMBIO CRÍTICO)
     // Nullifier = HMAC(userId + electionId)
     const nullifier = generateNullifier(decoded.userId, electionId);
 
-    // Verificar que el usuario NO ha votado ya
+    // Verificar doble voto (aplica también para cuentas demo antes del shortcut)
     const alreadyVoted = await db.get<{ id: number }>(
-      "SELECT id FROM nullifier_audit WHERE user_id = ? AND election_id = ?",
-      [decoded.userId, electionId]
+      'SELECT id FROM nullifier_audit WHERE user_id = ? AND election_id = ?',
+      [decoded.userId, election.id]
     );
-
     if (alreadyVoted) {
-      res.status(409).json({
-        error: "Ya has votado en esta elección",
-      });
-      return;
+      return res.status(409).json({ error: 'Ya has votado en esta elección' });
     }
 
     // Check if this is a vtb.demo account — use synthetic fallback immediately
@@ -688,14 +655,10 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         .update(`demo:${decoded.userId}:${electionId}:${Date.now()}`)
         .digest('hex');
 
-      try {
-        await db.exec(
-          'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, generated_at) VALUES (?, ?, ?, ?, ?, NULL, ?, datetime("now"))',
-          [decoded.userId, electionId, nullifier, candidateId ? String(candidateId) : null, syntheticTx, candidateId ?? null]
-        );
-      } catch (auditErr) {
-        console.warn('Demo audit insert warning:', auditErr);
-      }
+      await db.exec(
+        'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id) VALUES (?, ?, ?, ?, ?, NULL, ?)',
+        [decoded.userId, electionId, nullifier, candidateId ? String(candidateId) : null, syntheticTx, candidateId ?? null]
+      );
 
       return res.json({
         success: true,
@@ -704,6 +667,18 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         isDemo: true,
         message: 'Demo vote registered (synthetic — not on real blockchain)',
       });
+    }
+
+    // TOCTOU fix: adquirir cerrojo atómico ANTES de la tx blockchain.
+    // En PG: upsert en vote_attempts (ON CONFLICT DO UPDATE WHERE status='failed').
+    // En SQLite: SELECT legacy en nullifier_audit (mismo comportamiento que antes).
+    try {
+      await db.acquireVoteLock(decoded.userId, electionId, nullifier, candidateId ?? null);
+    } catch (err: any) {
+      if (err instanceof VoteConflictError) {
+        return res.status(409).json({ error: err.message });
+      }
+      throw err;
     }
 
     // Si no est configurada la conexin blockchain, retornar error
@@ -750,10 +725,13 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
 
       console.log(`Vote registered in transaction: ${tx.hash}`);
 
-      // Record audit entry with real txHash and block number
+      // Record audit entry. Only mark vote_attempts as 'confirmed' if this INSERT
+      // succeeds. If it fails, the row stays 'pending' so cleanupStaleVoteAttempts
+      // can reconstruct the full nullifier_audit row from the VoteCast event.
+      let auditInserted = false;
       try {
         await db.exec(
-          'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, generated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))',
+          'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
           [
             decoded.userId,
             electionId,
@@ -764,10 +742,31 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
             candidateId ?? null,
           ]
         );
+        auditInserted = true;
       } catch (auditError) {
         console.error('AUDIT INSERT FAILED after successful blockchain tx:', tx.hash, 'userId:', decoded.userId);
         console.error(auditError);
       }
+
+      if (auditInserted) {
+        // Marcar el intento como confirmado (PG: actualiza vote_attempts; SQLite: no-op)
+        await db.releaseVoteLock(decoded.userId, electionId, 'confirmed').catch(() => {});
+
+        // Confirmación por email (fire-and-forget, no bloquea la respuesta)
+        if (!decoded.email?.endsWith('@vtb.demo')) {
+          const explorerBase = process.env.EXPLORER_URL;
+          sendVoteConfirmation({
+            to:           decoded.email,
+            name:         voter!.name ?? decoded.email,
+            electionName: election.name,
+            txHash:       tx.hash,
+            votedAt:      new Date(),
+            explorerUrl:  explorerBase ? `${explorerBase}/tx/${tx.hash}` : undefined,
+          });
+        }
+      }
+      // Si auditInserted=false, vote_attempts queda 'pending' para que el
+      // job de limpieza lo recupere desde el evento on-chain.
 
       res.json({
         success: true,
@@ -783,6 +782,12 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
     } catch (blockchainError: any) {
       console.error("Error al registrar voto en blockchain:", blockchainError);
 
+      // Liberar cerrojo: permite reintentar si la tx falló
+      await db.releaseVoteLock(
+        decoded.userId, electionId, 'failed',
+        String(blockchainError.message ?? blockchainError),
+      ).catch(() => {});
+
       // Graceful fallback: election not yet registered on-chain (seeded elections)
       const isElectionMissing =
         blockchainError.message?.includes("election does not exist") ||
@@ -796,7 +801,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
           .digest('hex')}`;
         try {
           await db.exec(
-            'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, generated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))',
+            'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [decoded.userId, electionId, nullifier, candidateId ? String(candidateId) : null, syntheticTx, null, candidateId ?? null]
           );
           console.warn(`Vote recorded off-chain (election ${election.election_id_blockchain} not registered on Sepolia): userId=${decoded.userId}`);

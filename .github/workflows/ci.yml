@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+# Cancela runs previos del mismo PR para ahorrar minutos
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────
+  # JOB 1: Detecta secretos en el diff antes de que nada más corra.
+  # Bloquea el merge si encuentra claves, tokens o contraseñas.
+  # ──────────────────────────────────────────────────────────────────
+  secret-scan:
+    name: Secret scan (TruffleHog)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # TruffleHog necesita el historial completo
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+  # ──────────────────────────────────────────────────────────────────
+  # JOB 2: Backend — lint + typecheck + tests
+  # ──────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    defaults:
+      run:
+        working-directory: backend
+
+    strategy:
+      matrix:
+        node: ["20", "22"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci_jwt_secret_not_for_prod
+          NULLIFIER_SECRET: ci_nullifier_secret_not_for_prod
+          DATABASE_PATH: ":memory:"
+          CORS_ORIGINS: "http://localhost:5173"
+
+  # ──────────────────────────────────────────────────────────────────
+  # JOB 3: Frontend — lint + build
+  # ──────────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          # Variables mínimas para que Vite no falle en build
+          VITE_API_URL: "https://vtb-backend.onrender.com"
+          VITE_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000000"
+          VITE_EXPLORER_URL: "https://sepolia.etherscan.io"

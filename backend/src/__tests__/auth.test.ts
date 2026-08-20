@@ -3,13 +3,16 @@ import request from 'supertest';
 import { app } from '../app.js';
 
 describe('POST /auth/login', () => {
-  it('returns token for valid voter credentials', async () => {
+  it('returns cookie for valid voter credentials', async () => {
     const res = await request(app)
       .post('/auth/login')
       .send({ email: 'carlos@ufv.es', password: 'demo123' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.token).toBeDefined();
+    // Login usa cookies httpOnly, no body token
+    const raw = res.headers['set-cookie'];
+    const cookies: string[] = Array.isArray(raw) ? raw : raw ? [raw as string] : [];
+    expect(cookies.some(c => c.startsWith('vtb_auth='))).toBe(true);
     expect(res.body.user.role).toBe('student');
   });
 

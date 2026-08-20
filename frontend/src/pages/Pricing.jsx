@@ -16,7 +16,7 @@ const TIERS = [
       { text: 'Up to 500 voters', included: true },
       { text: '3 simultaneous elections', included: true },
       { text: 'Blockchain audit trail (Sepolia)', included: true },
-      { text: 'Anonymous nullifier voting', included: true },
+      { text: 'Nullifier-based double-vote prevention', included: true },
       { text: 'Public transparency page', included: true },
       { text: 'Email support', included: true },
       { text: 'Custom branding', included: false },
@@ -38,7 +38,7 @@ const TIERS = [
       { text: 'Up to 10,000 voters', included: true },
       { text: 'Unlimited elections', included: true },
       { text: 'Blockchain audit trail (Mainnet ready)', included: true },
-      { text: 'Anonymous nullifier voting', included: true },
+      { text: 'Nullifier-based double-vote prevention', included: true },
       { text: 'Public transparency page', included: true },
       { text: 'Priority support (< 4h response)', included: true },
       { text: 'Custom branding & domain', included: true },
@@ -60,7 +60,7 @@ const TIERS = [
       { text: 'Unlimited voters', included: true },
       { text: 'Unlimited elections', included: true },
       { text: 'Mainnet + private chain options', included: true },
-      { text: 'Anonymous nullifier voting', included: true },
+      { text: 'Nullifier-based double-vote prevention', included: true },
       { text: 'Public transparency page', included: true },
       { text: 'Dedicated account manager', included: true },
       { text: 'Custom branding & white-label', included: true },
@@ -75,8 +75,8 @@ const TIERS = [
 
 const FAQ = [
   {
-    q: 'How does blockchain voting preserve anonymity?',
-    a: 'Each vote generates a unique HMAC-SHA256 nullifier — a cryptographic hash derived from the voter\'s identity and the election. Only the nullifier is recorded on-chain, making it mathematically impossible to link a transaction to a specific voter, while still preventing double-voting.',
+    q: 'How does VTB prevent double voting?',
+    a: 'Each vote generates a unique HMAC-SHA256 nullifier derived from the voter\'s identity and the election ID. The nullifier is recorded on-chain: it is mathematically impossible to link it to a specific voter from the blockchain alone, while making any second vote attempt detectable and rejected.',
   },
   {
     q: 'What blockchain network does VTB use?',
@@ -92,7 +92,7 @@ const FAQ = [
   },
   {
     q: 'Is the voter census stored on-chain?',
-    a: 'No. Voter identity stays in your institution\'s database (Web2). Only anonymous nullifiers and vote proofs are written to the blockchain. This hybrid architecture gives you privacy compliance without sacrificing auditability.',
+    a: 'No. Voter identity stays in your institution\'s database (Web2). Only nullifiers and vote hashes are written to the blockchain — they do not identify the voter on-chain. This hybrid architecture preserves auditability without exposing identity in the blockchain.',
   },
 ];
 
@@ -229,7 +229,7 @@ export function Pricing() {
                 ['Voters', '500', '10,000', 'Unlimited'],
                 ['Active elections', '3', 'Unlimited', 'Unlimited'],
                 ['Blockchain network', 'Sepolia', 'Sepolia + Mainnet', 'Any EVM chain'],
-                ['Anonymous voting', '✓', '✓', '✓'],
+                ['Double-vote prevention', '✓', '✓', '✓'],
                 ['Public audit page', '✓', '✓', '✓'],
                 ['Custom branding', '–', '✓', '✓'],
                 ['SSO integration', '–', '–', '✓'],

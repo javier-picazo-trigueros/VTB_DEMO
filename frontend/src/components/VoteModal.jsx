@@ -78,7 +78,7 @@ export const VoteModal = ({ election, user, onClose, onSuccess }) => {
               <span className="text-4xl">✓</span>
             </div>
             <h2 className="text-2xl font-bold text-white mb-2">¡Voto Registrado!</h2>
-            <p className="text-emerald-400">Tu voto ha sido registrado en la blockchain de forma inmutable y anónima.</p>
+            <p className="text-emerald-400">Tu voto ha sido registrado en la blockchain de forma permanente e inmutable.</p>
           </div>
 
           {/* Detalles del recibo */}
@@ -89,17 +89,17 @@ export const VoteModal = ({ election, user, onClose, onSuccess }) => {
                 {receipt.tx_hash}
               </p>
               <p className="text-xs text-slate-500 mt-2">
-                Guarda este hash para auditoría. Prueba que tu voto fue contado sin revelar por quién votaste.
+                Guarda este hash como comprobante. Puedes verificarlo en cualquier momento en la blockchain.
               </p>
             </div>
 
             <div>
-              <p className="text-xs text-slate-400 uppercase tracking-wide">Credencial Anónima</p>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Nullifier (anti doble voto)</p>
               <p className="text-slate-200 font-mono text-sm mt-1">
                 {receipt.receipt.anonymous_credential}
               </p>
               <p className="text-xs text-slate-500 mt-2">
-                Identificador único para tu voto (no vinculado a tu identidad).
+                Identificador criptográfico que impide votar dos veces en este proceso.
               </p>
             </div>
 
@@ -119,8 +119,7 @@ export const VoteModal = ({ election, user, onClose, onSuccess }) => {
           {/* Información importante */}
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
             <p className="text-sm text-blue-200">
-              <strong>💡 Nota:</strong> Tu voto es <strong>anónimo</strong> en la blockchain. Solo el administrador del sistema 
-              puede verificar que votaste (mediante SQL), pero <strong>no puede saber por quién votaste</strong>.
+              <strong>💡 Nota:</strong> Tu voto queda registrado de forma <strong>irrevocable</strong> en la blockchain. El recuento es <strong>auditable públicamente</strong> y no puede ser alterado.
             </p>
           </div>
 
@@ -141,8 +140,7 @@ export const VoteModal = ({ election, user, onClose, onSuccess }) => {
     return (
       <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
         <div className="bg-slate-800 rounded-xl border border-emerald-500/30 p-12">
-          <Spinner message="Generando credencial anónima y encriptando voto..." />
-          <p className="text-center text-slate-300 text-sm mt-6">Esto simula el proceso de Zero-Knowledge Proof</p>
+          <Spinner message="Registrando voto en la blockchain..." />
         </div>
       </div>
     )
@@ -207,10 +205,9 @@ export const VoteModal = ({ election, user, onClose, onSuccess }) => {
         <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4 mb-6">
           <p className="text-sm text-emerald-200 font-medium mb-2">🔐 Protección de Privacidad:</p>
           <ul className="text-xs text-slate-300 space-y-1 ml-4">
-            <li>✓ Se generará una credencial anónima (simulación de ZK-Proof)</li>
-            <li>✓ Tu voto será encriptado y añadido a la blockchain</li>
+            <li>✓ Se generará un nullifier criptográfico que impide el doble voto</li>
+            <li>✓ Tu voto será añadido a la blockchain de forma irrevocable</li>
             <li>✓ Recibirás un hash de transacción para auditoría</li>
-            <li>✓ Tu identidad no estará vinculada a tu voto</li>
           </ul>
         </div>
 

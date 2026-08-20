@@ -1,8 +1,17 @@
+import crypto from "crypto";
 import express, { Request, Response } from "express";
 import multer from "multer";
+import { z } from "zod";
+import { parse as parseCSVLib } from "csv-parse/sync";
 import { getDatabase } from "../config/database.js";
-import { verifyToken, hashPassword, generateToken } from "../utils/auth.js";
+import { hashPassword, generateToken, generateSecureToken } from "../utils/auth.js";
+import { requireAdmin } from "../middleware/auth.js";
 import { ethers } from "ethers";
+import {
+  sendCensusInvitation,
+  sendElectionOpen,
+  sendElectionClose,
+} from "../services/email/index.js";
 
 const router = express.Router();
 const db = getDatabase();
@@ -12,52 +21,28 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 },
 });
 
-// Extender tipo de Request para incluir user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: any;
-    }
-  }
-}
+const createElectionSchema = z.object({
+  name:               z.string().min(1).max(200),
+  description:        z.string().max(2000).optional(),
+  start_time:         z.number().int().positive(),
+  end_time:           z.number().int().positive(),
+  banner_color:       z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  target_type:        z.enum(['all', 'domain', 'school', 'degree', 'year', 'group']).optional(),
+  target_values:      z.array(z.string().min(1).max(253)).max(100).optional(),
+  target_schools:     z.array(z.string().min(1).max(200)).max(100).optional(),
+  target_degrees:     z.array(z.string().min(1).max(200)).max(100).optional(),
+  target_description: z.string().max(500).optional(),
+  voter_role:         z.enum(['student', 'voter', 'teacher', 'staff', 'admin', 'both']).optional(),
+}).refine(d => d.end_time > d.start_time, {
+  message: 'end_time debe ser posterior a start_time',
+  path: ['end_time'],
+});
 
-/**
- * Middleware: Verificar que sea admin
- */
-const authAdminMiddleware = async (req: Request, res: Response, next: any) => {
-  try {
-    const authHeader = req.headers.authorization;
+const importVotersParamSchema = z.object({
+  id: z.string().regex(/^\d+$/, 'id debe ser un entero positivo'),
+});
 
-    if (!authHeader?.startsWith("Bearer ")) {
-      res.status(401).json({ error: "Token requerido" });
-      return;
-    }
 
-    const token = authHeader.substring(7);
-    const decoded = verifyToken(token) as any;
-
-    if (!decoded || !decoded.userId) {
-      res.status(401).json({ error: "Token inválido" });
-      return;
-    }
-
-    // Verificar que sea admin o superadmin
-    const admin = await db.get<{ role: string; admin_domain: string | null }>(
-      "SELECT role, admin_domain FROM users WHERE id = ?",
-      [decoded.userId]
-    );
-
-    if (!admin || (admin.role !== 'admin' && admin.role !== 'superadmin')) {
-      res.status(403).json({ error: "Acceso denegado. Se requieren permisos de administrador" });
-      return;
-    }
-
-    req.user = { ...decoded, adminDomain: admin.admin_domain, role: admin.role };
-    next();
-  } catch (error) {
-    res.status(500).json({ error: "Error de autenticación" });
-  }
-};
 
 // Helper functions for domain scoping
 const isSuperAdmin = (req: Request) => req.user?.role === 'superadmin';
@@ -104,23 +89,33 @@ async function autoAssignElectionsToUser(userId: number, emailDomain: string): P
 }
 
 /**
- * Parse CSV buffer into rows
+ * Parse CSV buffer into rows.
+ *
+ * S16 fix: usa csv-parse (RFC 4180) en lugar de split(','), de forma que
+ * campos entre comillas que contienen comas (e.g. "García, Juan") se
+ * parsean correctamente sin corromper los datos del censo.
  */
 function parseCSV(buffer: Buffer): Record<string, string>[] {
-  const csvText = buffer.toString('utf-8');
-  const lines = csvText.split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
-  return lines.slice(1).map(line => {
-    const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-    return Object.fromEntries(headers.map((h, i) => [h, values[i] || '']));
-  });
+  try {
+    const records = parseCSVLib(buffer, {
+      columns: (headers: string[]) => headers.map(h => h.trim().toLowerCase()),
+      skip_empty_lines: true,
+      trim: true,
+      bom: true,          // ignora el BOM de Excel en UTF-8
+      relaxQuotes: true,  // tolera comillas no cerradas
+      cast: false,        // todos los valores como string
+    }) as Record<string, string>[];
+    return records;
+  } catch (err) {
+    console.error('[parseCSV] error al parsear CSV:', err);
+    return [];
+  }
 }
 
 /**
  * @route GET /admin/dashboard
  */
-router.get("/dashboard", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/dashboard", requireAdmin, async (req: Request, res: Response) => {
   try {
     const adminDomain = getAdminDomain(req);
     const isSuper = isSuperAdmin(req);
@@ -208,10 +203,10 @@ router.get("/dashboard", authAdminMiddleware, async (req: Request, res: Response
 /**
  * @route GET /admin/users
  */
-router.get("/users", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/users", requireAdmin, async (req: Request, res: Response) => {
   try {
     const approvedFilter = req.query.approved as string;
-    const conditions: string[] = [];
+    const conditions: string[] = ["deleted_at IS NULL"];
     const params: any[] = [];
 
     if (!isSuperAdmin(req)) {
@@ -227,7 +222,7 @@ router.get("/users", authAdminMiddleware, async (req: Request, res: Response) =>
       conditions.push("is_approved = 0");
     }
 
-    const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+    const where = "WHERE " + conditions.join(" AND ");
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
     const offset = (page - 1) * limit;
@@ -262,7 +257,7 @@ router.get("/users", authAdminMiddleware, async (req: Request, res: Response) =>
 /**
  * @route POST /admin/users
  */
-router.post("/users", authAdminMiddleware, async (req: Request, res: Response) => {
+router.post("/users", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { email, password, name, student_id, role = "student", admin_domain = null } = req.body;
 
@@ -301,7 +296,7 @@ router.post("/users", authAdminMiddleware, async (req: Request, res: Response) =
       `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain,
                          is_approved, approved_by, approved_at, is_eligible)
        VALUES (?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1)`,
-      [email, passwordHash, name, student_id, role, admin_domain, req.user.userId]
+      [email, passwordHash, name, student_id, role, admin_domain, req.user!.userId]
     );
 
     const emailDomain = email.split('@')[1];
@@ -324,7 +319,7 @@ router.post("/users", authAdminMiddleware, async (req: Request, res: Response) =
  * @route POST /admin/users/import
  * CSV import: bulk user creation
  */
-router.post("/users/import", authAdminMiddleware, upload.single('file'), async (req: Request, res: Response) => {
+router.post("/users/import", requireAdmin, upload.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: 'No file provided' });
@@ -369,13 +364,13 @@ router.post("/users/import", authAdminMiddleware, upload.single('file'), async (
       }
 
       try {
-        const tempPassword = `VTB_${student_id}_temp`;
+        const tempPassword = crypto.randomBytes(12).toString('base64url');
         const passwordHash = await hashPassword(tempPassword);
         const result = await db.exec(
           `INSERT INTO users (email, password_hash, name, student_id, role,
-                             is_approved, approved_by, approved_at, is_eligible)
-           VALUES (?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1)`,
-          [email, passwordHash, full_name, student_id, role, req.user.userId]
+                             is_approved, approved_by, approved_at, is_eligible, must_change_password)
+           VALUES (?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1, 1)`,
+          [email, passwordHash, full_name, student_id, role, req.user!.userId]
         );
         const emailDomain = email.split('@')[1];
         if (emailDomain) await autoAssignElectionsToUser(result.lastID, emailDomain);
@@ -395,7 +390,7 @@ router.post("/users/import", authAdminMiddleware, upload.single('file'), async (
 /**
  * @route PATCH /admin/users/:id/approval
  */
-router.patch("/users/:id/approval", authAdminMiddleware, async (req: Request, res: Response) => {
+router.patch("/users/:id/approval", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { approved, reason } = req.body;
@@ -433,7 +428,7 @@ router.patch("/users/:id/approval", authAdminMiddleware, async (req: Request, re
       await db.exec(
         `UPDATE users SET is_approved = 1, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
          updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [req.user.userId, id]
+        [req.user!.userId, id]
       );
       res.json({ success: true, message: "Cuenta aprobada correctamente" });
     } else {
@@ -453,7 +448,7 @@ router.patch("/users/:id/approval", authAdminMiddleware, async (req: Request, re
 /**
  * @route DELETE /admin/users/:id
  */
-router.delete("/users/:id", authAdminMiddleware, async (req: Request, res: Response) => {
+router.delete("/users/:id", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -480,12 +475,16 @@ router.delete("/users/:id", authAdminMiddleware, async (req: Request, res: Respo
       }
     }
 
-    if (parseInt(id) === req.user.userId) {
+    if (parseInt(id) === req.user!.userId) {
       res.status(400).json({ error: "No puedes eliminar tu propia cuenta" });
       return;
     }
 
-    await db.exec("DELETE FROM users WHERE id = ?", [id]);
+    // Borrado lógico: preserva FKs (election_voters, nullifier_audit) y permite auditoría
+    await db.exec(
+      "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [id],
+    );
 
     res.json({ success: true, message: "Usuario eliminado" });
   } catch (error) {
@@ -497,7 +496,7 @@ router.delete("/users/:id", authAdminMiddleware, async (req: Request, res: Respo
 /**
  * @route GET /admin/elections
  */
-router.get("/elections", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/elections", requireAdmin, async (req: Request, res: Response) => {
   try {
     let elections;
     if (isSuperAdmin(req)) {
@@ -543,34 +542,23 @@ router.get("/elections", authAdminMiddleware, async (req: Request, res: Response
 /**
  * @route POST /admin/elections
  */
-router.post("/elections", authAdminMiddleware, async (req: Request, res: Response) => {
+router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
   try {
+    const parsed = createElectionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' });
+      return;
+    }
     const {
-      name, description, start_time, end_time, banner_color,
-      target_type = 'all',
-      target_values = [] as string[],
-      target_schools = [] as string[],
-      target_degrees = [] as string[],
+      name, description, start_time, end_time,
+      banner_color,
+      target_type        = 'all',
+      target_values      = [] as string[],
+      target_schools     = [] as string[],
+      target_degrees     = [] as string[],
       target_description,
-      voter_role = 'student',
-    } = req.body;
-
-    if (!start_time || !end_time) {
-      res.status(400).json({ error: 'start_time and end_time are required' });
-      return;
-    }
-    if (Number(end_time) <= Number(start_time)) {
-      res.status(400).json({ error: 'end_time must be after start_time' });
-      return;
-    }
-
-    if (!name || !start_time || !end_time) {
-      res.status(400).json({
-        error: "Faltan campos requeridos",
-        required: ["name", "start_time", "end_time"],
-      });
-      return;
-    }
+      voter_role         = 'student',
+    } = parsed.data;
 
     const lastElection = await db.get<{ id: number }>(
       "SELECT MAX(election_id_blockchain) as id FROM elections"
@@ -673,7 +661,7 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
         // Also add the creating admin themselves
         await db.exec(
           'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
-          [result.lastID, req.user.userId]
+          [result.lastID, req.user!.userId]
         ).catch(() => {});
       }
     }
@@ -737,7 +725,7 @@ router.post("/elections", authAdminMiddleware, async (req: Request, res: Respons
 /**
  * @route PUT /admin/elections/:id
  */
-router.put("/elections/:id", authAdminMiddleware, async (req: Request, res: Response) => {
+router.put("/elections/:id", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { is_active, banner_color, target_type, target_description } = req.body;
@@ -764,7 +752,7 @@ router.put("/elections/:id", authAdminMiddleware, async (req: Request, res: Resp
  * @route PATCH /admin/elections/:id
  * @desc Edit election name, description, end_time
  */
-router.patch("/elections/:id", authAdminMiddleware, async (req: Request, res: Response) => {
+router.patch("/elections/:id", requireAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { name, description, end_time } = req.body;
   try {
@@ -791,7 +779,7 @@ router.patch("/elections/:id", authAdminMiddleware, async (req: Request, res: Re
 /**
  * @route POST /admin/elections/:id/image
  */
-router.post("/elections/:id/image", authAdminMiddleware, upload.single('file'), async (req: Request, res: Response) => {
+router.post("/elections/:id/image", requireAdmin, upload.single('file'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!req.file) {
@@ -816,16 +804,23 @@ router.post("/elections/:id/image", authAdminMiddleware, upload.single('file'), 
  * @route POST /admin/elections/:id/import-voters
  * CSV import: add voters to an election
  */
-router.post("/elections/:id/import-voters", authAdminMiddleware, upload.single('file'), async (req: Request, res: Response) => {
+router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const paramParsed = importVotersParamSchema.safeParse(req.params);
+    if (!paramParsed.success) {
+      res.status(400).json({ error: paramParsed.error.issues[0]?.message ?? 'Parámetro inválido' });
+      return;
+    }
+    const { id } = paramParsed.data;
 
     if (!req.file) {
       res.status(400).json({ error: 'No file provided' });
       return;
     }
 
-    const election = await db.get("SELECT id FROM elections WHERE id = ?", [id]);
+    const election = await db.get<{ id: number; name: string }>(
+      "SELECT id, name FROM elections WHERE id = ?", [id]
+    );
     if (!election) {
       res.status(404).json({ error: 'Election not found' });
       return;
@@ -862,16 +857,40 @@ router.post("/elections/:id/import-voters", authAdminMiddleware, upload.single('
           continue;
         }
         try {
-          const tempPassword = `VTB_${student_id}_temp`;
+          const tempPassword = crypto.randomBytes(12).toString('base64url');
           const passwordHash = await hashPassword(tempPassword);
           const result = await db.exec(
             `INSERT INTO users (email, password_hash, name, student_id, role,
-                               is_approved, approved_by, approved_at, is_eligible)
-             VALUES (?, ?, ?, ?, 'student', 1, ?, CURRENT_TIMESTAMP, 1)`,
-            [email, passwordHash, full_name, student_id, req.user.userId]
+                               is_approved, approved_by, approved_at, is_eligible, must_change_password)
+             VALUES (?, ?, ?, ?, 'student', 1, ?, CURRENT_TIMESTAMP, 1, 1)`,
+            [email, passwordHash, full_name, student_id, req.user!.userId]
           );
           user = { id: result.lastID };
           results.created++;
+
+          // Invitación por email: token de 7 días para que el usuario establezca su contraseña
+          try {
+            const INVITATION_TTL_DAYS = 7;
+            const { plaintext, hash } = generateSecureToken();
+            const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 86400 * 1000);
+            await db.exec(
+              `INSERT INTO password_reset_tokens (user_id, token_hash, type, expires_at)
+               VALUES (?, ?, 'invitation', ?)`,
+              [result.lastID, hash, expiresAt.toISOString()],
+            );
+            const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+            const institutionName = getAdminDomain(req) ?? 'tu institución';
+            sendCensusInvitation({
+              to:              email,
+              name:            full_name,
+              electionName:    election.name,
+              institutionName,
+              setPasswordUrl:  `${frontendUrl}/auth/set-password?token=${plaintext}`,
+              expiresAt,
+            });
+          } catch (inviteErr) {
+            console.warn(`No se pudo generar token de invitación para ${email}:`, inviteErr);
+          }
         } catch (e: any) {
           results.errors.push(`Error creating user ${email}: ${e.message}`);
           continue;
@@ -903,7 +922,7 @@ router.post("/elections/:id/import-voters", authAdminMiddleware, upload.single('
 /**
  * @route GET /admin/audit
  */
-router.get("/audit", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/audit", requireAdmin, async (req: Request, res: Response) => {
   try {
     let query = `
       SELECT
@@ -941,7 +960,7 @@ router.get("/audit", authAdminMiddleware, async (req: Request, res: Response) =>
 /**
  * @route GET /admin/stats/voters
  */
-router.get("/stats/voters", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/stats/voters", requireAdmin, async (req: Request, res: Response) => {
   try {
     const stats = await db.run<any>(
       `SELECT
@@ -969,7 +988,7 @@ router.get("/stats/voters", authAdminMiddleware, async (req: Request, res: Respo
 /**
  * @route GET /admin/registration-requests
  */
-router.get("/registration-requests", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/registration-requests", requireAdmin, async (req: Request, res: Response) => {
   try {
     const status = (req.query.status as string) || 'pending';
     const adminDomain = getAdminDomain(req);
@@ -993,15 +1012,30 @@ router.get("/registration-requests", authAdminMiddleware, async (req: Request, r
       query += " WHERE " + conditions.join(" AND ");
     }
 
-    query += " ORDER BY created_at DESC";
-
-    const requests = await db.run<any>(query, params);
-    const total = requests?.length || 0;
-    const page = parseInt(req.query.page as string) || 1;
-
+    // S12 fix: paginación en SQL (LIMIT/OFFSET) en lugar de traer todos los
+    // registros a memoria y hacer slice() en JS.
+    // Nota: `query` ya tiene el WHERE de las conditions de arriba.
+    const page     = Math.max(1, parseInt(req.query.page as string) || 1);
     const pageSize = 20;
-    const startIdx = (page - 1) * pageSize;
-    const paginatedRequests = requests?.slice(startIdx, startIdx + pageSize) || [];
+    const offset   = (page - 1) * pageSize;
+
+    // Total: misma condición WHERE pero COUNT(*)
+    const baseTable  = 'registration_requests';
+    const whereClause = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+    const countRow = await db.get<{ total: number }>(
+      `SELECT COUNT(*) as total FROM ${baseTable}${whereClause}`,
+      params,
+    );
+    const total = countRow?.total ?? 0;
+
+    // Datos paginados (query ya tiene el WHERE; solo añadimos ORDER BY + LIMIT)
+    const paginatedQuery = query + ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    const paginatedRequests = await db.run<{
+      id: number; email: string; name: string; student_id: string;
+      institution: string | null; status: string;
+      created_at: string; reviewed_at: string | null;
+      rejection_reason: string | null;
+    }>(paginatedQuery, [...params, pageSize, offset]);
 
     res.json({
       requests: paginatedRequests,
@@ -1018,7 +1052,7 @@ router.get("/registration-requests", authAdminMiddleware, async (req: Request, r
 /**
  * @route PATCH /admin/registration-requests/:id
  */
-router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Request, res: Response) => {
+router.patch("/registration-requests/:id", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { action, reason } = req.body;
@@ -1064,7 +1098,7 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
       let tempPassword: string | null = null;
 
       if (!passwordHash) {
-        tempPassword = `VTB_${request.student_id}_temp`;
+        tempPassword = crypto.randomBytes(12).toString('base64url');
         passwordHash = await hashPassword(tempPassword);
       }
 
@@ -1074,10 +1108,11 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
       const insertResult = await db.exec(
         `INSERT INTO users (email, password_hash, name, student_id, role, org_unit,
                            school, degree, year, study_group,
-                           is_approved, approved_by, approved_at, is_eligible, created_at)
-         VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP)`,
+                           is_approved, approved_by, approved_at, is_eligible, must_change_password, created_at)
+         VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1, ?, CURRENT_TIMESTAMP)`,
         [request.email, passwordHash, request.full_name, request.student_id, orgUnit,
-         school || null, degree || null, year || null, study_group || null, req.user.userId]
+         school || null, degree || null, year || null, study_group || null, req.user!.userId,
+         tempPassword ? 1 : 0]
       );
 
       const newUserId = insertResult.lastID;
@@ -1162,7 +1197,7 @@ router.patch("/registration-requests/:id", authAdminMiddleware, async (req: Requ
 /**
  * @route POST /admin/elections/:id/domains
  */
-router.post("/elections/:id/domains", authAdminMiddleware, async (req: Request, res: Response) => {
+router.post("/elections/:id/domains", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { domain } = req.body;
@@ -1203,7 +1238,7 @@ router.post("/elections/:id/domains", authAdminMiddleware, async (req: Request, 
 /**
  * @route POST /admin/elections/:id/voters
  */
-router.post("/elections/:id/voters", authAdminMiddleware, async (req: Request, res: Response) => {
+router.post("/elections/:id/voters", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { email } = req.body;
@@ -1246,7 +1281,7 @@ router.post("/elections/:id/voters", authAdminMiddleware, async (req: Request, r
 /**
  * @route POST /admin/elections/:id/candidates
  */
-router.post("/elections/:id/candidates", authAdminMiddleware, async (req: Request, res: Response) => {
+router.post("/elections/:id/candidates", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
@@ -1276,7 +1311,7 @@ router.post("/elections/:id/candidates", authAdminMiddleware, async (req: Reques
 /**
  * @route GET /admin/org-units
  */
-router.get("/org-units", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/org-units", requireAdmin, async (req: Request, res: Response) => {
   try {
     let units;
     if (isSuperAdmin(req)) {
@@ -1302,7 +1337,7 @@ router.get("/org-units", authAdminMiddleware, async (req: Request, res: Response
 /**
  * @route POST /admin/org-units
  */
-router.post("/org-units", authAdminMiddleware, async (req: Request, res: Response) => {
+router.post("/org-units", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { name, domain, parent_domain, unit_type } = req.body;
 
@@ -1346,7 +1381,7 @@ router.post("/org-units", authAdminMiddleware, async (req: Request, res: Respons
 /**
  * @route POST /admin/domain-admins
  */
-router.post("/domain-admins", authAdminMiddleware, async (req: Request, res: Response) => {
+router.post("/domain-admins", requireAdmin, async (req: Request, res: Response) => {
   try {
     if (!isSuperAdmin(req)) {
       res.status(403).json({ error: "Solo el superadministrador puede crear administradores de dominio" });
@@ -1385,7 +1420,7 @@ router.post("/domain-admins", authAdminMiddleware, async (req: Request, res: Res
       `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain,
                          is_approved, approved_by, approved_at, is_eligible)
        VALUES (?, ?, ?, ?, 'admin', ?, 1, ?, CURRENT_TIMESTAMP, 1)`,
-      [email, passwordHash, name, student_id, admin_domain, req.user.userId]
+      [email, passwordHash, name, student_id, admin_domain, req.user!.userId]
     );
 
     res.json({
@@ -1402,7 +1437,7 @@ router.post("/domain-admins", authAdminMiddleware, async (req: Request, res: Res
 /**
  * @route GET /admin/domain-admins
  */
-router.get("/domain-admins", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/domain-admins", requireAdmin, async (req: Request, res: Response) => {
   try {
     if (!isSuperAdmin(req)) {
       res.status(403).json({ error: "Solo el superadministrador puede ver los administradores de dominio" });
@@ -1424,7 +1459,7 @@ router.get("/domain-admins", authAdminMiddleware, async (req: Request, res: Resp
 /**
  * @route GET /admin/domains
  */
-router.get("/domains", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/domains", requireAdmin, async (req: Request, res: Response) => {
   try {
     let domains: string[] = [];
 
@@ -1456,7 +1491,7 @@ router.get("/domains", authAdminMiddleware, async (req: Request, res: Response) 
  * @route GET /admin/blockchain-status
  * @desc Returns the live status of the connected blockchain node and contract.
  */
-router.get("/blockchain-status", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/blockchain-status", requireAdmin, async (req: Request, res: Response) => {
   const contractAddress = process.env.CONTRACT_ADDRESS || "";
   const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
   const explorerUrl = process.env.EXPLORER_URL || "";
@@ -1504,7 +1539,7 @@ router.get("/blockchain-status", authAdminMiddleware, async (req: Request, res: 
  * @route GET /admin/elections/:id/stats
  * @desc Detailed statistics for a single election (candidates, voters, domains)
  */
-router.get("/elections/:id/stats", authAdminMiddleware, async (req: Request, res: Response) => {
+router.get("/elections/:id/stats", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -1583,5 +1618,113 @@ router.get("/elections/:id/stats", authAdminMiddleware, async (req: Request, res
   }
 });
 
+
+// ── Notificaciones masivas de elección ────────────────────────────────────────
+
+const MAX_NOTIFY_BATCH = 1000; // límite por llamada para no saturar la cola
+
+/**
+ * @route POST /admin/elections/:id/notify-open
+ * @desc  Envía el aviso de apertura a todos los votantes de la elección.
+ */
+router.post("/elections/:id/notify-open", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const electionId = parseInt(req.params.id, 10);
+    if (isNaN(electionId)) {
+      res.status(400).json({ error: 'id inválido' });
+      return;
+    }
+
+    const election = await db.get<{
+      id: number; name: string; start_time: number; end_time: number;
+    }>("SELECT id, name, start_time, end_time FROM elections WHERE id = ?", [electionId]);
+
+    if (!election) {
+      res.status(404).json({ error: 'Elección no encontrada' });
+      return;
+    }
+
+    const voters = await db.run<{ email: string; name: string }>(
+      `SELECT u.email, u.name
+         FROM election_voters ev
+         JOIN users u ON u.id = ev.user_id
+        WHERE ev.election_id = ?
+          AND u.deleted_at IS NULL
+          AND u.email NOT LIKE '%@vtb.demo'
+        LIMIT ${MAX_NOTIFY_BATCH}`,
+      [electionId],
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    for (const v of voters) {
+      sendElectionOpen({
+        to:           v.email,
+        name:         v.name,
+        electionName: election.name,
+        startTime:    new Date(election.start_time * 1000),
+        endTime:      new Date(election.end_time   * 1000),
+        voteUrl:      `${frontendUrl}/elections/${electionId}`,
+      });
+    }
+
+    res.json({ success: true, queued: voters.length });
+  } catch (err) {
+    console.error('notify-open error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+/**
+ * @route POST /admin/elections/:id/notify-close
+ * @desc  Envía el aviso de cierre y resultados disponibles a todos los votantes.
+ */
+router.post("/elections/:id/notify-close", requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const electionId = parseInt(req.params.id, 10);
+    if (isNaN(electionId)) {
+      res.status(400).json({ error: 'id inválido' });
+      return;
+    }
+
+    const election = await db.get<{ id: number; name: string; end_time: number }>(
+      "SELECT id, name, end_time FROM elections WHERE id = ?", [electionId]
+    );
+    if (!election) {
+      res.status(404).json({ error: 'Elección no encontrada' });
+      return;
+    }
+
+    const voters = await db.run<{ email: string; name: string }>(
+      `SELECT u.email, u.name
+         FROM election_voters ev
+         JOIN users u ON u.id = ev.user_id
+        WHERE ev.election_id = ?
+          AND u.deleted_at IS NULL
+          AND u.email NOT LIKE '%@vtb.demo'
+        LIMIT ${MAX_NOTIFY_BATCH}`,
+      [electionId],
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    const closedAt = election.end_time
+      ? new Date(election.end_time * 1000)
+      : new Date();
+
+    for (const v of voters) {
+      sendElectionClose({
+        to:           v.email,
+        name:         v.name,
+        electionName: election.name,
+        closedAt,
+        resultsUrl:   `${frontendUrl}/elections/${electionId}/results`,
+      });
+    }
+
+    res.json({ success: true, queued: voters.length });
+  } catch (err) {
+    console.error('notify-close error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 export default router;

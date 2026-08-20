@@ -3,12 +3,10 @@ import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { ethers } from "ethers";
-import axios from "axios";
 import { Navbar } from "../components/Navbar";
 import LoadingSpinner from "../components/LoadingSpinner";
 import i18n from "../i18n/config";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import { api, apiFetch } from "../utils/apiClient";
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://localhost:8545";
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "";
 const EXPLORER_URL = import.meta.env.VITE_EXPLORER_URL || "http://localhost:8545";
@@ -245,6 +243,82 @@ const VoteErrorModal = ({ voteError, t, onRetry, onBack }) => (
 );
 
 // ---------------------------------------------------------------------------
+// Sub-componente: Dialog de confirmación de voto (PASO OBLIGATORIO)
+// ---------------------------------------------------------------------------
+const VoteConfirmDialog = ({ candidateName, electionTitle, onConfirm, onCancel, t }) => (
+  <div
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="confirm-dialog-title"
+    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+  >
+    <motion.div
+      initial={{ scale: 0.95, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className="bg-white rounded-lg p-6 max-w-sm w-full shadow-lg border border-warm-200"
+    >
+      {/* Ícono de advertencia */}
+      <div className="flex justify-center mb-5">
+        <div className="w-14 h-14 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center">
+          <svg className="w-7 h-7 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12v-.008zM10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+        </div>
+      </div>
+
+      <h2
+        id="confirm-dialog-title"
+        className="text-center text-xl font-bold text-slate-900 mb-1"
+      >
+        {t("votingBooth.confirmDialogTitle")}
+      </h2>
+      <p className="text-center text-sm text-slate-500 mb-6">
+        {t("votingBooth.confirmDialogSubtitle")}
+      </p>
+
+      {/* Resumen de la selección */}
+      <div className="bg-slate-50 border border-slate-200 rounded p-4 mb-5 space-y-3">
+        <div className="flex justify-between items-start gap-3 text-sm">
+          <span className="text-slate-500 shrink-0">{t("votingBooth.confirmElection")}</span>
+          <span className="font-medium text-slate-800 text-right">{electionTitle}</span>
+        </div>
+        <div className="border-t border-slate-100" />
+        <div className="flex justify-between items-start gap-3 text-sm">
+          <span className="text-slate-500 shrink-0">{t("votingBooth.confirmCandidate")}</span>
+          <span className="font-semibold text-brand-700 text-right">{candidateName}</span>
+        </div>
+      </div>
+
+      {/* Aviso de irrevocabilidad */}
+      <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded p-3 mb-6">
+        <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+        <p className="text-xs text-amber-700 leading-relaxed">
+          {t("votingBooth.confirmIrrevocable")}
+        </p>
+      </div>
+
+      {/* Acciones */}
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={onConfirm}
+          className="w-full py-3 bg-brand-600 hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 text-white rounded font-semibold text-sm transition-colors"
+        >
+          {t("votingBooth.confirmVoteButton")}
+        </button>
+        <button
+          onClick={onCancel}
+          className="w-full py-2.5 border border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 text-slate-700 rounded font-medium text-sm transition-colors"
+        >
+          {t("votingBooth.cancelVote")}
+        </button>
+      </div>
+    </motion.div>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
 export const VotingBoothContent = () => {
@@ -271,11 +345,10 @@ export const VotingBoothContent = () => {
   const [participation, setParticipation] = useState(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Cargar datos de la elección y verificar elegibilidad
   useEffect(() => {
-    const token = localStorage.getItem("vtb-token");
-    if (!token) { navigate(`/login?redirect=/voting/${electionId}`); return; }
     if (!electionId) { setError(t("errors.invalidElection")); setLoading(false); return; }
     loadElectionData();
   }, [electionId]);
@@ -285,15 +358,11 @@ export const VotingBoothContent = () => {
     setError("");
     setEligibilityError("");
     setAlreadyVoted(false);
-    const token = localStorage.getItem("vtb-token");
-    if (!token) { navigate("/login"); return; }
 
     try {
       // 1. Verificar elegibilidad
       try {
-        const eligRes = await axios.get(`${API_URL}/api/elections/${electionId}/eligibility`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const eligRes = await api.get(`/api/elections/${electionId}/eligibility`);
         if (!eligRes.data.eligible) {
           const reason = eligRes.data.reason;
           if (reason === "already_voted") {
@@ -309,9 +378,7 @@ export const VotingBoothContent = () => {
       }
 
       // 2. Obtener candidatos
-      const { data } = await axios.get(`${API_URL}/api/elections/${electionId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { data } = await api.get(`/api/elections/${electionId}`);
 
       if (!data?.election) {
         setError(t("errors.electionNotFound"));
@@ -428,10 +495,7 @@ export const VotingBoothContent = () => {
 
     const fetchParticipation = async () => {
       try {
-        const token = localStorage.getItem("vtb-token");
-        const res = await fetch(`${API_URL}/api/elections/${electionId}/results`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await apiFetch(`/api/elections/${electionId}/results`);
         if (res.ok) {
           const data = await res.json();
           setParticipation({
@@ -453,8 +517,6 @@ export const VotingBoothContent = () => {
   // Enviar voto
   const handleVote = async () => {
     if (!selectedCandidate || !electionId) return;
-    const token = localStorage.getItem("vtb-token");
-    if (!token) { navigate("/login"); return; }
 
     try {
       setVoteError(null);
@@ -466,10 +528,9 @@ export const VotingBoothContent = () => {
       );
 
       setVoteStatus("sending");
-      const voteRequest = axios.post(
-        `${API_URL}/api/elections/register-vote`,
+      const voteRequest = api.post(
+        '/api/elections/register-vote',
         { electionId: parseInt(electionId), voteHash, candidateId: selectedCandidate },
-        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
       );
 
       await new Promise(r => setTimeout(r, 250));
@@ -486,6 +547,7 @@ export const VotingBoothContent = () => {
         setAlreadyVoted(true);
         setVoteError(null);
         setVoteStatus(null);
+        setShowConfirm(false);
         return;
       }
 
@@ -574,6 +636,16 @@ export const VotingBoothContent = () => {
       <Navbar />
 
       {/* ---------- Modales ---------- */}
+      {showConfirm && selectedCandidate && !inProgress && (
+        <VoteConfirmDialog
+          candidateName={candidates.find(c => c.id === selectedCandidate)?.name ?? String(selectedCandidate)}
+          electionTitle={electionTitle}
+          onConfirm={() => { setShowConfirm(false); handleVote(); }}
+          onCancel={() => setShowConfirm(false)}
+          t={t}
+        />
+      )}
+
       {inProgress && <VoteProgressModal status={voteStatus} t={t} />}
 
       {voteStatus === "success" && txData && (
@@ -679,7 +751,11 @@ export const VotingBoothContent = () => {
             className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-5"
           >
             <div className="flex items-start gap-3">
-              <span className="text-2xl">Sync</span>
+              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+              </div>
               <div>
                 <p className="font-semibold text-blue-800 dark:text-blue-300">
                   {voteError.message}
@@ -770,65 +846,57 @@ export const VotingBoothContent = () => {
                     </div>
                   )}
 
-                  {/* Candidate list */}
-                  <div className="space-y-3">
+                  {/* Candidate list — left-border selection pattern, no scale animations */}
+                  <div className="divide-y divide-warm-100 border border-warm-200 rounded overflow-hidden">
                     {candidates.map((candidate) => {
                       const selected = selectedCandidate === candidate.id;
                       return (
-                        <motion.button
+                        <button
                           key={candidate.id}
-                          whileHover={{ scale: inProgress ? 1 : 1.01 }}
-                          whileTap={{ scale: inProgress ? 1 : 0.99 }}
                           onClick={() => setSelectedCandidate(candidate.id)}
                           disabled={inProgress}
-                          className={`w-full p-4 rounded-xl border-2 transition-all text-left group ${
+                          className={`w-full px-4 py-3.5 text-left transition-colors duration-100 flex items-center gap-4 ${
                             selected
-                              ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm"
-                            : "border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                              ? "border-l-[3px] border-l-brand-600 bg-brand-50/40 pl-[13px]"
+                              : "border-l-[3px] border-l-transparent hover:bg-warm-50"
                           }`}
                         >
-                          <div className="flex items-center gap-4">
-                            {/* Radio circle */}
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                              selected ? "border-blue-500 bg-blue-500" : "border-slate-300 dark:border-slate-500"
+                          {/* Radio circle */}
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                            selected ? "border-brand-600 bg-brand-600" : "border-slate-300"
+                          }`}>
+                            {selected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-medium text-sm ${
+                              selected ? "text-brand-700" : "text-slate-800"
                             }`}>
-                              {selected && <div className="w-2 h-2 bg-white rounded-full" />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`font-semibold text-sm transition-colors ${
-                                selected ? "text-blue-700 dark:text-blue-300" : "text-slate-800 dark:text-white"
-                              }`}>
-                                {candidate.name}
+                              {candidate.name}
+                            </p>
+                            {candidate.description && (
+                              <p className="text-xs text-slate-400 mt-0.5 truncate">
+                                {candidate.description}
                               </p>
-                              {candidate.description && (
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                                  {candidate.description}
-                                </p>
-                              )}
-                            </div>
-                            {selected && (
-                              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                                <svg className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                              </motion.div>
                             )}
                           </div>
-                        </motion.button>
+                          {selected && (
+                            <svg className="w-4 h-4 text-brand-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </button>
                       );
                     })}
                   </div>
 
-                  <div className="mt-6">
-                    <motion.button
-                      whileHover={{ scale: selectedCandidate ? 1.01 : 1 }}
-                      whileTap={{ scale: selectedCandidate ? 0.99 : 1 }}
-                      onClick={handleVote}
+                  <div className="mt-4">
+                    <button
+                      onClick={() => selectedCandidate && setShowConfirm(true)}
                       disabled={!selectedCandidate || inProgress}
-                      className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
+                      className={`w-full py-3 rounded font-semibold text-sm transition-colors ${
                         selectedCandidate && !inProgress
-                          ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md"
-                          : "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                          ? "bg-brand-600 hover:bg-brand-700 text-white"
+                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
                       }`}
                     >
                       {inProgress
@@ -836,9 +904,9 @@ export const VotingBoothContent = () => {
                         : selectedCandidate
                         ? t("votingBooth.castVote")
                         : t("votingBooth.selectOption")}
-                    </motion.button>
+                    </button>
                     {!selectedCandidate && (
-                      <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-2">
+                      <p className="text-center text-xs text-slate-400 mt-2">
                         {t("votingBooth.selectOption")}
                       </p>
                     )}

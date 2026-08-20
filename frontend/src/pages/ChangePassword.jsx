@@ -1,11 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import axios from 'axios'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+import { api } from '../utils/apiClient'
 
 export function ChangePassword() {
   const { t } = useTranslation()
@@ -32,11 +30,10 @@ export function ChangePassword() {
     }
     setLoading(true)
     try {
-      await axios.patch(
-        `${API_URL}/auth/change-password`,
-        { currentPassword: form.current, newPassword: form.next },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('vtb-token')}` } }
-      )
+      await api.patch('/auth/change-password', {
+        currentPassword: form.current,
+        newPassword: form.next,
+      })
       setSuccess(true)
       setTimeout(() => navigate('/dashboard'), 2000)
     } catch (err) {

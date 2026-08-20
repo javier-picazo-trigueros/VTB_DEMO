@@ -20,72 +20,6 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: "easeOut" } },
 };
 
-function BlockchainVisual({ theme }) {
-  return (
-    <div className="relative h-72 w-full">
-      <style>{`
-        @keyframes vtbPulse {
-          0%, 100% { filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.35)); opacity: 0.78; }
-          50% { filter: drop-shadow(0 0 18px rgba(6, 182, 212, 0.75)); opacity: 1; }
-        }
-        .vtb-node { animation: vtbPulse 2.7s ease-in-out infinite; }
-        .vtb-node:nth-of-type(2) { animation-delay: 0.25s; }
-        .vtb-node:nth-of-type(3) { animation-delay: 0.5s; }
-        .vtb-node:nth-of-type(4) { animation-delay: 0.75s; }
-      `}</style>
-      <svg viewBox="0 0 420 220" className="h-full w-full" role="img" aria-label="Blockchain vote animation">
-        <defs>
-          <linearGradient id="vtb-node-gradient" x1="0" x2="1">
-            <stop offset="0%" stopColor="#1d4ed8" />
-            <stop offset="100%" stopColor="#4f46e5" />
-          </linearGradient>
-          <linearGradient id="vtb-success-gradient" x1="0" x2="1">
-            <stop offset="0%" stopColor="#0f766e" />
-            <stop offset="100%" stopColor="#16a34a" />
-          </linearGradient>
-        </defs>
-        {[70, 165, 260].map((x) => (
-          <line
-            key={x}
-            x1={x}
-            y1="110"
-            x2={x + 75}
-            y2="110"
-            stroke={theme === "dark" ? "#3b82f6" : "#2563eb"}
-            strokeWidth="2"
-            strokeDasharray="5 5"
-            opacity="0.75"
-          />
-        ))}
-        {[
-          { x: 35, label: "V" },
-          { x: 130, label: "0x" },
-          { x: 225, label: "OK" },
-          { x: 320, label: "TX", success: true },
-        ].map((node) => (
-          <g key={node.x} className="vtb-node">
-            <rect
-              x={node.x}
-              y="80"
-              width="58"
-              height="58"
-              rx="14"
-              fill={node.success ? "url(#vtb-success-gradient)" : "url(#vtb-node-gradient)"}
-              stroke={node.success ? "#22c55e" : "#60a5fa"}
-              strokeWidth="2"
-            />
-            <text x={node.x + 29} y="116" textAnchor="middle" fill="white" fontSize="16" fontWeight="700">
-              {node.label}
-            </text>
-          </g>
-        ))}
-        <circle r="7" fill="#06b6d4">
-          <animateMotion dur="3s" repeatCount="indefinite" path="M 64,110 L 160,110 L 255,110 L 350,110" />
-        </circle>
-      </svg>
-    </div>
-  );
-}
 
 export const Landing = () => {
   const { t } = useTranslation();
@@ -162,43 +96,33 @@ export const Landing = () => {
       <Navbar />
 
       <section
-        className={`relative overflow-hidden transition-colors duration-500 ${
+        className={`relative overflow-hidden border-b ${
           theme === "dark"
-            ? "bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950"
-            : "bg-gradient-to-br from-blue-50 via-white to-indigo-50"
+            ? "bg-slate-900 border-slate-800"
+            : "bg-white border-warm-200"
         }`}
       >
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              theme === "dark"
-                ? "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)"
-                : "radial-gradient(circle at 1px 1px, rgba(15,23,42,0.10) 1px, transparent 0)",
-            backgroundSize: "36px 36px",
-          }}
-        />
 
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="relative mx-auto grid min-h-[calc(100vh-73px)] max-w-6xl grid-cols-1 items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8"
+          className="relative mx-auto max-w-4xl px-4 py-24 sm:px-6 lg:px-8"
         >
-          <div className="text-center lg:text-left">
+          <div className="text-center max-w-3xl mx-auto">
             <motion.div
               variants={itemVariants}
-              className={`mb-8 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm ${
+              className={`mb-8 inline-flex items-center gap-2 rounded border px-4 py-1.5 text-sm font-medium ${
                 theme === "dark"
-                  ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
-                  : "border-blue-400/50 bg-blue-100/70 text-blue-700"
+                  ? "border-brand-600/30 bg-brand-600/10 text-brand-300"
+                  : "border-brand-200 bg-brand-50 text-brand-700"
               }`}
             >
               {t("landing.poweredBySepolia")}
             </motion.div>
 
             <h1
-              className={`mb-6 text-5xl font-black leading-none sm:text-7xl ${
+              className={`mb-6 text-4xl font-bold leading-tight sm:text-6xl ${
                 theme === "dark" ? "text-white" : "text-slate-900"
               }`}
             >
@@ -206,7 +130,7 @@ export const Landing = () => {
                 <motion.span
                   key={word}
                   variants={itemVariants}
-                  className={index === 1 ? "block bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent" : "block"}
+                  className={index === 1 ? "block text-brand-600" : "block"}
                 >
                   {word}
                 </motion.span>
@@ -222,33 +146,33 @@ export const Landing = () => {
               {t("landing.heroSubtitleNew")}
             </motion.p>
 
-            <motion.div variants={itemVariants} className="mb-10 flex flex-col items-center gap-4 sm:flex-row lg:justify-start flex-wrap">
+            <motion.div variants={itemVariants} className="mb-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center flex-wrap">
               {!isAuthenticated && (
                 <button
                   onClick={() => setDemoOpen(true)}
-                  className="rounded-2xl bg-blue-600 px-8 py-4 text-lg font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 hover:shadow-blue-500/40 flex items-center gap-2"
+                  className="rounded bg-brand-600 px-8 py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
                 >
-                  🚀 Try Demo
+                  Try Demo
                 </button>
               )}
               <button
                 onClick={() => navigate(isAuthenticated ? "/dashboard" : "/login")}
-                className={`rounded-2xl px-8 py-4 text-lg font-bold transition ${
+                className={`rounded px-8 py-4 text-base font-semibold transition-colors ${
                   isAuthenticated
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500"
+                    ? "bg-brand-600 text-white shadow-sm hover:bg-brand-700"
                     : theme === "dark"
                     ? "border border-white/20 text-white hover:border-white/40 hover:bg-white/5"
-                    : "border border-slate-300 text-slate-800 hover:border-blue-400 hover:bg-white/70"
+                    : "border border-slate-300 text-slate-800 hover:border-brand-400 hover:bg-slate-50"
                 }`}
               >
                 {isAuthenticated ? t("landing.startVoting") : "Sign In"}
               </button>
               <button
                 onClick={() => navigate("/transparency")}
-                className={`rounded-2xl border px-8 py-4 text-lg font-bold transition ${
+                className={`rounded border px-8 py-4 text-base font-semibold transition-colors ${
                   theme === "dark"
                     ? "border-white/20 text-white hover:border-white/40 hover:bg-white/5"
-                    : "border-slate-300 text-slate-800 hover:border-blue-400 hover:bg-white/70"
+                    : "border-slate-300 text-slate-700 hover:border-brand-400 hover:bg-slate-50"
                 }`}
               >
                 {t("landing.viewPublicAudit")}
@@ -256,14 +180,14 @@ export const Landing = () => {
               {isAuthenticated && (hasRole("admin") || hasRole("superadmin")) && (
                 <button
                   onClick={() => navigate("/admin")}
-                  className="rounded-2xl bg-emerald-600 px-8 py-4 text-lg font-bold text-white transition hover:bg-emerald-500"
+                  className="rounded bg-emerald-700 px-8 py-4 text-base font-semibold text-white transition-colors hover:bg-emerald-800"
                 >
                   {t("landing.adminPanel")}
                 </button>
               )}
             </motion.div>
 
-            <motion.div variants={itemVariants} className="mb-10 flex items-center justify-center gap-6 sm:gap-10 lg:justify-start">
+            <motion.div variants={itemVariants} className="mb-10 flex items-center justify-center gap-6 sm:gap-10">
               {heroStats.map((item, index) => (
                 <div
                   key={item.label}
@@ -291,8 +215,8 @@ export const Landing = () => {
               <motion.form
                 variants={itemVariants}
                 onSubmit={handlePortalSubmit}
-                className={`mx-auto max-w-xl rounded-2xl border p-3 backdrop-blur lg:mx-0 ${
-                  theme === "dark" ? "border-white/10 bg-white/10" : "border-slate-300/50 bg-white/60"
+                className={`mx-auto max-w-xl rounded border p-3 ${
+                  theme === "dark" ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
                 }`}
               >
                 <div className="flex flex-col gap-3 sm:flex-row">
@@ -304,16 +228,16 @@ export const Landing = () => {
                       setDomainError("");
                     }}
                     placeholder={t("landing.domainPlaceholder")}
-                    className={`flex-1 rounded-xl border px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    className={`flex-1 rounded border px-4 py-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
                       theme === "dark"
                         ? "border-white/10 bg-slate-950/70 text-white placeholder-slate-500"
-                        : "border-slate-300 bg-white/90 text-slate-900 placeholder-slate-400"
+                        : "border-slate-300 bg-white text-slate-900 placeholder-slate-400"
                     }`}
                   />
                   <button
                     type="submit"
-                    className={`rounded-xl px-6 py-3 font-bold transition ${
-                      theme === "dark" ? "bg-white text-slate-950 hover:bg-blue-50" : "bg-slate-900 text-white hover:bg-slate-800"
+                    className={`rounded px-6 py-3 font-semibold transition-colors ${
+                      theme === "dark" ? "bg-white text-slate-950 hover:bg-slate-100" : "bg-slate-900 text-white hover:bg-slate-800"
                     }`}
                   >
                     {t("landing.portalButton")}
@@ -328,9 +252,7 @@ export const Landing = () => {
             )}
           </div>
 
-          <motion.div variants={itemVariants} className="hidden lg:block">
-            <BlockchainVisual theme={theme} />
-          </motion.div>
+          {/* Right column removed — text-first hero */}
         </motion.div>
       </section>
 
