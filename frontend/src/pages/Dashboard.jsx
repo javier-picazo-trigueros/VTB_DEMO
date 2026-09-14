@@ -136,6 +136,7 @@ export const Dashboard = () => {
   const { user, isAuthenticated } = useAuth();
 
   const [elections, setElections] = useState([]);
+  const [institutionElectionCount, setInstitutionElectionCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [eligibilityMap, setEligibilityMap] = useState({});
@@ -162,10 +163,11 @@ export const Dashboard = () => {
     try {
       const res = await apiFetch('/api/elections');
       if (res.status === 401) { clearAuthAndRedirect(navigate); return; }
-      if (!res.ok) throw new Error("Failed to load elections");
+      if (!res.ok) throw new Error("No se han podido cargar las elecciones");
       const data = await res.json();
       const list = Array.isArray(data) ? data : data.elections || [];
       setElections(list);
+      setInstitutionElectionCount(Array.isArray(data) ? list.length : (data.institutionElectionCount ?? 0));
 
       const eligChecks = list
         .filter(e => getRealStatus(e) === "active")
@@ -177,7 +179,7 @@ export const Dashboard = () => {
         );
       await Promise.all(eligChecks);
     } catch (err) {
-      setError(err.message || "Failed to load elections");
+      setError(err.message || "No se han podido cargar las elecciones");
       setElections([]);
     } finally {
       setIsLoading(false);
@@ -257,22 +259,65 @@ export const Dashboard = () => {
             </div>
           )}
 
-          {/* Empty — no elections at all */}
+          {/* Empty — sin elecciones asignadas, distingue dos causas distintas */}
           {!isLoading && elections.length === 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-md mx-auto text-center py-16">
               <div className="w-16 h-16 mx-auto mb-4 rounded bg-slate-100 flex items-center justify-center">
                 <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-1">{t('dashboard.noElectionsTitle')}</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">
-                {t('dashboard.noElectionsContact')}
-              </p>
-              <button onClick={loadElections}
-                className="px-5 py-2.5 rounded bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors">
-                {t('dashboard.reload')}
-              </button>
+
+              {institutionElectionCount === 0 ? (
+                /* Caso A: la institución no ha creado ninguna elección todavía */
+                <>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-1.5">{t('dashboard.noInstitutionElectionsTitle')}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                    {t('dashboard.noInstitutionElectionsDesc')}
+                  </p>
+                  <button onClick={loadElections}
+                    className="px-5 py-2.5 rounded bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors">
+                    {t('dashboard.reload')}
+                  </button>
+                </>
+              ) : (
+                /* Caso B: hay elecciones en la institución, pero ninguna asignada a este usuario */
+                <>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-1.5">{t('dashboard.noElectionsTitle')}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
+                    {t('dashboard.noElectionsDesc')}
+                  </p>
+
+                  <div className="text-left bg-white border border-warm-200 rounded p-4 mb-6">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                      {t('dashboard.noElectionsReasonsTitle')}
+                    </p>
+                    <ul className="space-y-1.5">
+                      {[t('dashboard.noElectionsReason1'), t('dashboard.noElectionsReason2'), t('dashboard.noElectionsReason3')].map((reason, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                          <span className="w-1 h-1 rounded-full bg-slate-300 mt-2 flex-shrink-0" />
+                          {reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
+                    {t('dashboard.noElectionsContact')}
+                  </p>
+
+                  <div className="flex items-center justify-center gap-3">
+                    <button onClick={loadElections}
+                      className="px-5 py-2.5 rounded bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors">
+                      {t('dashboard.reload')}
+                    </button>
+                    <button onClick={() => navigate('/profile')}
+                      className="px-5 py-2.5 rounded border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-colors">
+                      {t('dashboard.viewProfile')}
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           )}
 
@@ -303,7 +348,7 @@ export const Dashboard = () => {
                   { v: 'closed',   dot: 'bg-slate-400',   label: t('dashboard.closed') },
                 ].map(({ v, dot, label }) => (
                   <button key={v} onClick={() => setFilter(p => ({ ...p, status: v }))}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 min-w-[44px] min-h-[44px] rounded text-xs font-medium transition-colors ${
                       filter.status === v
                         ? 'bg-brand-600 text-white'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -357,16 +402,18 @@ export const Dashboard = () => {
                       {adminElections.length}
                     </span>
                   </h2>
-                  <div className="bg-white border border-warm-200 rounded overflow-hidden divide-y divide-warm-100">
-                    {adminElections.map((election, idx) => (
-                      <ElectionRow
-                        key={election.id}
-                        election={election}
-                        eligibility={eligibilityMap[election.id]}
-                        index={idx}
-                        navigate={navigate}
-                      />
-                    ))}
+                  <div className="overflow-x-auto rounded border border-warm-200">
+                    <div className="bg-white divide-y divide-warm-100 min-w-[560px]">
+                      {adminElections.map((election, idx) => (
+                        <ElectionRow
+                          key={election.id}
+                          election={election}
+                          eligibility={eligibilityMap[election.id]}
+                          index={idx}
+                          navigate={navigate}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -378,16 +425,18 @@ export const Dashboard = () => {
                       {t('dashboard.studentElections')}
                     </h2>
                   )}
-                  <div className="bg-white border border-warm-200 rounded overflow-hidden divide-y divide-warm-100">
-                    {regularElections.map((election, idx) => (
-                      <ElectionRow
-                        key={election.id}
-                        election={election}
-                        eligibility={eligibilityMap[election.id]}
-                        index={idx}
-                        navigate={navigate}
-                      />
-                    ))}
+                  <div className="overflow-x-auto rounded border border-warm-200">
+                    <div className="bg-white divide-y divide-warm-100 min-w-[560px]">
+                      {regularElections.map((election, idx) => (
+                        <ElectionRow
+                          key={election.id}
+                          election={election}
+                          eligibility={eligibilityMap[election.id]}
+                          index={idx}
+                          navigate={navigate}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

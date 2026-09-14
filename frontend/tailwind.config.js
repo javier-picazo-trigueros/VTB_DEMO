@@ -8,6 +8,12 @@ export default {
   theme: {
     extend: {
       // COLORES PERSONALIZADOS PARA VTB
+      //
+      // Nota: las paletas `blockchain` y `voting`, los gradientes
+      // (gradient-vtb / gradient-voting / gradient-hero), las animaciones
+      // fade-in / slide-in / pulse-soft y el spacing 128/144 se eliminaron
+      // tras el rediseño. Estaban marcados como "kept for backwards compat"
+      // y no los usaba ningún componente (verificado en todo src/ e index.html).
       colors: {
         // Design system — brand tokens (petrol #1B4D6A)
         brand: {
@@ -56,22 +62,6 @@ export default {
           600: "#D97706",
           700: "#B45309",
         },
-        // Primarios (Blockchain) — kept for backwards compat
-        blockchain: {
-          50: "#f0f9ff",
-          100: "#e0f2fe",
-          500: "#0ea5e9",
-          600: "#0284c7",
-          700: "#0369a1",
-          900: "#082f49",
-        },
-        // Votación (Verde) — kept for backwards compat
-        voting: {
-          50: "#f0fdf4",
-          500: "#22c55e",
-          600: "#16a34a",
-          700: "#15803d",
-        },
         // Neutrales
         slate: {
           50: "#f8fafc",
@@ -86,40 +76,6 @@ export default {
           900: "#0f172a",
           950: "#020617",
         },
-      },
-
-      // FONDOS DE GRADIENTE
-      backgroundImage: {
-        "gradient-vtb": "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-        "gradient-voting": "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
-        "gradient-hero": "linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)",
-      },
-
-      // ANIMACIONES PERSONALIZADAS
-      animation: {
-        "fade-in": "fadeIn 0.5s ease-in",
-        "slide-in": "slideIn 0.6s ease-out",
-        "pulse-soft": "pulseSoft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-      },
-      keyframes: {
-        fadeIn: {
-          "0%": { opacity: "0" },
-          "100%": { opacity: "1" },
-        },
-        slideIn: {
-          "0%": { transform: "translateY(10px)", opacity: "0" },
-          "100%": { transform: "translateY(0)", opacity: "1" },
-        },
-        pulseSoft: {
-          "0%, 100%": { opacity: "1" },
-          "50%": { opacity: ".8" },
-        },
-      },
-
-      // ESPACIADO EXTENDIDO
-      spacing: {
-        "128": "32rem",
-        "144": "36rem",
       },
     },
   },

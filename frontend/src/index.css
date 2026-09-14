@@ -2,7 +2,17 @@
  * VTB - index.css
  * ===============
  * Estilos globales de la aplicación.
- * Incluye Tailwind CSS y personalizaciones.
+ *
+ * Tras el rediseño se eliminaron de aquí (verificado: 0 usos en todo src/):
+ *   - .vtb-btn-primary / .vtb-btn-secondary / .vtb-btn-danger / .vtb-card / .vtb-input
+ *     Un sistema de componentes que se definió y nunca se adoptó; los
+ *     componentes escriben las utilidades de Tailwind directamente.
+ *   - .skeleton y su keyframe skeleton-shimmer
+ *   - .animate-fadeIn / .animate-slideInRight / .animate-pulse-glow y sus keyframes
+ *   - las variables --vtb-primary/-hover/-wash, --vtb-ground, --vtb-border-warm,
+ *     --vtb-muted, --vtb-success, --vtb-warning (ninguna referenciada con var())
+ *
+ * Se conserva --font-mono-vtb porque .font-mono-vtb sí se usa, y .tabular.
  */
 
 /* IBM Plex Sans + IBM Plex Mono — tipografía institucional */
@@ -14,15 +24,7 @@
 
 /* ── Design tokens ─────────────────────────────────────────────── */
 :root {
-  --vtb-primary:        #1B4D6A;
-  --vtb-primary-hover:  #163E57;
-  --vtb-primary-wash:   #EAF2F7;
-  --vtb-ground:         #F5F3EF;
-  --vtb-border-warm:    #E2DDD8;
-  --vtb-muted:          #6B6560;
-  --vtb-success:        #1E5C3A;
-  --vtb-warning:        #8C4A00;
-  --font-mono-vtb:      'IBM Plex Mono', 'SF Mono', 'Consolas', 'Fira Code', monospace;
+  --font-mono-vtb: 'IBM Plex Mono', 'SF Mono', 'Consolas', 'Fira Code', monospace;
 }
 
 /* Tabular numbers utility — use on any numeric data */
@@ -59,87 +61,3 @@ body {
 ::-webkit-scrollbar-thumb {
   @apply bg-slate-300 rounded-full hover:bg-slate-400;
 }
-
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(20px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.2); }
-  50%       { box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
-}
-
-@keyframes skeleton-shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
-}
-
-.animate-fadeIn      { animation: fadeIn 0.3s ease-out; }
-.animate-slideInRight { animation: slideInRight 0.3s ease-out; }
-.animate-pulse-glow  { animation: pulse-glow 2s ease-in-out infinite; }
-
-/* ── VTB Design-system component classes ────────────────────────────── */
-
-/* Primary button — brand navy */
-.vtb-btn-primary {
-  @apply inline-flex items-center justify-center gap-2
-         px-5 py-2.5 rounded-lg
-         bg-brand-600 text-white font-semibold text-sm
-         hover:bg-brand-700 active:bg-brand-800
-         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2
-         disabled:opacity-50 disabled:cursor-not-allowed
-         transition-colors duration-150;
-}
-
-/* Secondary button — outlined */
-.vtb-btn-secondary {
-  @apply inline-flex items-center justify-center gap-2
-         px-5 py-2.5 rounded-lg
-         border border-slate-300 bg-white text-slate-700 font-semibold text-sm
-         hover:bg-slate-50 active:bg-slate-100
-         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2
-         disabled:opacity-50 disabled:cursor-not-allowed
-         transition-colors duration-150;
-}
-
-/* Danger button */
-.vtb-btn-danger {
-  @apply inline-flex items-center justify-center gap-2
-         px-5 py-2.5 rounded-lg
-         bg-danger-600 text-white font-semibold text-sm
-         hover:bg-danger-700 active:bg-danger-800
-         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-500 focus-visible:ring-offset-2
-         disabled:opacity-50 disabled:cursor-not-allowed
-         transition-colors duration-150;
-}
-
-/* Card */
-.vtb-card {
-  @apply bg-white border border-slate-200 rounded-xl shadow-sm;
-}
-
-/* Text input / select */
-.vtb-input {
-  @apply w-full px-4 py-2.5 rounded-lg
-         border border-slate-300 bg-white text-slate-900 text-sm
-         placeholder:text-slate-400
-         focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500
-         disabled:bg-slate-50 disabled:text-slate-400
-         transition-colors duration-150;
-}
-
-/* Skeleton shimmer */
-.skeleton {
-  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
-  @apply rounded;
-}
-

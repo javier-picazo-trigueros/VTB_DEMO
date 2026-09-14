@@ -10,32 +10,22 @@ import { useTheme } from "../context/ThemeContext";
 // import.meta.env.DEV is statically false in production; Rollup eliminates
 // everything inside these expressions from the output bundle.
 const voterDemoAccounts = import.meta.env.DEV ? [
-  { label: "VTB Demo Student", email: "student@vtb.demo", pwd: "demo123" },
-  { label: "VTB Demo Student 2", email: "student2@vtb.demo", pwd: "demo123" },
-  { label: "UFV Demo Student", email: "demo.ufv@ufv.es", pwd: "demo123" },
-  { label: "UFV EPS Demo", email: "demo.eps@ufv.es", pwd: "demo123" },
-  { label: "Highlands Demo", email: "demo.highland@highlands.edu", pwd: "demo123" },
-  { label: "Universidad Demo", email: "demo.universidad@universidad.edu", pwd: "demo123" },
+  { label: "Alex Ferrer (Meridian)", email: "student@vtb.demo", pwd: "demo123" },
+  { label: "Marina Costa (Meridian)", email: "student2@vtb.demo", pwd: "demo123" },
 ] : [];
 
 const adminDemoAccounts = import.meta.env.DEV ? [
-  { label: "VTB Demo Admin", email: "admin@vtb.demo", pwd: "admin123" },
-  { label: "UFV Demo Admin", email: "admin.demo@ufv.es", pwd: "admin123" },
-  { label: "Highlands Demo Admin", email: "admin.demo@highlands.edu", pwd: "admin123" },
-  { label: "Universidad Demo Admin", email: "admin.demo@universidad.edu", pwd: "admin123" },
-  { label: "Demo Super Admin", email: "superadmin@vtb.demo", pwd: "superadmin123" },
+  { label: "Elena Ibarra (Meridian Admin)", email: "admin@vtb.demo", pwd: "admin123" },
+  { label: "Marta Reyes (Super Admin)", email: "superadmin@vtb.demo", pwd: "superadmin123" },
+  { label: "Platform Super Admin", email: "superadmin@vtb.system", pwd: "superadmin123" },
 ] : [];
 
 const allDevAccounts = import.meta.env.DEV ? [
-  { label: "VTB Demo Student", email: "student@vtb.demo", pwd: "demo123", color: "text-green-400", portal: "voter" },
-  { label: "UFV Demo Student", email: "demo.ufv@ufv.es", pwd: "demo123", color: "text-green-400", portal: "voter" },
-  { label: "Highlands Demo", email: "demo.highland@highlands.edu", pwd: "demo123", color: "text-green-400", portal: "voter" },
-  { label: "Universidad Demo", email: "demo.universidad@universidad.edu", pwd: "demo123", color: "text-green-400", portal: "voter" },
-  { label: "VTB Demo Admin", email: "admin@vtb.demo", pwd: "admin123", color: "text-blue-400", portal: "admin" },
-  { label: "UFV Demo Admin", email: "admin.demo@ufv.es", pwd: "admin123", color: "text-blue-400", portal: "admin" },
-  { label: "Highlands Demo Admin", email: "admin.demo@highlands.edu", pwd: "admin123", color: "text-blue-400", portal: "admin" },
-  { label: "Universidad Demo Admin", email: "admin.demo@universidad.edu", pwd: "admin123", color: "text-blue-400", portal: "admin" },
-  { label: "Demo Super Admin", email: "superadmin@vtb.demo", pwd: "superadmin123", color: "text-red-400", portal: "admin" },
+  { label: "Alex Ferrer (Meridian)", email: "student@vtb.demo", pwd: "demo123", color: "text-green-400", portal: "voter" },
+  { label: "Marina Costa (Meridian)", email: "student2@vtb.demo", pwd: "demo123", color: "text-green-400", portal: "voter" },
+  { label: "Elena Ibarra (Meridian Admin)", email: "admin@vtb.demo", pwd: "admin123", color: "text-blue-400", portal: "admin" },
+  { label: "Marta Reyes (Super Admin)", email: "superadmin@vtb.demo", pwd: "superadmin123", color: "text-red-400", portal: "admin" },
+  { label: "Platform Super Admin", email: "superadmin@vtb.system", pwd: "superadmin123", color: "text-red-400", portal: "admin" },
 ] : [];
 
 export const Login = () => {

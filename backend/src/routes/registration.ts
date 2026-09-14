@@ -25,20 +25,20 @@ router.post("/request", async (req: Request, res: Response) => {
     // Validate required fields
     if (!fullName?.trim() || !email?.trim() || !studentId?.trim() || !password?.trim()) {
       res.status(400).json({
-        error: "All fields are required: full name, email, student ID, and password",
+        error: "Faltan campos obligatorios: nombre completo, email, identificador y contraseña",
       });
       return;
     }
 
     // Validate email format
     if (!email.includes("@") || !email.includes(".")) {
-      res.status(400).json({ error: "Invalid email format" });
+      res.status(400).json({ error: "Formato de email no válido" });
       return;
     }
 
     // Validate password length
     if (password.length < 6) {
-      res.status(400).json({ error: "Password must be at least 6 characters" });
+      res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
       return;
     }
 
@@ -48,7 +48,7 @@ router.post("/request", async (req: Request, res: Response) => {
       [email]
     );
     if (existingUser) {
-      res.status(409).json({ error: "This email already has an active account" });
+      res.status(409).json({ error: "Ese email ya tiene una cuenta activa" });
       return;
     }
 
@@ -58,7 +58,7 @@ router.post("/request", async (req: Request, res: Response) => {
       [email]
     );
     if (existingRequest) {
-      res.status(409).json({ error: "You already have a pending registration request" });
+      res.status(409).json({ error: "Ya tienes una solicitud de registro pendiente" });
       return;
     }
 
@@ -79,7 +79,7 @@ router.post("/request", async (req: Request, res: Response) => {
         );
       } catch (insertErr: any) {
         if (insertErr.message?.includes('UNIQUE')) {
-          res.status(409).json({ error: "This email already has an active account" });
+          res.status(409).json({ error: "Ese email ya tiene una cuenta activa" });
           return;
         }
         throw insertErr;
@@ -102,7 +102,7 @@ router.post("/request", async (req: Request, res: Response) => {
       }
 
       res.status(201).json({
-        message: "Your account has been automatically approved! You can log in now with the password you chose.",
+        message: "Tu cuenta se ha aprobado automáticamente. Ya puedes iniciar sesión con la contraseña que elegiste.",
         autoApproved: true,
       });
       return;
@@ -118,11 +118,11 @@ router.post("/request", async (req: Request, res: Response) => {
     );
 
     res.json({
-      message: "Registration request submitted successfully. An administrator will review it shortly.",
+      message: "Solicitud de registro enviada correctamente. Un administrador la revisará en breve.",
     });
   } catch (error) {
     console.error("Error in registration request:", error);
-    res.status(500).json({ error: "Error processing registration request" });
+    res.status(500).json({ error: "Error al procesar la solicitud de registro" });
   }
 });
 

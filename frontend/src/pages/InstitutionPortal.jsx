@@ -30,17 +30,14 @@ const LoadingSpinner = ({ color = "#3b82f6" }) => (
 
 // ─── Demo accounts list (all known demos, filtered by domain) ─────────────────
 const ALL_VOTER_DEMOS = [
-  { label: "UFV Student 1",      email: "carlos@ufv.es",           pwd: "demo123" },
-  { label: "UFV Student 2",      email: "laura@ufv.es",            pwd: "demo123" },
-  { label: "Highland Student 1", email: "student5@highlands.edu",   pwd: "demo123" },
-  { label: "Highland Student 2", email: "student6@highlands.edu",   pwd: "demo123" },
+  { label: "Alex Ferrer",  email: "student@vtb.demo",  pwd: "demo123" },
+  { label: "Marina Costa", email: "student2@vtb.demo", pwd: "demo123" },
 ];
 
 const ALL_ADMIN_DEMOS = [
-  { label: "Super Admin",     email: "superadmin@vtb.system", pwd: "superadmin123" },
-  { label: "UFV Admin",       email: "admin@ufv.es",           pwd: "admin123" },
-  { label: "EPS Admin",       email: "admin@eps.ufv.es",       pwd: "admin123" },
-  { label: "Highland Admin",  email: "admin@highlands.edu",     pwd: "admin123" },
+  { label: "Super Admin (plataforma)", email: "superadmin@vtb.system", pwd: "superadmin123" },
+  { label: "Elena Ibarra",             email: "admin@vtb.demo",        pwd: "admin123" },
+  { label: "Marta Reyes",              email: "superadmin@vtb.demo",   pwd: "superadmin123" },
 ];
 
 // ─── Inline login form ────────────────────────────────────────────────────────
@@ -477,11 +474,18 @@ export const InstitutionPortal = () => {
                   }
                 }}
               />
-              {/* Emoji fallback (hidden by default, shown via onError) */}
-              <div className="hidden text-5xl items-center justify-center h-20 w-20">🏛️</div>
+              {/* Fallback si la imagen no carga */}
+              <div className="hidden items-center justify-center h-20 w-20 rounded-lg font-semibold text-lg text-white" style={{ backgroundColor: primaryColor }}>
+                {(orgName || 'V').charAt(0)}
+              </div>
             </div>
           ) : (
-            <div className="mb-5 text-6xl">🏛️</div>
+            <div
+              className="mb-5 h-16 w-16 rounded-lg flex items-center justify-center font-semibold text-2xl text-white"
+              style={{ backgroundColor: primaryColor }}
+            >
+              {(orgName || 'V').charAt(0)}
+            </div>
           )}
 
           {/* Name */}
@@ -491,9 +495,9 @@ export const InstitutionPortal = () => {
 
           {/* Subtitle with accent color */}
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Welcome to the{" "}
+            Portal de votación{" "}
             <span className="font-semibold" style={{ color: primaryColor }}>
-              secure voting portal
+              seguro
             </span>
           </p>
 

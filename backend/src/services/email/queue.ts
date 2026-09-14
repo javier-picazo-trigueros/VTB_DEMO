@@ -1,15 +1,51 @@
 /**
- * Cola de emails fire-and-forget con reintentos y registro en BD.
+ * Cola de emails con estado persistido en base de datos.
  *
- * Diseño:
- * - enqueue() retorna inmediatamente (no bloquea la petición HTTP).
- * - Hasta 3 intentos con backoff exponencial: 10s → 60s → 300s.
- * - Cada intento actualiza email_log con el estado y el error, si lo hay.
- * - Si no hay RESEND_API_KEY, omite el envío y anota 'skipped' en BD.
+ * ── Por qué se reescribió ────────────────────────────────────────────────────
+ *
+ * El diseño anterior tenía DOS mecanismos de reintento sin coordinación:
+ *
+ *   a) en memoria: enqueue() marcaba 'failed' y programaba un setTimeout
+ *   b) en BD:      retryPendingEmails() recogía cada 5 min todo lo que
+ *                  estuviera en 'queued' o 'failed' con attempts < 3
+ *
+ * Nada distinguía "hay un reintento programado" de "esto quedó huérfano tras
+ * un reinicio", así que el job de 5 minutos reenviaba correos que ya estaban
+ * en vuelo o esperando su backoff. Un mismo mensaje podía salir tres veces.
+ *
+ * ── Diseño actual ───────────────────────────────────────────────────────────
+ *
+ * Un solo mecanismo. El estado vive en email_log y el reintento se decide con
+ * next_retry_at, no con temporizadores en memoria que un reinicio se lleva.
+ *
+ *   queued  → pendiente; elegible cuando next_retry_at <= ahora
+ *   sending → reclamado por un worker (claimed_at marca cuándo)
+ *   sent    → entregado (terminal)
+ *   dead    → agotados los intentos (terminal)
+ *   skipped → sin RESEND_API_KEY (terminal)
+ *
+ * ── Muerte del proceso ──────────────────────────────────────────────────────
+ *
+ * Los dos casos que importan, y que antes quedaban mal:
+ *
+ *   1. Muere entre el INSERT y el envío
+ *      La fila queda en 'queued' con next_retry_at ya vencido. El siguiente
+ *      arranque la recoge en el primer ciclo. No queda huérfana.
+ *
+ *   2. Muere DESPUÉS de enviar pero antes de marcar 'sent'
+ *      La fila queda en 'sending'. reclaimStuck() la devuelve a 'queued' tras
+ *      STUCK_MS, así que se reintenta — pero el reintento reutiliza la MISMA
+ *      idempotency_key, y Resend deduplica del lado del servidor. El
+ *      destinatario no recibe el correo dos veces.
+ *
+ * Sin la clave de idempotencia el caso 2 no tiene solución local: no se puede
+ * saber si la petición llegó a salir. Por eso la clave se genera en el INSERT
+ * y se guarda, en lugar de generarse en cada intento.
  */
 
 import { sendRaw, resendClient } from './client.js';
-import type { RawPayload }       from './client.js';
+import type { RawPayload } from './client.js';
+import crypto from 'crypto';
 
 // Import diferido para evitar ciclos en el arranque
 let _db: import('../../db/client.js').DbClient | null = null;
@@ -20,176 +56,247 @@ async function getDb(): Promise<import('../../db/client.js').DbClient> {
   return _db;
 }
 
-const MAX_ATTEMPTS = 3;
-const BACKOFF_MS   = [10_000, 60_000, 300_000] as const; // 10s, 1min, 5min
+/** Intentos antes de darse por vencido. */
+const MAX_ATTEMPTS = 5;
+
+/** Espera antes del intento n (índice = attempts ya realizados). */
+const BACKOFF_MS = [30_000, 120_000, 600_000, 1_800_000, 7_200_000] as const;
+
+/** Una fila en 'sending' más de esto se considera abandonada por un proceso muerto. */
+const STUCK_MS = 10 * 60 * 1000;
+
+/** Máximo de envíos por invocación del worker. */
+const BATCH_MAX = 100;
+
+/**
+ * Pausa entre envíos. El plan gratuito de Resend limita a ~2 peticiones/s;
+ * sin esto, una notificación masiva de 1.000 votantes disparaba 1.000
+ * llamadas en paralelo y casi todas volvían 429.
+ */
+const SEND_INTERVAL_MS = Number.parseInt(process.env.EMAIL_SEND_INTERVAL_MS ?? '', 10) || 250;
+
+/**
+ * Serializa los ciclos del worker dentro de este proceso.
+ *
+ * No es un simple flag "ya está corriendo, sal": con eso, una llamada hecha
+ * mientras otra estaba en vuelo se perdía en silencio y la fila recién
+ * insertada esperaba hasta el siguiente tick del job. Encadenando, cada
+ * llamada garantiza un ciclo completo después del actual, y `await` significa
+ * de verdad "la cola se ha procesado".
+ */
+let chain: Promise<void> = Promise.resolve();
 
 export interface QueuePayload extends RawPayload {
-  template: string; // nombre del template para el log
+  template: string;
 }
 
-// ── Helpers de log ────────────────────────────────────────────────────────────
-
-async function insertLog(p: QueuePayload): Promise<number | undefined> {
-  try {
-    const db  = await getDb();
-    const res = await db.exec(
-      `INSERT INTO email_log
-         (recipient, template_name, subject, html_body, text_body, status, attempts, created_at)
-       VALUES (?, ?, ?, ?, ?, 'queued', 0, CURRENT_TIMESTAMP)`,
-      [p.to, p.template, p.subject, p.html, p.text],
-    );
-    return res.lastID || undefined;
-  } catch {
-    return undefined;
-  }
+function nowIso(): string {
+  return new Date().toISOString();
 }
 
-async function markSent(logId: number, resendId: string | null): Promise<void> {
-  try {
-    const db = await getDb();
-    await db.exec(
-      `UPDATE email_log
-          SET status = 'sent', resend_id = ?, sent_at = CURRENT_TIMESTAMP,
-              attempts = attempts + 1, last_error = NULL
-        WHERE id = ?`,
-      [resendId, logId],
-    );
-  } catch { /* log non-critical */ }
+function isoIn(ms: number): string {
+  return new Date(Date.now() + ms).toISOString();
 }
 
-async function markFailed(logId: number, error: string): Promise<void> {
-  try {
-    const db = await getDb();
-    await db.exec(
-      `UPDATE email_log
-          SET status = 'failed', attempts = attempts + 1, last_error = ?
-        WHERE id = ?`,
-      [error, logId],
-    );
-  } catch { /* log non-critical */ }
-}
-
-async function markSkipped(logId: number): Promise<void> {
-  try {
-    const db = await getDb();
-    await db.exec(
-      `UPDATE email_log SET status = 'skipped' WHERE id = ?`,
-      [logId],
-    );
-  } catch { /* log non-critical */ }
-}
-
-// ── Lógica de envío con reintentos ────────────────────────────────────────────
-
-async function trySend(
-  payload: QueuePayload,
-  logId:   number | undefined,
-  attempt: number,
-): Promise<void> {
-  if (!resendClient) {
-    // Sin clave configurada: anotar y salir
-    if (logId !== undefined) await markSkipped(logId);
-    return;
-  }
-  try {
-    const resendId = await sendRaw(payload);
-    if (logId !== undefined) await markSent(logId, resendId);
-  } catch (err: any) {
-    const msg = err?.message ?? String(err);
-    if (logId !== undefined) await markFailed(logId, msg);
-
-    if (attempt < MAX_ATTEMPTS - 1) {
-      const delay = BACKOFF_MS[attempt] ?? 300_000;
-      console.warn(
-        `[email] intento ${attempt + 1}/${MAX_ATTEMPTS} falló para ${payload.to} — reintento en ${delay / 1000}s: ${msg}`,
-      );
-      setTimeout(() => trySend(payload, logId, attempt + 1), delay);
-    } else {
-      console.error(
-        `[email] FALLO DEFINITIVO tras ${MAX_ATTEMPTS} intentos para ${payload.to}: ${msg}`,
-      );
-    }
-  }
-}
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // ── API pública ───────────────────────────────────────────────────────────────
 
 /**
- * Encola un email para envío en segundo plano.
- * Nunca lanza: los errores quedan en email_log y en la consola.
+ * Encola un email. Nunca lanza y nunca bloquea la petición HTTP.
+ * El envío lo hace el worker, que se despierta al final de esta función.
  */
 export function enqueue(payload: QueuePayload): void {
-  insertLog(payload)
-    .then(logId => trySend(payload, logId, 0))
-    .catch(err => {
-      console.error('[email:queue] error inesperado:', err);
-      trySend(payload, undefined, 0);
+  insertQueued(payload)
+    .then(() => {
+      // Arranca el worker sin esperarlo: la petición HTTP ya puede responder.
+      void processEmailQueue().catch((err) =>
+        console.error('[email:queue] worker error:', err),
+      );
+    })
+    .catch((err) => {
+      console.error('[email:queue] no se pudo encolar:', err);
     });
 }
 
-// ── Worker de reintento (dead-letter recovery) ────────────────────────────────
+/**
+ * Procesa la cola: recupera filas abandonadas, reclama las pendientes y las
+ * envía. Idempotente y seguro de llamar en cualquier momento — si ya hay un
+ * bucle en marcha, sale inmediatamente.
+ *
+ * Llamado desde enqueue() y desde el job periódico de index.ts.
+ */
+export function processEmailQueue(): Promise<void> {
+  chain = chain
+    .then(() => runOnce())
+    .catch((err) => {
+      console.error('[email:queue] ciclo fallido:', err);
+    });
+  return chain;
+}
+
+async function runOnce(): Promise<void> {
+  await reclaimStuck();
+
+  let processed = 0;
+  while (processed < BATCH_MAX) {
+    const row = await claimNext();
+    if (!row) break;
+
+    // La pausa va ANTES del siguiente envío, no después del anterior: así el
+    // ciclo no se queda 250 ms retenido tras despachar el último mensaje.
+    if (processed > 0) await sleep(SEND_INTERVAL_MS);
+
+    await attemptSend(row);
+    processed += 1;
+  }
+}
 
 /**
- * Lee de email_log los mensajes en estado 'queued' o 'failed' con menos de 3
- * intentos y cuerpo almacenado, y los reintenta.
- *
- * Llamar desde un setInterval periódico para sobrevivir a reinicios del servidor.
- * Los emails encolaros en memoria por `enqueue()` y no enviados antes del reinicio
- * quedan en 'queued' con el cuerpo guardado — este worker los recupera.
+ * Nombre anterior, conservado para no romper llamadas existentes.
+ * @deprecated usa processEmailQueue()
  */
-export async function retryPendingEmails(): Promise<void> {
-  if (!resendClient) return; // sin clave API, nada que hacer
+export const retryPendingEmails = processEmailQueue;
 
-  let db: import('../../db/client.js').DbClient;
-  try {
-    db = await getDb();
-  } catch {
+// ── Interno ───────────────────────────────────────────────────────────────────
+
+interface QueueRow {
+  id: number;
+  recipient: string;
+  subject: string;
+  html_body: string | null;
+  text_body: string | null;
+  attempts: number;
+  idempotency_key: string | null;
+}
+
+async function insertQueued(p: QueuePayload): Promise<void> {
+  const db = await getDb();
+  // La clave se fija AQUÍ, no en cada intento: es lo que permite que un
+  // reintento tras un crash no duplique el envío en Resend.
+  const idempotencyKey = crypto.randomUUID();
+  await db.exec(
+    `INSERT INTO email_log
+       (recipient, template_name, subject, html_body, text_body,
+        status, attempts, next_retry_at, idempotency_key, created_at)
+     VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, CURRENT_TIMESTAMP)`,
+    [p.to, p.template, p.subject, p.html, p.text, nowIso(), idempotencyKey],
+  );
+}
+
+/**
+ * Devuelve filas 'sending' abandonadas al estado 'queued'.
+ * Este es el mecanismo que impide que un reinicio deje correos colgados.
+ */
+async function reclaimStuck(): Promise<void> {
+  const db = await getDb();
+  const res = await db.exec(
+    `UPDATE email_log
+        SET status = 'queued', next_retry_at = ?
+      WHERE status = 'sending' AND claimed_at < ?`,
+    [nowIso(), new Date(Date.now() - STUCK_MS).toISOString()],
+  ).catch(() => ({ changes: 0, lastID: 0 }));
+
+  if (res.changes > 0) {
+    console.warn(`[email:queue] ${res.changes} envío(s) abandonado(s) recuperado(s) tras un reinicio`);
+  }
+}
+
+/**
+ * Reclama una fila de forma atómica.
+ *
+ * El UPDATE lleva `AND status = 'queued'` en el WHERE: si dos workers compiten
+ * por la misma fila, solo uno obtiene changes === 1. El otro ve 0 y sigue.
+ */
+async function claimNext(): Promise<QueueRow | null> {
+  const db = await getDb();
+
+  const candidates = await db.run<{ id: number }>(
+    `SELECT id FROM email_log
+      WHERE status = 'queued'
+        AND html_body IS NOT NULL
+        AND (next_retry_at IS NULL OR next_retry_at <= ?)
+      ORDER BY created_at ASC
+      LIMIT 10`,
+    [nowIso()],
+  ).catch(() => [] as { id: number }[]);
+
+  for (const candidate of candidates) {
+    const claim = await db.exec(
+      `UPDATE email_log
+          SET status = 'sending', attempts = attempts + 1, claimed_at = ?
+        WHERE id = ? AND status = 'queued'`,
+      [nowIso(), candidate.id],
+    ).catch(() => ({ changes: 0, lastID: 0 }));
+
+    if (claim.changes !== 1) continue; // otro worker se la llevó
+
+    const row = await db.get<QueueRow>(
+      `SELECT id, recipient, subject, html_body, text_body, attempts, idempotency_key
+         FROM email_log WHERE id = ?`,
+      [candidate.id],
+    );
+    if (row) return row;
+  }
+
+  return null;
+}
+
+async function attemptSend(row: QueueRow): Promise<void> {
+  const db = await getDb();
+
+  if (!resendClient) {
+    await db.exec(
+      `UPDATE email_log SET status = 'skipped', claimed_at = NULL WHERE id = ?`,
+      [row.id],
+    ).catch(() => {});
     return;
   }
 
-  const rows = await db.run<{
-    id: number;
-    recipient: string;
-    subject: string;
-    html_body: string | null;
-    text_body: string | null;
-  }>(
-    `SELECT id, recipient, subject, html_body, text_body
-       FROM email_log
-      WHERE status IN ('queued', 'failed')
-        AND attempts < 3
-        AND html_body IS NOT NULL
-      ORDER BY created_at ASC
-      LIMIT 50`,
-  ).catch(() => [] as any[]);
-
-  for (const row of rows) {
-    if (!row.html_body || !row.text_body) continue;
-
-    try {
-      const resendId = await sendRaw({
-        to:      row.recipient,
+  try {
+    const resendId = await sendRaw(
+      {
+        to: row.recipient,
         subject: row.subject,
-        html:    row.html_body,
-        text:    row.text_body,
-      });
+        html: row.html_body ?? '',
+        text: row.text_body ?? '',
+      },
+      row.idempotency_key ?? undefined,
+    );
+
+    await db.exec(
+      `UPDATE email_log
+          SET status = 'sent', resend_id = ?, sent_at = CURRENT_TIMESTAMP,
+              last_error = NULL, claimed_at = NULL, next_retry_at = NULL
+        WHERE id = ?`,
+      [resendId, row.id],
+    ).catch(() => {});
+  } catch (err: any) {
+    const msg = String(err?.message ?? err).slice(0, 500);
+
+    if (row.attempts >= MAX_ATTEMPTS) {
       await db.exec(
         `UPDATE email_log
-            SET status = 'sent', resend_id = ?, sent_at = CURRENT_TIMESTAMP,
-                attempts = attempts + 1, last_error = NULL
-          WHERE id = ?`,
-        [resendId, row.id],
-      ).catch(() => {});
-      console.info(`[email:retry] reenviado → ${row.recipient}`);
-    } catch (err: any) {
-      const msg = err?.message ?? String(err);
-      await db.exec(
-        `UPDATE email_log
-            SET status = 'failed', attempts = attempts + 1, last_error = ?
+            SET status = 'dead', last_error = ?, claimed_at = NULL, next_retry_at = NULL
           WHERE id = ?`,
         [msg, row.id],
       ).catch(() => {});
-      console.warn(`[email:retry] falló para ${row.recipient}: ${msg}`);
+      console.error(
+        `[email:queue] FALLO DEFINITIVO tras ${row.attempts} intentos → ${row.recipient}: ${msg}`,
+      );
+      return;
     }
+
+    const delay = BACKOFF_MS[row.attempts - 1] ?? BACKOFF_MS[BACKOFF_MS.length - 1];
+    await db.exec(
+      `UPDATE email_log
+          SET status = 'queued', last_error = ?, claimed_at = NULL, next_retry_at = ?
+        WHERE id = ?`,
+      [msg, isoIn(delay), row.id],
+    ).catch(() => {});
+    console.warn(
+      `[email:queue] intento ${row.attempts}/${MAX_ATTEMPTS} falló para ${row.recipient}; ` +
+      `reintento en ${Math.round(delay / 1000)}s: ${msg}`,
+    );
   }
 }

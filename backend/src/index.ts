@@ -5,9 +5,10 @@ import { PgClient } from "./db/postgres.js";
 import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
 import { ethers } from "ethers";
 import net from "node:net";
-import { retryPendingEmails } from "./services/email/queue.js";
+import { processEmailQueue } from "./services/email/queue.js";
 import { sendCensusInvitation, sendElectionOpen, sendElectionClose } from "./services/email/index.js";
 import { generateSecureToken } from "./utils/auth.js";
+import { formatError } from "./utils/errors.js";
 
 const PORT = Number(process.env.PORT || 3001);
 
@@ -89,7 +90,7 @@ async function start() {
       console.log("=".repeat(60) + "\n");
 
       syncElectionsToBlockchain().catch(err => {
-        console.warn("Election sync warning:", err.message);
+        console.warn("Election sync warning:", formatError(err));
       });
 
       // ── Job periódico: reintento de emails huérfanos + notificaciones ────────
@@ -219,8 +220,8 @@ async function start() {
       }
 
       setInterval(() => {
-        retryPendingEmails().catch(err =>
-          console.error('[email:retry-job] error:', err),
+        processEmailQueue().catch(err =>
+          console.error('[email:queue-job] error:', formatError(err)),
         );
         checkElectionNotifications().catch(err =>
           console.error('[notify-job] error:', err),
@@ -247,14 +248,18 @@ async function start() {
             if (events.length === 0) return null;
             const ev = events[0] as ethers.EventLog;
             return { txHash: ev.transactionHash, blockNumber: ev.blockNumber };
-          } catch {
+          } catch (err) {
+            // A1: solo mensaje + código, saneados. Antes se tragaba el error
+            // entero sin dejar rastro, lo que hacía indistinguible "el voto no
+            // está en la cadena" de "el RPC falló" (ver P1-14, sin tocar aquí).
+            console.warn('[cleanup] checkOnChain falló:', formatError(err));
             return null;
           }
         };
 
         setInterval(() => {
           dbClient.cleanupStaleVoteAttempts(checkOnChain).catch(err => {
-            console.error('[cleanup] Error limpiando votos huérfanos:', err);
+            console.error('[cleanup] Error limpiando votos huérfanos:', formatError(err));
           });
         }, THIRTY_MIN);
 

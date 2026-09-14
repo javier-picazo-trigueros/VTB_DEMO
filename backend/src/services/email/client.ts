@@ -36,19 +36,30 @@ export interface RawPayload {
 /**
  * Envío atómico. Lanza si Resend devuelve error.
  * Devuelve el Resend message-id, o null si no hay clave configurada.
+ *
+ * `idempotencyKey` se envía como cabecera `Idempotency-Key`. Es lo que hace
+ * seguro reintentar un envío cuyo resultado desconocemos porque el proceso
+ * murió a mitad: Resend deduplica del lado del servidor y el destinatario
+ * recibe el correo una sola vez.
  */
-export async function sendRaw(payload: RawPayload): Promise<string | null> {
+export async function sendRaw(
+  payload: RawPayload,
+  idempotencyKey?: string,
+): Promise<string | null> {
   if (!resendClient) {
     console.info(`[email:skipped] to=${payload.to} subject="${payload.subject}"`);
     return null;
   }
-  const { data, error } = await resendClient.emails.send({
-    from: RESEND_FROM,
-    to:   payload.to,
-    subject: payload.subject,
-    html: payload.html,
-    text: payload.text,
-  });
+  const { data, error } = await resendClient.emails.send(
+    {
+      from: RESEND_FROM,
+      to:   payload.to,
+      subject: payload.subject,
+      html: payload.html,
+      text: payload.text,
+    },
+    idempotencyKey ? { idempotencyKey } : undefined,
+  );
   if (error) throw new Error((error as any).message ?? JSON.stringify(error));
   return data?.id ?? null;
 }

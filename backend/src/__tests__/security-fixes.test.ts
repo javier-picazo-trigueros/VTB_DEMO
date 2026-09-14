@@ -137,8 +137,9 @@ describe('Security fixes regression', () => {
     });
 
     it('returns 403 with student cookie', async () => {
-      // carlos@ufv.es es un estudiante seeded (role='student')
-      const { agent } = await loginAs('carlos@ufv.es', 'demo123');
+      const email = `s7-student-${Date.now()}@test.vtb`;
+      await createUser({ email, studentId: `TEST-S7A-${Date.now()}` });
+      const { agent } = await loginAs(email, 'TestPass123!');
       const res = await agent.patch('/api/elections/fix-blockchain-ids');
       expect(res.status).toBe(403);
     });
@@ -151,7 +152,9 @@ describe('Security fixes regression', () => {
 
     it('returns 403 with student cookie even with NODE_ENV=development', async () => {
       process.env.NODE_ENV = 'development';
-      const { agent } = await loginAs('carlos@ufv.es', 'demo123');
+      const email = `s7-student2-${Date.now()}@test.vtb`;
+      await createUser({ email, studentId: `TEST-S7B-${Date.now()}` });
+      const { agent } = await loginAs(email, 'TestPass123!');
       const res = await agent.patch('/api/elections/fix-blockchain-ids');
       expect(res.status).toBe(403);
     });

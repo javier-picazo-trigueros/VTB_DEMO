@@ -6,6 +6,7 @@ import { z } from "zod";
 import { generateNullifier, verifyToken, COOKIE_NAME_ACCESS } from "../utils/auth.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { sendVoteConfirmation } from "../services/email/index.js";
+import { formatError } from "../utils/errors.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -52,7 +53,7 @@ function getWallet() {
 router.get("/", requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
-    
+
     // Obtener TODAS las elecciones donde este usuario est en election_voters
     const elections = await db.run<{
       id: number;
@@ -74,6 +75,21 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 
     const now = Math.floor(Date.now() / 1000);
 
+    // Distingue, para el estado vacío del dashboard, entre "tu institución no
+    // tiene ninguna elección creada" y "tiene elecciones pero no estás
+    // asignado a ninguna" — son situaciones distintas para el usuario.
+    let institutionElectionCount = 0;
+    const currentUser = await db.get<{ email: string }>("SELECT email FROM users WHERE id = ?", [userId]);
+    const domain = currentUser?.email?.split("@")[1]?.toLowerCase();
+    if (domain) {
+      const countRow = await db.get<{ count: number }>(
+        `SELECT COUNT(DISTINCT election_id) as count FROM election_access
+         WHERE lower(email_domain) = ? OR email_domain = '*'`,
+        [domain]
+      );
+      institutionElectionCount = countRow?.count || 0;
+    }
+
     res.json({
       elections: elections.map((e) => {
         const isActive = Boolean(e.is_active) && now >= e.start_time && now <= e.end_time;
@@ -92,6 +108,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
           voterRole: e.voter_role || 'student',
         };
       }),
+      institutionElectionCount,
     });
   } catch (error) {
     console.error("Error al obtener elecciones:", error);
@@ -125,8 +142,8 @@ router.get("/blockchain-sync-status", async (_req: Request, res: Response) => {
         const contract = new ethers.Contract(contractAddress, abi, provider);
         onChainCount = Number(await contract.electionCount());
         blockchainAvailable = true;
-      } catch (e: any) {
-        console.warn("Could not check on-chain election count:", e.message);
+      } catch (e) {
+        console.warn("Could not check on-chain election count:", formatError(e));
       }
     }
 
@@ -155,8 +172,8 @@ router.get("/blockchain-sync-status", async (_req: Request, res: Response) => {
       mismatches: sync.filter(e => e.mismatch),
     });
   } catch (err) {
-    console.error("Failed to check blockchain sync status:", err);
-    res.status(500).json({ error: "Failed to check sync status" });
+    console.error("Failed to check blockchain sync status:", formatError(err));
+    res.status(500).json({ error: "No se ha podido comprobar el estado de sincronización" });
   }
 });
 
@@ -178,7 +195,7 @@ router.patch("/fix-blockchain-ids", requireAdmin, async (req: Request, res: Resp
     }
 
     res.json({
-      message: `Fixed ${elections.length} elections`,
+      message: `Corregidas ${elections.length} elecciones`,
       mapping: elections.map((e, i) => ({
         sqliteId: e.id,
         newBlockchainId: i + 1,
@@ -186,7 +203,7 @@ router.patch("/fix-blockchain-ids", requireAdmin, async (req: Request, res: Resp
     });
   } catch (err) {
     console.error("Failed to fix blockchain ids:", err);
-    res.status(500).json({ error: "Failed to fix blockchain ids" });
+    res.status(500).json({ error: "No se han podido corregir los IDs de blockchain" });
   }
 });
 
@@ -260,7 +277,7 @@ router.get("/:id", async (req: Request, res: Response) => {
           totalVotes: onchainData[4].toString(),
         };
       } catch (err) {
-        console.warn("No se pudo obtener datos del blockchain");
+        console.warn("No se pudo obtener datos del blockchain:", formatError(err));
       }
     }
 
@@ -665,7 +682,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         txHash: syntheticTx,
         blockNumber: null,
         isDemo: true,
-        message: 'Demo vote registered (synthetic — not on real blockchain)',
+        message: 'Voto de demostración registrado (sintético — no está en la blockchain real)',
       });
     }
 
@@ -780,7 +797,14 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         },
       });
     } catch (blockchainError: any) {
-      console.error("Error al registrar voto en blockchain:", blockchainError);
+      // A1: nunca volcar el objeto de error de ethers. Arrastra info.payload
+      // (tx firmada), transaction, receipt y la URL del RPC con su API key.
+      console.error(
+        "Error al registrar voto en blockchain:",
+        formatError(blockchainError),
+        `userId=${decoded.userId}`,
+        `electionId=${electionId}`,
+      );
 
       // Liberar cerrojo: permite reintentar si la tx falló
       await db.releaseVoteLock(
@@ -848,7 +872,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       }
     }
   } catch (error) {
-    console.error("Error en register-vote:", error);
+    console.error("Error en register-vote:", formatError(error));
     res.status(500).json({ error: "Error al registrar voto" });
   }
 });

@@ -10,6 +10,35 @@ import { clearAuthAndRedirect } from "../utils/auth";
 import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import { api } from "../utils/apiClient";
+import { useAuth } from "../context/AuthContext";
+
+/**
+ * Clases completas y literales para los KPI de estadísticas.
+ *
+ * Antes se construían con plantillas (`bg-${color}-50`). Tailwind escanea el
+ * código con expresiones regulares y no evalúa plantillas, así que ninguna de
+ * esas clases llegaba a generarse: las tres tarjetas salían sin fondo, sin
+ * borde y con el texto en el color heredado.
+ *
+ * Escritas enteras, el escáner las ve.
+ */
+const KPI_TONES = {
+  blue: {
+    box:   'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800',
+    value: 'text-blue-700 dark:text-blue-300',
+    label: 'text-blue-600 dark:text-blue-400',
+  },
+  emerald: {
+    box:   'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800',
+    value: 'text-emerald-700 dark:text-emerald-300',
+    label: 'text-emerald-600 dark:text-emerald-400',
+  },
+  purple: {
+    box:   'bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800',
+    value: 'text-purple-700 dark:text-purple-300',
+    label: 'text-purple-600 dark:text-purple-400',
+  },
+};
 
 export const AdminPanel = () => {
   const navigate = useNavigate();
@@ -23,10 +52,21 @@ export const AdminPanel = () => {
   const [qrElection, setQrElection] = useState(null);
   const [closeElectionConfirm, setCloseElectionConfirm] = useState(false);
 
-  // Domain scoping — reads from vtb-user JSON (the only key AuthContext writes)
-  const _vtbUser = (() => { try { return JSON.parse(localStorage.getItem('vtb-user') || '{}'); } catch { return {}; } })();
-  const adminDomain = _vtbUser.adminDomain || '';
-  const userRole = _vtbUser.role || '';
+  // Identidad del admin.
+  //
+  // Antes esto leía localStorage.getItem('vtb-user'), una clave que dejó de
+  // escribirse al migrar a cookies httpOnly — el único código que la toca hoy
+  // es clearAuthAndRedirect(), que la borra. El resultado era permanente:
+  // adminDomain = '', userRole = '', isSuperAdmin = false SIEMPRE, incluso
+  // para un superadmin. Los badges de dominio no aparecían nunca y el tour de
+  // onboarding no llegaba a arrancar.
+  //
+  // AdminPanel se monta dentro de <ProtectedRoute>, que espera a que
+  // AuthContext termine de hidratar, así que `user` ya está poblado en el
+  // primer render y los useState() de abajo pueden leerlo con seguridad.
+  const { user } = useAuth();
+  const adminDomain = user?.adminDomain || '';
+  const userRole = user?.role || '';
   const isSuperAdmin = userRole === 'superadmin';
 
   // Dashboard
@@ -156,14 +196,14 @@ export const AdminPanel = () => {
         `/api/admin/sync-blockchain`,
         {}
       );
-      toast.success('Blockchain sync started - check backend logs');
+      toast.success('Sincronización con blockchain iniciada — revisa los logs del backend');
       setTimeout(() => {
         api.get(`/admin/blockchain-status`)
           .then(r => setBlockchainStatus(r.data))
           .catch(() => {});
       }, 15000);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Sync failed');
+      toast.error(err.response?.data?.error || 'No se ha podido sincronizar con blockchain');
     } finally {
       setSyncing(false);
     }
@@ -185,7 +225,7 @@ export const AdminPanel = () => {
           // Blockchain status (best-effort, don't block dashboard)
           api.get(`/admin/blockchain-status`)
             .then(r => setBlockchainStatus(r.data))
-            .catch(() => setBlockchainStatus({ connected: false, reason: 'Request failed' }));
+            .catch(() => setBlockchainStatus({ connected: false, reason: 'Fallo en la solicitud' }));
           break;
         }
         case "users": {
@@ -242,7 +282,7 @@ export const AdminPanel = () => {
         clearAuthAndRedirect(navigate);
         return;
       }
-      setError(err.response?.data?.error || "Error loading data");
+      setError(err.response?.data?.error || "No se han podido cargar los datos");
     } finally {
       setLoading(false);
     }
@@ -253,11 +293,11 @@ export const AdminPanel = () => {
     setLoading(true);
     try {
       await api.post(`/admin/users`, newUser);
-      toast.success("User created successfully");
+      toast.success("Usuario creado correctamente");
       setNewUser({ email: "", password: "", name: "", student_id: "", role: "student", admin_domain: "" });
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error creating user");
+      toast.error(err.response?.data?.error || "No se ha podido crear el usuario");
     } finally {
       setLoading(false);
     }
@@ -266,11 +306,11 @@ export const AdminPanel = () => {
   const handleDeleteUser = async (userId) => {
     try {
       await api.delete(`/admin/users/${userId}`);
-      toast.success("User deleted");
+      toast.success("Usuario eliminado");
       setConfirmDeleteId(null);
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error deleting user");
+      toast.error(err.response?.data?.error || "No se ha podido eliminar el usuario");
     }
   };
 
@@ -339,7 +379,7 @@ export const AdminPanel = () => {
         }
       }
 
-      toast.success("Election created successfully");
+      toast.success("Elección creada correctamente");
       setNewElection({
         name: "",
         description: "",
@@ -357,7 +397,7 @@ export const AdminPanel = () => {
       });
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error creating election");
+      toast.error(err.response?.data?.error || "No se ha podido crear la elección");
     } finally {
       setLoading(false);
     }
@@ -387,10 +427,10 @@ export const AdminPanel = () => {
         `/admin/elections/${electionId}`,
         { is_active: !is_active }
       );
-      toast.success("Election updated");
+      toast.success("Elección actualizada");
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error updating election");
+      toast.error(err.response?.data?.error || "No se ha podido actualizar la elección");
     }
   };
 
@@ -419,11 +459,11 @@ export const AdminPanel = () => {
           : undefined,
       };
       await api.patch(`/admin/elections/${editingElection.id}`, payload);
-      toast.success('Election updated');
+      toast.success('Elección actualizada');
       setEditingElection(null);
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error updating election');
+      toast.error(err.response?.data?.error || 'No se ha podido actualizar la elección');
     }
   };
 
@@ -431,10 +471,10 @@ export const AdminPanel = () => {
     try {
       if (!manageCensus.email.trim()) return;
       await api.post(`/admin/elections/${electionId}/voters`, { email: manageCensus.email.trim() });
-      toast.success("Voter added to census");
+      toast.success("Votante añadido al censo");
       setManageCensus({ ...manageCensus, email: '' });
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error adding voter");
+      toast.error(err.response?.data?.error || "No se ha podido añadir el votante");
     }
   };
 
@@ -442,19 +482,19 @@ export const AdminPanel = () => {
     try {
       if (!manageCensus.domain.trim()) return;
       await api.post(`/admin/elections/${electionId}/domains`, { domain: manageCensus.domain.trim() });
-      toast.success("Domain added to census");
+      toast.success("Dominio añadido al censo");
       setManageCensus({ ...manageCensus, domain: '' });
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error adding domain");
+      toast.error(err.response?.data?.error || "No se ha podido añadir el dominio");
     }
   };
 
   const downloadCSVTemplate = (columns, filename) => {
     const header = columns.join(',');
     const example = columns.map(c => {
-      if (c === 'email') return 'student@example.edu';
-      if (c === 'full_name') return 'John Doe';
-      if (c === 'student_id') return 'STU-001';
+      if (c === 'email') return 'estudiante@ejemplo.edu';
+      if (c === 'full_name') return 'Juan Pérez';
+      if (c === 'student_id') return 'EST-001';
       if (c === 'send_email') return 'true';
       if (c === 'role') return 'student';
       return '';
@@ -480,11 +520,11 @@ export const AdminPanel = () => {
         formData
       );
       const r = res.data.results;
-      toast.success(`CSV imported: ${r.created} users created, ${r.added} added, ${r.skipped} skipped`);
+      toast.success(`CSV importado: ${r.created} usuarios creados, ${r.added} añadidos, ${r.skipped} omitidos`);
       if (r.errors?.length) console.warn('Import errors:', r.errors);
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error importing CSV");
+      toast.error(err.response?.data?.error || "No se ha podido importar el CSV");
     }
     e.target.value = '';
   };
@@ -500,11 +540,11 @@ export const AdminPanel = () => {
         formData
       );
       const r = res.data.results;
-      toast.success(`Users imported: ${r.created} created, ${r.skipped} skipped`);
+      toast.success(`Usuarios importados: ${r.created} creados, ${r.skipped} omitidos`);
       if (r.errors?.length) console.warn('Import errors:', r.errors);
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error importing users CSV");
+      toast.error(err.response?.data?.error || "No se ha podido importar el CSV de usuarios");
     }
     e.target.value = '';
   };
@@ -531,11 +571,11 @@ export const AdminPanel = () => {
           password: response.data.tempPassword
         });
       } else {
-        toast.success(`User approved. They can log in with the password they chose during registration.`);
+        toast.success(`Usuario aprobado. Puede iniciar sesión con la contraseña que eligió al registrarse.`);
       }
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error approving request");
+      toast.error(err.response?.data?.error || "No se ha podido aprobar la solicitud");
     } finally {
       setLoading(false);
     }
@@ -550,12 +590,12 @@ export const AdminPanel = () => {
         `/admin/registration-requests/${requestId}`,
         { action: 'reject', reason }
       );
-      toast.success("Request rejected");
+      toast.success("Solicitud rechazada");
       setRejectReasonId(null);
       setRejectReason('');
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error rejecting request");
+      toast.error(err.response?.data?.error || "No se ha podido rechazar la solicitud");
     } finally {
       setLoading(false);
     }
@@ -567,7 +607,7 @@ export const AdminPanel = () => {
       const res = await api.get(`/admin/elections/${electionId}/stats`);
       setSelectedElectionStats(res.data);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Error loading election stats");
+      toast.error(err.response?.data?.error || "No se han podido cargar las estadísticas de la elección");
     } finally {
       setLoadingElectionStats(false);
     }
@@ -593,24 +633,24 @@ export const AdminPanel = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <OnboardingTour role={userRole} userId={_vtbUser.id || _vtbUser.email} />
+      <OnboardingTour role={userRole} userId={user?.id} />
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">
-            Administration Panel
+            Panel de administración
             {!isSuperAdmin && adminDomain && (
               <span className="ml-3 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium">
-                Domain: @{adminDomain}
+                Dominio: @{adminDomain}
               </span>
             )}
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
             {isSuperAdmin
-              ? 'Super Administrator — Full access to all domains'
-              : 'Manage users, elections and system audit'
+              ? 'Super administrador — acceso completo a todos los dominios'
+              : 'Gestiona usuarios, elecciones y la auditoría del sistema'
             }
           </p>
         </motion.div>
@@ -631,10 +671,10 @@ export const AdminPanel = () => {
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-bold text-yellow-800 dark:text-yellow-200 mb-1">
-                  Temporary password generated
+                  Contraseña temporal generada
                 </p>
                 <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
-                  User: {tempPasswordInfo.email}
+                  Usuario: {tempPasswordInfo.email}
                 </p>
                 <div className="flex items-center gap-2">
                   <code className="bg-yellow-100 dark:bg-yellow-900 px-3 py-2 rounded font-mono text-lg font-bold text-yellow-900 dark:text-yellow-100">
@@ -644,11 +684,11 @@ export const AdminPanel = () => {
                     onClick={() => { navigator.clipboard.writeText(tempPasswordInfo.password); }}
                     className="px-3 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded text-sm font-medium transition"
                   >
-                    Copy
+                    Copiar
                   </button>
                 </div>
                 <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-                  Share this password with the user. It is only shown once.
+                  Comparte esta contraseña con el usuario. Solo se muestra una vez.
                 </p>
               </div>
               <button
@@ -680,7 +720,7 @@ export const AdminPanel = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <LoadingSpinner message={`Loading ${activeTab}...`} />
+              <LoadingSpinner message={`Cargando…`} />
             </motion.div>
           ) : (
             <motion.div
@@ -695,8 +735,8 @@ export const AdminPanel = () => {
                 <div className="space-y-6">
                   {import.meta.env.VITE_API_URL?.includes('onrender.com') && (
                     <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-300">
-                      ⚠️ Render free tier - database resets on each deploy.
-                      Add a persistent disk ($5/month) to retain data between deploys.
+                      ⚠️ Nivel gratuito de Render — la base de datos se reinicia en cada despliegue.
+                      Añade un disco persistente (5 $/mes) para conservar los datos entre despliegues.
                     </div>
                   )}
 
@@ -704,16 +744,16 @@ export const AdminPanel = () => {
                   <div className="flex flex-wrap gap-2">
                     {isSuperAdmin ? (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm font-medium">
-                        🌐 Super Admin — All institutions
+                        🌐 Super admin — todas las instituciones
                       </span>
                     ) : adminDomain && (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium">
-                        🏛️ Managing: @{adminDomain}
+                        🏛️ Gestionando: @{adminDomain}
                       </span>
                     )}
                     {!isSuperAdmin && stats.pendingRequests > 0 && (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-sm font-medium">
-                        📬 {stats.pendingRequests} pending requests
+                        📬 {stats.pendingRequests} solicitudes pendientes
                       </span>
                     )}
                   </div>
@@ -762,18 +802,18 @@ export const AdminPanel = () => {
                       <span className="text-2xl">{blockchainStatus.connected ? '⛓️' : '⚠️'}</span>
                       <div className="flex-1 min-w-0">
                         <p className={`font-semibold ${blockchainStatus.connected ? 'text-emerald-800 dark:text-emerald-200' : 'text-amber-800 dark:text-amber-200'}`}>
-                          {blockchainStatus.connected ? 'Blockchain Connected' : 'Blockchain Unavailable'}
+                          {blockchainStatus.connected ? 'Blockchain conectada' : 'Blockchain no disponible'}
                         </p>
                         {blockchainStatus.connected ? (
                           <p className="text-emerald-700 dark:text-emerald-300 text-xs mt-0.5">
-                            Contract: <span className="font-mono">{blockchainStatus.contractAddress?.slice(0, 10)}…</span>
-                            {' · '}Block #{blockchainStatus.blockNumber}
+                            Contrato: <span className="font-mono">{blockchainStatus.contractAddress?.slice(0, 10)}…</span>
+                            {' · '}Bloque #{blockchainStatus.blockNumber}
                             {' · '}Chain {blockchainStatus.chainId}
-                            {' · '}{blockchainStatus.electionCount} elections on-chain
+                            {' · '}{blockchainStatus.electionCount} elecciones on-chain
                           </p>
                         ) : (
                           <p className="text-amber-700 dark:text-amber-300 text-xs mt-0.5">
-                            {blockchainStatus.reason || 'Node not reachable — start Hardhat or configure RPC_URL'}
+                            {blockchainStatus.reason || 'No se alcanza el nodo — arranca Hardhat o configura RPC_URL'}
                           </p>
                         )}
                       </div>
@@ -782,7 +822,7 @@ export const AdminPanel = () => {
                         disabled={syncing}
                         className="shrink-0 text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition font-medium"
                       >
-                        {syncing ? 'Syncing...' : 'Sync Elections'}
+                        {syncing ? 'Sincronizando…' : 'Sincronizar elecciones'}
                       </button>
                       {blockchainStatus.connected && blockchainStatus.explorerUrl && (
                         <a
@@ -791,7 +831,7 @@ export const AdminPanel = () => {
                           rel="noreferrer"
                           className="shrink-0 text-xs px-2 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition"
                         >
-                          View contract ↗
+                          Ver contrato ↗
                         </a>
                       )}
                     </div>
@@ -801,19 +841,19 @@ export const AdminPanel = () => {
                   <div className="grid lg:grid-cols-5 gap-6">
                     {/* Election Participation Table */}
                     <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
-                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Active Elections — Live Participation</h3>
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Elecciones activas — participación en directo</h3>
                       {dashboardData.electionParticipation.length === 0 ? (
-                        <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">No active elections</p>
+                        <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">No hay elecciones activas</p>
                       ) : (
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="border-b border-slate-200 dark:border-slate-700">
-                                <th className="text-left py-2 text-slate-500 dark:text-slate-400 font-medium">Election</th>
-                                <th className="text-right py-2 text-slate-500 dark:text-slate-400 font-medium">Voters</th>
-                                <th className="text-right py-2 text-slate-500 dark:text-slate-400 font-medium">Cast</th>
-                                <th className="text-right py-2 text-slate-500 dark:text-slate-400 font-medium">Rate</th>
-                                <th className="py-2 text-slate-500 dark:text-slate-400 font-medium pl-3">Progress</th>
+                                <th className="text-left py-2 text-slate-500 dark:text-slate-400 font-medium">Elección</th>
+                                <th className="text-right py-2 text-slate-500 dark:text-slate-400 font-medium">Votantes</th>
+                                <th className="text-right py-2 text-slate-500 dark:text-slate-400 font-medium">Emitidos</th>
+                                <th className="text-right py-2 text-slate-500 dark:text-slate-400 font-medium">Tasa</th>
+                                <th className="py-2 text-slate-500 dark:text-slate-400 font-medium pl-3">Progreso</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -838,9 +878,9 @@ export const AdminPanel = () => {
 
                     {/* Recent Activity Feed */}
                     <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
-                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Recent Votes</h3>
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Votos recientes</h3>
                       {dashboardData.recentVotes.length === 0 ? (
-                        <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">No votes recorded yet</p>
+                        <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">Todavía no se ha registrado ningún voto</p>
                       ) : (
                         <div className="space-y-3">
                           {dashboardData.recentVotes.map((vote, i) => {
@@ -849,7 +889,7 @@ export const AdminPanel = () => {
                             const anon = parts[0] ? parts[0].slice(0, 2) + '***' : '***';
                             const domain = parts[1] ? '@' + parts[1] : '';
                             const diff = Math.floor((Date.now() - new Date(vote.generated_at).getTime()) / 1000);
-                            const timeAgo = diff < 60 ? `${diff}s ago` : diff < 3600 ? `${Math.floor(diff / 60)}m ago` : `${Math.floor(diff / 3600)}h ago`;
+                            const timeAgo = diff < 60 ? `hace ${diff}s` : diff < 3600 ? `hace ${Math.floor(diff / 60)}m` : `hace ${Math.floor(diff / 3600)}h`;
                             return (
                               <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-700/50 last:border-0">
                                 <div>
@@ -869,9 +909,9 @@ export const AdminPanel = () => {
                   <div className="grid lg:grid-cols-2 gap-6">
                     {/* Requests Trend Chart */}
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
-                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Registration Requests — Last 7 Days</h3>
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Solicitudes de registro — últimos 7 días</h3>
                       {dashboardData.requestsTrend.length === 0 ? (
-                        <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No registration requests in the last 7 days</p>
+                        <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No hay solicitudes de registro en los últimos 7 días</p>
                       ) : (
                         <ResponsiveContainer width="100%" height={160}>
                           <AreaChart data={dashboardData.requestsTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
@@ -887,9 +927,9 @@ export const AdminPanel = () => {
 
                     {/* Election Participation BarChart */}
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
-                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Participation Rate by Election</h3>
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm">Tasa de participación por elección</h3>
                       {dashboardData.electionParticipation.length === 0 ? (
-                        <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No active elections</p>
+                        <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No hay elecciones activas</p>
                       ) : (
                         <ResponsiveContainer width="100%" height={160}>
                           <BarChart
@@ -905,7 +945,7 @@ export const AdminPanel = () => {
                             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} unit="%" domain={[0, 100]} />
                             <Tooltip
                               contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, color: '#f1f5f9' }}
-                              formatter={(v, n) => n === 'rate' ? [`${v}%`, 'Rate'] : [v, 'Votes']}
+                              formatter={(v, n) => n === 'rate' ? [`${v}%`, 'Tasa'] : [v, 'Votos']}
                             />
                             <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
                               {dashboardData.electionParticipation.map((_, idx) => (
@@ -925,7 +965,7 @@ export const AdminPanel = () => {
                 <div className="space-y-8">
                   {!isSuperAdmin && adminDomain && (
                     <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-blue-700 dark:text-blue-300 text-sm">
-                      Managing users of @{adminDomain}
+                      Gestionando usuarios de @{adminDomain}
                     </div>
                   )}
                   {/* Form */}
@@ -1008,9 +1048,9 @@ export const AdminPanel = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"
                   >
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-3">Import Users from CSV</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-3">Importar usuarios desde CSV</h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                      Upload a CSV with columns: <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">email, full_name, student_id, role</code>
+                      Sube un CSV con las columnas: <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">email, full_name, student_id, role</code>
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <button
@@ -1018,7 +1058,7 @@ export const AdminPanel = () => {
                         onClick={() => downloadCSVTemplate(['email','full_name','student_id','role'], 'vtb_users_template.csv')}
                         className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition"
                       >
-                        Download Template
+                        Descargar plantilla
                       </button>
                       <input
                         type="file"
@@ -1031,7 +1071,7 @@ export const AdminPanel = () => {
                         htmlFor="csv-users-import"
                         className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
                       >
-                        Import Users CSV
+                        Importar CSV de usuarios
                       </label>
                     </div>
                   </motion.div>
@@ -1042,16 +1082,16 @@ export const AdminPanel = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-x-auto"
                   >
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Registered Users ({users.length})</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Usuarios registrados ({users.length})</h2>
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-300 dark:border-slate-600">
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Email</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Name</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">School / Degree</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Role</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Status</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Action</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Nombre</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Facultad / Titulación</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Rol</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Estado</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Acción</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1076,7 +1116,7 @@ export const AdminPanel = () => {
                                   ? "bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200"
                                   : "bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
                                 }`}>
-                                {user.role === "admin" ? "Admin" : user.role === "superadmin" ? "Super Admin" : "Voter"}
+                                {user.role === "admin" ? "Admin" : user.role === "superadmin" ? "Super admin" : "Votante"}
                               </span>
                             </td>
                             <td className="py-3 px-4">
@@ -1084,18 +1124,18 @@ export const AdminPanel = () => {
                                   ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200"
                                   : "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200"
                                 }`}>
-                                {user.is_approved ? "Approved" : "Pending"}
+                                {user.is_approved ? "Aprobado" : "Pendiente"}
                               </span>
                             </td>
                             <td className="py-3 px-4">
                               {confirmDeleteId === user.id ? (
                                 <div className="flex items-center gap-1">
-                                  <span className="text-xs text-red-600 dark:text-red-400 font-medium">Delete?</span>
+                                  <span className="text-xs text-red-600 dark:text-red-400 font-medium">¿Eliminar?</span>
                                   <button
                                     onClick={() => handleDeleteUser(user.id)}
                                     className="px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition"
                                   >
-                                    Yes
+                                    Sí
                                   </button>
                                   <button
                                     onClick={() => setConfirmDeleteId(null)}
@@ -1109,7 +1149,7 @@ export const AdminPanel = () => {
                                   onClick={() => setConfirmDeleteId(user.id)}
                                   className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 rounded font-medium transition text-xs"
                                 >
-                                  Delete
+                                  Eliminar
                                 </button>
                               )}
                             </td>
@@ -1118,12 +1158,12 @@ export const AdminPanel = () => {
                       </tbody>
                     </table>
                     {users.length === 0 && (
-                      <p className="text-center text-slate-500 dark:text-slate-400 py-8">No users found</p>
+                      <p className="text-center text-slate-500 dark:text-slate-400 py-8">No se han encontrado usuarios</p>
                     )}
                     {users.length > USERS_PER_PAGE && (
                       <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                          Page {usersPage} of {Math.ceil(users.length / USERS_PER_PAGE)} — {users.length} users
+                          Página {usersPage} de {Math.ceil(users.length / USERS_PER_PAGE)} — {users.length} usuarios
                         </p>
                         <div className="flex gap-2">
                           <button
@@ -1131,14 +1171,14 @@ export const AdminPanel = () => {
                             disabled={usersPage === 1}
                             className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition text-sm"
                           >
-                            ← Prev
+                            ← Anterior
                           </button>
                           <button
                             onClick={() => setUsersPage(p => Math.min(Math.ceil(users.length / USERS_PER_PAGE), p + 1))}
                             disabled={usersPage === Math.ceil(users.length / USERS_PER_PAGE)}
                             className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition text-sm"
                           >
-                            Next →
+                            Siguiente →
                           </button>
                         </div>
                       </div>
@@ -1156,14 +1196,14 @@ export const AdminPanel = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"
                   >
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Create New Election</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Crear nueva elección</h2>
                     <form onSubmit={handleCreateElection} className="space-y-5">
 
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Election Name</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre de la elección</label>
                         <input
                           type="text"
-                          placeholder="e.g. Student Council 2025"
+                          placeholder="p. ej. Consejo Estudiantil 2026"
                           value={newElection.name}
                           onChange={(e) => setNewElection({ ...newElection, name: e.target.value })}
                           disabled={loading}
@@ -1173,9 +1213,9 @@ export const AdminPanel = () => {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Descripción</label>
                         <textarea
-                          placeholder="Brief description of the election..."
+                          placeholder="Breve descripción de la elección…"
                           value={newElection.description}
                           onChange={(e) => setNewElection({ ...newElection, description: e.target.value })}
                           disabled={loading}
@@ -1186,7 +1226,7 @@ export const AdminPanel = () => {
 
                       <div className="grid md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date & Time</label>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha y hora de inicio</label>
                           <input
                             type="datetime-local"
                             value={newElection.start_time}
@@ -1197,7 +1237,7 @@ export const AdminPanel = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date & Time</label>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha y hora de fin</label>
                           <input
                             type="datetime-local"
                             value={newElection.end_time}
@@ -1212,13 +1252,13 @@ export const AdminPanel = () => {
                       {/* Who can vote? */}
                       <div className="space-y-2">
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                          Who can vote?
+                          ¿Quién puede votar?
                         </label>
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            { value: 'student', label: 'Students', desc: 'Enrolled students and voters' },
-                            { value: 'admin', label: 'Admins only', desc: 'Administrators and staff' },
-                            { value: 'both', label: 'Everyone', desc: 'Students and administrators' },
+                            { value: 'student', label: 'Estudiantes', desc: 'Estudiantes matriculados y votantes' },
+                            { value: 'admin', label: 'Solo admins', desc: 'Administradores y personal' },
+                            { value: 'both', label: 'Todos', desc: 'Estudiantes y administradores' },
                           ].map(({ value, label, desc }) => (
                             <button
                               key={value}
@@ -1241,22 +1281,22 @@ export const AdminPanel = () => {
                         </div>
                         {newElection.voter_role === 'admin' && (
                           <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 mt-2">
-                            This election will be visible to administrators whose domain is under yours. Their votes are recorded anonymously on the blockchain.
+                            Esta elección será visible para los administradores cuyo dominio dependa del tuyo. Sus votos se registran en blockchain mediante nullifiers, sin exponer la identidad del votante en el registro público.
                           </p>
                         )}
                       </div>
 
                       {/* Target Audience */}
                       <div className="border border-slate-300 dark:border-slate-600 p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50">
-                        <h3 className="font-bold text-slate-900 dark:text-white mb-3">Target Audience</h3>
+                        <h3 className="font-bold text-slate-900 dark:text-white mb-3">Audiencia objetivo</h3>
 
                         {/* Target type buttons */}
                         <div className="flex gap-2 mb-3 flex-wrap">
                           {[
-                            { value: 'all', label: '🌐 Everyone in my domain' },
-                            { value: 'school', label: '🏫 By school / faculty' },
-                            { value: 'org_unit', label: '🏛️ Specific org unit' },
-                            { value: 'domain', label: '📧 Email domain' },
+                            { value: 'all', label: '🌐 Todos en mi dominio' },
+                            { value: 'school', label: '🏫 Por facultad / escuela' },
+                            { value: 'org_unit', label: '🏛️ Unidad organizativa concreta' },
+                            { value: 'domain', label: '📧 Dominio de email' },
                           ].map(({ value, label }) => (
                             <button
                               key={value}
@@ -1275,17 +1315,17 @@ export const AdminPanel = () => {
 
                         {newElection.target_type === 'all' && (
                           <p className="text-sm text-slate-500 dark:text-slate-400">
-                            All users in your domain will be eligible to vote.
+                            Todos los usuarios de tu dominio podrán votar.
                           </p>
                         )}
 
                         {newElection.target_type === 'school' && (
                           <div>
                             <p className="text-xs text-slate-500 mb-2">
-                              Select one or more schools/faculties:
+                              Selecciona una o varias facultades/escuelas:
                             </p>
                             {schoolsData.length === 0 ? (
-                              <p className="text-xs text-slate-400 italic">No school data found.</p>
+                              <p className="text-xs text-slate-400 italic">No se han encontrado facultades.</p>
                             ) : (
                               <div className="space-y-1 max-h-48 overflow-y-auto">
                                 {Object.keys(
@@ -1316,7 +1356,7 @@ export const AdminPanel = () => {
                             )}
                             {(newElection.target_schools || []).length > 0 && (
                               <p className="text-xs text-blue-600 mt-2">
-                                {newElection.target_schools.length} school(s) selected
+                                {newElection.target_schools.length} facultad(es) seleccionada(s)
                               </p>
                             )}
                           </div>
@@ -1325,10 +1365,10 @@ export const AdminPanel = () => {
                         {newElection.target_type === 'org_unit' && (
                           <div>
                             <p className="text-xs text-slate-500 mb-2">
-                              Select one or more org units (school, degree, year):
+                              Selecciona una o varias unidades organizativas (facultad, titulación, curso):
                             </p>
                             {orgUnits.length === 0 ? (
-                              <p className="text-xs text-slate-400 italic">No org units found. Add org units first.</p>
+                              <p className="text-xs text-slate-400 italic">No se han encontrado unidades organizativas. Añade alguna primero.</p>
                             ) : (
                               <div className="space-y-1 max-h-48 overflow-y-auto">
                                 {orgUnits.map(unit => (
@@ -1363,7 +1403,7 @@ export const AdminPanel = () => {
                             )}
                             {(newElection.target_values || []).length > 0 && (
                               <p className="text-xs text-blue-600 mt-2">
-                                {newElection.target_values.length} unit(s) selected
+                                {newElection.target_values.length} unidad(es) seleccionada(s)
                               </p>
                             )}
                           </div>
@@ -1372,7 +1412,7 @@ export const AdminPanel = () => {
                         {newElection.target_type === 'domain' && (
                           <input
                             type="text"
-                            placeholder="Email domains e.g. ufv.es, highlands.edu"
+                            placeholder="Dominios de email, p. ej. ufv.es, highlands.edu"
                             value={newElection.domains || ''}
                             onChange={(e) => setNewElection(p => ({ ...p, domains: e.target.value }))}
                             className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
@@ -1382,7 +1422,7 @@ export const AdminPanel = () => {
 
                       {/* Banner Color */}
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Banner Color</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Color del banner</label>
                         <div className="flex items-center gap-3">
                           <input
                             type="color"
@@ -1396,7 +1436,7 @@ export const AdminPanel = () => {
 
                       {/* Image Upload */}
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Election Banner Image (optional)</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Imagen del banner (opcional)</label>
                         <input
                           type="file"
                           accept="image/*"
@@ -1406,7 +1446,7 @@ export const AdminPanel = () => {
                         {newElection.image && (
                           <img
                             src={URL.createObjectURL(newElection.image)}
-                            alt="Preview"
+                            alt="Vista previa"
                             className="h-20 rounded mt-2 object-cover"
                           />
                         )}
@@ -1414,18 +1454,18 @@ export const AdminPanel = () => {
 
                       {/* Candidates */}
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Candidates</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Candidatos</label>
                         <div className="border border-slate-300 dark:border-slate-600 p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                           <div className="flex justify-end mb-3">
                             <button type="button" onClick={handleAddCandidateField} className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
-                              + Add Candidate
+                              + Añadir candidato
                             </button>
                           </div>
                           {newElection.candidates.map((candidate, idx) => (
                             <div key={idx} className="flex gap-2 mb-2">
                               <input
                                 type="text"
-                                placeholder="Candidate name"
+                                placeholder="Nombre del candidato"
                                 value={candidate.name}
                                 onChange={(e) => handleCandidateChange(idx, 'name', e.target.value)}
                                 className="flex-1 px-3 py-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm"
@@ -1433,7 +1473,7 @@ export const AdminPanel = () => {
                               />
                               <input
                                 type="text"
-                                placeholder="Brief description"
+                                placeholder="Breve descripción"
                                 value={candidate.description}
                                 onChange={(e) => handleCandidateChange(idx, 'description', e.target.value)}
                                 className="flex-1 px-3 py-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm"
@@ -1455,7 +1495,7 @@ export const AdminPanel = () => {
                         disabled={loading}
                         className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition disabled:opacity-50"
                       >
-                        {loading ? "Creating..." : "Create Election"}
+                        {loading ? "Creando…" : "Crear elección"}
                       </motion.button>
                     </form>
                   </motion.div>
@@ -1466,7 +1506,7 @@ export const AdminPanel = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-4"
                   >
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Registered Elections</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Elecciones registradas</h2>
                     {elections.map((election) => {
                       const status = getElectionStatus(election);
                       const start = election.start_time || election.startTime;
@@ -1480,14 +1520,14 @@ export const AdminPanel = () => {
                               status === 'upcoming' ? "bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200" :
                               "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
                             }`}>
-                              {status.toUpperCase()}
+                              {{ active: 'ACTIVA', upcoming: 'PRÓXIMA', closed: 'CERRADA' }[status] || status.toUpperCase()}
                             </span>
                             <span className="text-xs text-slate-600 dark:text-slate-400">
-                              Start: {start ? new Date(start * 1000).toLocaleString('en-US', { timeZone: 'Europe/Madrid' }) : 'N/A'}
+                              Inicio: {start ? new Date(start * 1000).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }) : 'N/D'}
                             </span>
                             <span className="text-xs text-slate-500 dark:text-slate-500">—</span>
                             <span className="text-xs text-slate-600 dark:text-slate-400">
-                              End: {end ? new Date(end * 1000).toLocaleString('en-US', { timeZone: 'Europe/Madrid' }) : 'N/A'}
+                              Fin: {end ? new Date(end * 1000).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }) : 'N/D'}
                             </span>
                           </div>
 
@@ -1497,22 +1537,22 @@ export const AdminPanel = () => {
                                 <h3 className="font-bold text-slate-900 dark:text-white text-lg">{election.name}</h3>
                                 <div className="flex flex-wrap gap-2 mt-2 mb-3 text-xs">
                                   <span className="px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 font-medium">
-                                    {election.candidates?.length || "N/A"} candidates
+                                    {election.candidates?.length || "N/D"} candidatos
                                   </span>
                                   {election.voter_role === 'admin' && (
                                     <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium">
-                                      ⚙️ Admins only
+                                      ⚙️ Solo admins
                                     </span>
                                   )}
                                   {election.voter_role === 'both' && (
                                     <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium">
-                                      👥 Everyone
+                                      👥 Todos
                                     </span>
                                   )}
                                   {election.targets && election.targets.length > 0
                                     ? election.targets.map((t, i) => (
                                         <span key={i} className="px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
-                                          {t.target_value === '*' ? 'Everyone' : `@${t.target_value}`}
+                                          {t.target_value === '*' ? 'Todos' : `@${t.target_value}`}
                                         </span>
                                       ))
                                     : election.domains && election.domains.map((d, i) => (
@@ -1532,25 +1572,25 @@ export const AdminPanel = () => {
                                       : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
                                     }`}
                                 >
-                                  {election.is_active !== false ? "Visible" : "Hidden"}
+                                  {election.is_active !== false ? "Visible" : "Oculta"}
                                 </button>
                                 <button
                                   onClick={() => handleEditElection(election)}
                                   className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded-lg transition font-medium text-sm w-36"
                                 >
-                                  ✏️ Edit
+                                  ✏️ Editar
                                 </button>
                                 <button
                                   onClick={() => setExpandedElection(expandedElection === election.id ? null : election.id)}
                                   className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition font-medium text-sm w-36"
                                 >
-                                  Manage Census
+                                  Gestionar censo
                                 </button>
                                 <button
                                   onClick={() => setQrElection(election)}
                                   className="px-4 py-2 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-300 rounded-lg transition font-medium text-sm w-36"
                                 >
-                                  📱 QR Code
+                                  📱 Código QR
                                 </button>
                               </div>
                             </div>
@@ -1558,27 +1598,27 @@ export const AdminPanel = () => {
                             {/* Gestionar Censo Section */}
                             {expandedElection === election.id && (
                               <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                                <h4 className="font-bold text-slate-900 dark:text-white mb-3 text-sm">Manage Census</h4>
+                                <h4 className="font-bold text-slate-900 dark:text-white mb-3 text-sm">Gestionar censo</h4>
                                 <div className="grid md:grid-cols-2 gap-4 mb-3">
                                   <div className="flex gap-2">
                                     <input
                                       type="email"
-                                      placeholder="voter@email.com"
+                                      placeholder="votante@email.com"
                                       className="flex-1 px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 rounded"
                                       value={manageCensus.email}
                                       onChange={e => setManageCensus({ ...manageCensus, email: e.target.value })}
                                     />
-                                    <button onClick={() => handleAddVoter(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Add voter</button>
+                                    <button onClick={() => handleAddVoter(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Añadir votante</button>
                                   </div>
                                   <div className="flex gap-2">
                                     <input
                                       type="text"
-                                      placeholder="new-domain.edu"
+                                      placeholder="nuevo-dominio.edu"
                                       className="flex-1 px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 rounded"
                                       value={manageCensus.domain}
                                       onChange={e => setManageCensus({ ...manageCensus, domain: e.target.value })}
                                     />
-                                    <button onClick={() => handleAddDomain(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Add domain</button>
+                                    <button onClick={() => handleAddDomain(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Añadir dominio</button>
                                   </div>
                                 </div>
                                 {/* CSV Import */}
@@ -1588,7 +1628,7 @@ export const AdminPanel = () => {
                                     onClick={() => downloadCSVTemplate(['email','full_name','student_id','send_email'], 'vtb_voters_template.csv')}
                                     className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition"
                                   >
-                                    Download CSV Template
+                                    Descargar plantilla CSV
                                   </button>
                                   <input
                                     type="file"
@@ -1601,7 +1641,7 @@ export const AdminPanel = () => {
                                     htmlFor={`csv-import-${election.id}`}
                                     className="cursor-pointer px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
                                   >
-                                    Import CSV
+                                    Importar CSV
                                   </label>
                                 </div>
                               </div>
@@ -1612,7 +1652,7 @@ export const AdminPanel = () => {
                     })}
                     {elections.length === 0 && (
                       <div className="bg-white dark:bg-slate-800 p-8 rounded-lg border border-slate-200 dark:border-slate-700 text-center">
-                        <p className="text-slate-500 dark:text-slate-400">No elections found</p>
+                        <p className="text-slate-500 dark:text-slate-400">No se han encontrado elecciones</p>
                       </div>
                     )}
                   </motion.div>
@@ -1627,8 +1667,8 @@ export const AdminPanel = () => {
                   className="space-y-4"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Voters by Election</h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Click any election to see detailed stats</p>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Votantes por elección</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Haz clic en una elección para ver sus estadísticas detalladas</p>
                   </div>
                   {stats2.map((stat) => (
                     <div
@@ -1641,23 +1681,23 @@ export const AdminPanel = () => {
                           <h3 className="font-bold text-slate-900 dark:text-white">{stat.election_name}</h3>
                           <div className="flex flex-wrap gap-4 mt-1">
                             <p className="text-sm text-slate-600 dark:text-slate-400">
-                              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{stat.total_voters}</span> votes cast
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{stat.total_voters}</span> votos emitidos
                             </p>
                             {stat.total_voters_assigned != null && (
                               <p className="text-sm text-slate-600 dark:text-slate-400">
-                                of <span className="font-semibold">{stat.total_voters_assigned}</span> assigned
+                                de <span className="font-semibold">{stat.total_voters_assigned}</span> asignados
                               </p>
                             )}
                             {stat.participation_rate != null && (
                               <p className="text-sm text-slate-600 dark:text-slate-400">
-                                <span className="font-semibold text-blue-600 dark:text-blue-400">{stat.participation_rate}%</span> participation
+                                <span className="font-semibold text-blue-600 dark:text-blue-400">{stat.participation_rate}%</span> de participación
                               </p>
                             )}
                           </div>
                         </div>
                         <div className="text-right ml-4">
                           <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stat.participation_rate ?? 0}%</span>
-                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">participation</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">participación</p>
                         </div>
                       </div>
                       {stat.total_voters_assigned > 0 && (
@@ -1672,7 +1712,7 @@ export const AdminPanel = () => {
                   ))}
                   {stats2.length === 0 && (
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-lg border border-slate-200 dark:border-slate-700 text-center">
-                      <p className="text-slate-500 dark:text-slate-400">No statistics available</p>
+                      <p className="text-slate-500 dark:text-slate-400">No hay estadísticas disponibles</p>
                     </div>
                   )}
                 </motion.div>
@@ -1690,7 +1730,7 @@ export const AdminPanel = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <input
                         type="text"
-                        placeholder="Search by email or election..."
+                        placeholder="Buscar por email o elección…"
                         value={auditFilter.search}
                         onChange={(e) => setAuditFilter(p => ({ ...p, search: e.target.value }))}
                         className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
@@ -1700,7 +1740,7 @@ export const AdminPanel = () => {
                         onChange={(e) => setAuditFilter(p => ({ ...p, electionId: e.target.value }))}
                         className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                       >
-                        <option value="">All elections</option>
+                        <option value="">Todas las elecciones</option>
                         {elections.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                       </select>
                       <input
@@ -1718,27 +1758,27 @@ export const AdminPanel = () => {
                     </div>
                     {(auditFilter.search || auditFilter.electionId || auditFilter.dateFrom) && (
                       <div className="flex items-center gap-2 mt-3">
-                        <span className="text-xs text-slate-500">Active filters:</span>
+                        <span className="text-xs text-slate-500">Filtros activos:</span>
                         <button
                           onClick={() => setAuditFilter({ search: '', electionId: '', dateFrom: '', dateTo: '', institution: '' })}
                           className="text-xs text-red-500 hover:text-red-700"
                         >
-                          Clear all ✕
+                          Borrar todos ✕
                         </button>
-                        <span className="text-xs text-slate-400 ml-auto">{filteredAudit.length} results</span>
+                        <span className="text-xs text-slate-400 ml-auto">{filteredAudit.length} resultados</span>
                       </div>
                     )}
                   </div>
 
                   <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Vote Audit Log</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Registro de auditoría de votos</h2>
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-300 dark:border-slate-600">
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Voter Email</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Election</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Vote Hash</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Timestamp</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Email del votante</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Elección</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Hash del voto</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Fecha y hora</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1757,7 +1797,7 @@ export const AdminPanel = () => {
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-400">
-                                {new Date(entry.generated_at).toLocaleString('en-US', { timeZone: 'Europe/Madrid' })}
+                                {new Date(entry.generated_at).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}
                               </td>
                             </tr>
                           );
@@ -1766,7 +1806,7 @@ export const AdminPanel = () => {
                     </table>
                     {filteredAudit.length === 0 && (
                       <p className="text-center text-slate-500 dark:text-slate-400 py-8">
-                        {audit.length === 0 ? 'No audit records found' : 'No records match the current filters'}
+                        {audit.length === 0 ? 'No hay registros de auditoría' : 'Ningún registro coincide con los filtros actuales'}
                       </p>
                     )}
                   </div>
@@ -1789,16 +1829,16 @@ export const AdminPanel = () => {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                      Registration Requests
+                      Solicitudes de registro
                     </h2>
                     <div className="flex flex-wrap gap-2">
                       {['pending','approved','rejected','all'].map(s => (
                         <button
                           key={s}
                           onClick={() => setInboxStatusFilter(s)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition ${inboxStatusFilter === s ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${inboxStatusFilter === s ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
                         >
-                          {s} {s !== 'all' && `(${registrationRequests.filter(r => r.status === s).length})`}
+                          {{ pending: 'Pendientes', approved: 'Aprobadas', rejected: 'Rechazadas', all: 'Todas' }[s]} {s !== 'all' && `(${registrationRequests.filter(r => r.status === s).length})`}
                         </button>
                       ))}
                     </div>
@@ -1808,7 +1848,7 @@ export const AdminPanel = () => {
                   {isSuperAdmin && (
                     <input
                       type="text"
-                      placeholder="Filter by domain (e.g. ufv.es, highlands.edu)..."
+                      placeholder="Filtrar por dominio (p. ej. ufv.es, highlands.edu)…"
                       value={inboxDomainFilter}
                       onChange={e => setInboxDomainFilter(e.target.value)}
                       className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm"
@@ -1820,7 +1860,9 @@ export const AdminPanel = () => {
                     .filter(r => !inboxDomainFilter || r.email?.toLowerCase().includes(inboxDomainFilter.toLowerCase()))
                     .length === 0 ? (
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-6 rounded-lg text-center">
-                      <p className="text-blue-800 dark:text-blue-200">No {inboxStatusFilter === 'all' ? '' : inboxStatusFilter} requests{inboxDomainFilter ? ` for "${inboxDomainFilter}"` : ''}</p>
+                      <p className="text-blue-800 dark:text-blue-200">
+                        No hay solicitudes{inboxStatusFilter !== 'all' ? ` ${{ pending: 'pendientes', approved: 'aprobadas', rejected: 'rechazadas' }[inboxStatusFilter]}` : ''}{inboxDomainFilter ? ` para "${inboxDomainFilter}"` : ''}
+                      </p>
                     </div>
                   ) : (
                     registrationRequests
@@ -1836,25 +1878,25 @@ export const AdminPanel = () => {
                               <p className="font-mono text-slate-900 dark:text-white truncate">{request.email}</p>
                               <p className="text-sm text-slate-500 dark:text-slate-400">{request.full_name}</p>
                             </div>
-                            <span className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium capitalize ${
+                            <span className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${
                               request.status === 'pending' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200' :
                               request.status === 'approved' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200' :
                               'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200'
-                            }`}>{request.status}</span>
+                            }`}>{{ pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' }[request.status] || request.status}</span>
                           </div>
                           <div className="grid sm:grid-cols-3 gap-4 text-sm">
                             <div>
-                              <p className="text-slate-500 dark:text-slate-400 text-xs">Student ID</p>
+                              <p className="text-slate-500 dark:text-slate-400 text-xs">Identificador</p>
                               <p className="font-mono text-slate-900 dark:text-white">{request.student_id}</p>
                             </div>
                             <div>
-                              <p className="text-slate-500 dark:text-slate-400 text-xs">Submitted</p>
-                              <p className="text-slate-900 dark:text-white">{new Date(request.created_at).toLocaleDateString()}</p>
+                              <p className="text-slate-500 dark:text-slate-400 text-xs">Enviada</p>
+                              <p className="text-slate-900 dark:text-white">{new Date(request.created_at).toLocaleDateString('es-ES')}</p>
                             </div>
                             {request.school && (
                               <div>
-                                <p className="text-slate-500 dark:text-slate-400 text-xs">Academic</p>
-                                <p className="text-slate-900 dark:text-white truncate">{request.school}{request.year ? ` · Y${request.year}` : ''}</p>
+                                <p className="text-slate-500 dark:text-slate-400 text-xs">Datos académicos</p>
+                                <p className="text-slate-900 dark:text-white truncate">{request.school}{request.year ? ` · ${request.year}º` : ''}</p>
                               </div>
                             )}
                           </div>
@@ -1868,13 +1910,13 @@ export const AdminPanel = () => {
                                 disabled={loading}
                                 className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
                               >
-                                ✓ Approve
+                                ✓ Aprobar
                               </motion.button>
                               {rejectReasonId === request.id ? (
                                 <div className="flex-1 space-y-2">
                                   <textarea
                                     rows={2}
-                                    placeholder="Rejection reason..."
+                                    placeholder="Motivo del rechazo…"
                                     value={rejectReason}
                                     onChange={e => setRejectReason(e.target.value)}
                                     className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded resize-none focus:ring-2 focus:ring-red-500 outline-none"
@@ -1885,13 +1927,13 @@ export const AdminPanel = () => {
                                       disabled={!rejectReason.trim() || loading}
                                       className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition disabled:opacity-50"
                                     >
-                                      Confirm Reject
+                                      Confirmar rechazo
                                     </button>
                                     <button
                                       onClick={() => { setRejectReasonId(null); setRejectReason(''); }}
                                       className="px-3 py-1.5 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 rounded text-sm transition"
                                     >
-                                      Cancel
+                                      Cancelar
                                     </button>
                                   </div>
                                 </div>
@@ -1903,14 +1945,14 @@ export const AdminPanel = () => {
                                   disabled={loading}
                                   className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
                                 >
-                                  ✗ Reject
+                                  ✗ Rechazar
                                 </motion.button>
                               )}
                             </div>
                           )}
                           {request.status !== 'pending' && request.reviewed_at && (
                             <p className="text-xs text-slate-400 dark:text-slate-500">
-                              Reviewed {new Date(request.reviewed_at).toLocaleString()}
+                              Revisada el {new Date(request.reviewed_at).toLocaleString('es-ES')}
                             </p>
                           )}
                         </div>
@@ -1943,11 +1985,11 @@ export const AdminPanel = () => {
               <div className="sticky top-0 z-10 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                    {selectedElectionStats?.election?.name || 'Loading...'}
+                    {selectedElectionStats?.election?.name || 'Cargando…'}
                   </h2>
                   {selectedElectionStats?.election && (
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                      {new Date(selectedElectionStats.election.startDate).toLocaleDateString('en-US')} — {new Date(selectedElectionStats.election.endDate).toLocaleDateString('en-US')}
+                      {new Date(selectedElectionStats.election.startDate).toLocaleDateString('es-ES')} — {new Date(selectedElectionStats.election.endDate).toLocaleDateString('es-ES')}
                     </p>
                   )}
                 </div>
@@ -1961,21 +2003,21 @@ export const AdminPanel = () => {
 
               {loadingElectionStats ? (
                 <div className="p-12 text-center">
-                  <LoadingSpinner message="Loading election statistics..." />
+                  <LoadingSpinner message="Cargando estadísticas de la elección…" />
                 </div>
               ) : selectedElectionStats && (
                 <div className="p-6 space-y-6">
                   {/* KPI Row */}
                   <div className="grid grid-cols-3 gap-4">
                     {[
-                      { label: 'Census', value: selectedElectionStats.stats.totalVoters, icon: '👥', color: 'blue' },
-                      { label: 'Votes Cast', value: selectedElectionStats.stats.totalVotes, icon: '🗳️', color: 'emerald' },
-                      { label: 'Participation', value: `${selectedElectionStats.stats.participationRate}%`, icon: '📊', color: 'purple' },
-                    ].map(({ label, value, icon, color }) => (
-                      <div key={label} className={`bg-${color}-50 dark:bg-${color}-900/20 border border-${color}-200 dark:border-${color}-800 rounded-xl p-4 text-center`}>
+                      { label: 'Censo', value: selectedElectionStats.stats.totalVoters, icon: '👥', tone: KPI_TONES.blue },
+                      { label: 'Votos emitidos', value: selectedElectionStats.stats.totalVotes, icon: '🗳️', tone: KPI_TONES.emerald },
+                      { label: 'Participación', value: `${selectedElectionStats.stats.participationRate}%`, icon: '📊', tone: KPI_TONES.purple },
+                    ].map(({ label, value, icon, tone }) => (
+                      <div key={label} className={`${tone.box} rounded-xl p-4 text-center`}>
                         <p className="text-2xl mb-1">{icon}</p>
-                        <p className={`text-2xl font-bold text-${color}-700 dark:text-${color}-300`}>{value}</p>
-                        <p className={`text-xs text-${color}-600 dark:text-${color}-400 mt-0.5`}>{label}</p>
+                        <p className={`text-2xl font-bold ${tone.value}`}>{value}</p>
+                        <p className={`text-xs ${tone.label} mt-0.5`}>{label}</p>
                       </div>
                     ))}
                   </div>
@@ -1983,13 +2025,13 @@ export const AdminPanel = () => {
                   {/* Candidate Chart */}
                   {selectedElectionStats.candidates?.length > 0 && (
                     <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
-                      <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-sm">Votes by Candidate</h3>
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-sm">Votos por candidato</h3>
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={selectedElectionStats.candidates} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                           <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                           <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                          <Tooltip formatter={(v) => [v, 'Votes']} />
+                          <Tooltip formatter={(v) => [v, 'Votos']} />
                           <Bar dataKey="votes" radius={[4, 4, 0, 0]}>
                             {selectedElectionStats.candidates.map((_, i) => (
                               <Cell key={i} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'][i % 6]} />
@@ -2007,8 +2049,8 @@ export const AdminPanel = () => {
                         <thead className="bg-slate-50 dark:bg-slate-700/50">
                           <tr>
                             <th className="text-left py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">#</th>
-                            <th className="text-left py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">Candidate</th>
-                            <th className="text-right py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">Votes</th>
+                            <th className="text-left py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">Candidato</th>
+                            <th className="text-right py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">Votos</th>
                             <th className="text-right py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">%</th>
                           </tr>
                         </thead>
@@ -2045,7 +2087,7 @@ export const AdminPanel = () => {
                   {selectedElectionStats.voters?.length > 0 && (
                     <div>
                       <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
-                        Voter Participation ({selectedElectionStats.voters.filter(v => v.has_voted).length} / {selectedElectionStats.voters.length} voted)
+                        Participación de votantes ({selectedElectionStats.voters.filter(v => v.has_voted).length} / {selectedElectionStats.voters.length} han votado)
                       </h3>
                       <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
                         <table className="w-full text-xs">
@@ -2055,9 +2097,9 @@ export const AdminPanel = () => {
                                 <td className="py-2 px-4 font-mono text-slate-700 dark:text-slate-300">{v.email}</td>
                                 <td className="py-2 px-4 text-right">
                                   {v.has_voted ? (
-                                    <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full font-medium">Voted</span>
+                                    <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full font-medium">Ha votado</span>
                                   ) : (
-                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full">Pending</span>
+                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full">Pendiente</span>
                                   )}
                                 </td>
                               </tr>
@@ -2071,7 +2113,7 @@ export const AdminPanel = () => {
                   {/* Domains */}
                   {selectedElectionStats.domains?.length > 0 && (
                     <div>
-                      <h3 className="font-semibold text-slate-900 dark:text-white mb-2 text-sm">Allowed Domains</h3>
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-2 text-sm">Dominios permitidos</h3>
                       <div className="flex flex-wrap gap-2">
                         {selectedElectionStats.domains.map((d) => (
                           <span key={d} className="px-3 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium">
@@ -2088,33 +2130,33 @@ export const AdminPanel = () => {
                       onClick={() => { setSelectedElectionStats(null); navigate(`/results/${selectedElectionStats.election.id}`); }}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
                     >
-                      View Public Results
+                      Ver resultados públicos
                     </button>
                     {selectedElectionStats.election.is_active && (
                       closeElectionConfirm ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-red-600 dark:text-red-400 font-medium">Close this election?</span>
+                          <span className="text-sm text-red-600 dark:text-red-400 font-medium">¿Cerrar esta elección?</span>
                           <button
                             onClick={async () => {
                               try {
                                 await api.put(`/admin/elections/${selectedElectionStats.election.id}`, { is_active: false });
-                                toast.success('Election closed');
+                                toast.success('Elección cerrada');
                                 setCloseElectionConfirm(false);
                                 setSelectedElectionStats(null);
                                 loadTabData();
                               } catch (err) {
-                                toast.error(err.response?.data?.error || 'Error closing election');
+                                toast.error(err.response?.data?.error || 'No se ha podido cerrar la elección');
                               }
                             }}
                             className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition"
                           >
-                            Yes, close
+                            Sí, cerrar
                           </button>
                           <button
                             onClick={() => setCloseElectionConfirm(false)}
                             className="px-3 py-1.5 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm transition"
                           >
-                            Cancel
+                            Cancelar
                           </button>
                         </div>
                       ) : (
@@ -2122,7 +2164,7 @@ export const AdminPanel = () => {
                           onClick={() => setCloseElectionConfirm(true)}
                           className="px-4 py-2 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium transition"
                         >
-                          Close Election
+                          Cerrar elección
                         </button>
                       )
                     )}
@@ -2130,7 +2172,7 @@ export const AdminPanel = () => {
                       onClick={() => setSelectedElectionStats(null)}
                       className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition ml-auto"
                     >
-                      Close
+                      Cerrar
                     </button>
                   </div>
                 </div>
@@ -2149,7 +2191,7 @@ export const AdminPanel = () => {
             className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-sm"
           >
             <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">📱 QR Code</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">📱 Código QR</h2>
               <button
                 onClick={() => setQrElection(null)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded"
@@ -2171,11 +2213,11 @@ export const AdminPanel = () => {
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(`${window.location.origin}/voting/${qrElection.id}`);
-                  toast.success('Link copied to clipboard');
+                  toast.success('Enlace copiado al portapapeles');
                 }}
                 className="w-full py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition text-sm"
               >
-                Copy Link
+                Copiar enlace
               </button>
             </div>
           </motion.div>
@@ -2191,7 +2233,7 @@ export const AdminPanel = () => {
             className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg"
           >
             <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">✏️ Edit Election</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">✏️ Editar elección</h2>
               <button
                 onClick={() => setEditingElection(null)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded"
@@ -2201,7 +2243,7 @@ export const AdminPanel = () => {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre</label>
                 <input
                   type="text"
                   value={editingElection.name}
@@ -2210,7 +2252,7 @@ export const AdminPanel = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Descripción</label>
                 <textarea
                   rows={3}
                   value={editingElection.description}
@@ -2219,7 +2261,7 @@ export const AdminPanel = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End time</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha y hora de fin</label>
                 <input
                   type="datetime-local"
                   value={editingElection.end_time}
@@ -2232,13 +2274,13 @@ export const AdminPanel = () => {
                   onClick={() => setEditingElection(null)}
                   className="flex-1 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
                 >
-                  Cancel
+                  Cancelar
                 </button>
                 <button
                   onClick={handleSaveEditElection}
                   className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition"
                 >
-                  Save changes
+                  Guardar cambios
                 </button>
               </div>
             </div>

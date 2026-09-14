@@ -71,7 +71,7 @@ const ElectionResults = () => {
   };
 
   const exportCSV = () => {
-    if (!auditData || auditData.length === 0) { toast.error('No audit data to export'); return; }
+    if (!auditData || auditData.length === 0) { toast.error('No hay datos de auditoría que exportar'); return; }
     const headers = ['Nullifier', 'TxHash', 'BlockNumber', 'Timestamp'];
     const rows = auditData.map(r => [r.nullifier || '', r.txHash || '', r.blockNumber || '', r.timestamp || '']);
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
@@ -302,11 +302,11 @@ const ElectionResults = () => {
       const filename = `VTB_Results_${(results?.election?.name || 'election').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
       pdf.save(filename);
       toast.dismiss(toastId);
-      toast.success('PDF exported successfully');
+      toast.success('PDF exportado correctamente');
     } catch (err) {
       console.error('PDF export error:', err);
       toast.dismiss(toastId);
-      toast.error('Error generating PDF');
+      toast.error('No se ha podido generar el PDF. Inténtalo de nuevo.');
     }
   };
 
@@ -340,12 +340,21 @@ const ElectionResults = () => {
       <div className="max-w-2xl mx-auto px-4 py-16">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-red-200 dark:border-red-800 p-8">
-          <h2 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">Error</h2>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-1.5">No se han podido cargar los resultados</h2>
           <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
-          <button onClick={() => navigate('/dashboard')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-            {t('results.backToDashboard')}
-          </button>
+          <p className="text-sm text-slate-500 dark:text-slate-500 mb-5">
+            Comprueba tu conexión y vuelve a intentarlo. Si el problema persiste, contacta con el administrador de tu institución.
+          </p>
+          <div className="flex gap-3">
+            <button onClick={() => window.location.reload()}
+              className="px-4 py-2 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+              Reintentar
+            </button>
+            <button onClick={() => navigate('/dashboard')}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors">
+              {t('results.backToDashboard')}
+            </button>
+          </div>
         </motion.div>
       </div>
     </div>
@@ -700,7 +709,7 @@ const ElectionResults = () => {
                                   </span>
                                 )
                               ) : (
-                                <span className="text-xs text-slate-400 dark:text-slate-500 italic">Pending</span>
+                                <span className="text-xs text-slate-400 dark:text-slate-500 italic">Pendiente</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
@@ -719,7 +728,9 @@ const ElectionResults = () => {
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <div className="text-4xl mb-3">📭</div>
+                  <svg className="w-8 h-8 mx-auto mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" />
+                  </svg>
                   <p className="text-slate-500 dark:text-slate-400">{t('results.noVotes')}</p>
                 </div>
               )}
@@ -731,30 +742,30 @@ const ElectionResults = () => {
       {/* QR Code Modal */}
       {showQR && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl">
-            <h3 className="font-bold text-slate-900 dark:text-white mb-1">{election?.name}</h3>
-            <p className="text-xs text-slate-500 mb-4">Scan to vote</p>
-            <div className="bg-white p-4 rounded-xl inline-block shadow-inner mb-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 w-full max-w-xs text-center shadow-lg border border-warm-200 dark:border-slate-700">
+            <h3 className="font-semibold text-slate-900 dark:text-white mb-1">{election?.name}</h3>
+            <p className="text-xs text-slate-500 mb-4">Escanea para votar</p>
+            <div className="bg-white p-4 rounded inline-block border border-warm-200 mb-4">
               <QRCode value={`${window.location.origin}/voting/${id}`} size={180} />
             </div>
-            <p className="text-xs text-slate-400 font-mono break-all mb-4">
+            <p className="text-xs text-slate-400 font-mono-vtb break-all mb-4">
               {window.location.origin}/voting/{id}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowQR(false)}
-                className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl text-sm transition hover:bg-slate-50 dark:hover:bg-slate-700"
+                className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
               >
-                Close
+                Cerrar
               </button>
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(`${window.location.origin}/voting/${id}`);
-                  toast.success('Link copied');
+                  toast.success('Enlace copiado');
                 }}
-                className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition"
+                className="flex-1 px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded text-sm font-medium transition-colors"
               >
-                Copy Link
+                Copiar enlace
               </button>
             </div>
           </div>

@@ -11,9 +11,11 @@ backend posts to a Solidity smart contract on Ethereum Sepolia as the relayer.
 The blockchain stores `(nullifier, voteHash)` — enough to prove "someone voted
 once" without storing who that someone is.
 
-Demo accounts under `@vtb.demo` use synthetic hashes for quick testing. Real
-institutional accounts such as `@ufv.es` and `@highlands.edu` are expected to
-vote through the configured Ethereum network and receive a real transaction hash.
+Demo accounts under `@vtb.demo` use synthetic hashes for quick testing — the
+seed only generates data for this domain (the fictional "Meridian University"),
+so a live demo never shows placeholder institutions. Real institutional
+deployments (a different domain per client) are expected to vote through the
+configured Ethereum network and receive a real transaction hash.
 
 ## Architecture
 
@@ -75,37 +77,46 @@ sleep may take 30-40 seconds.
 ### Synthetic demo accounts
 
 These accounts are local/demo only. They produce a synthetic hash and do not
-create an Etherscan transaction.
+create an Etherscan transaction. In the UI, `@vtb.demo` renders as the
+fictional institution **Meridian University** — the emails/passwords below
+are unchanged, only the display name and election data shown on screen use
+that persona (see `seedDatabase.ts`).
 
-| Account | Password | Role |
-|---|---|---|
-| `student@vtb.demo` | `demo123` | Voter |
-| `student2@vtb.demo` | `demo123` | Voter |
-| `admin@vtb.demo` | `admin123` | Admin |
-| `superadmin@vtb.demo` | `superadmin123` | Super admin |
+| Account | Password | Role | Shown as |
+|---|---|---|---|
+| `student@vtb.demo` | `SEED_DEMO_STUDENT_PASSWORD` (default `demo123`) | Voter | Alex Ferrer |
+| `student2@vtb.demo` | `SEED_DEMO_STUDENT_PASSWORD` (default `demo123`) | Voter | Marina Costa |
+| `admin@vtb.demo` | `SEED_DEMO_ADMIN_PASSWORD` — **required, no default** | Admin | Elena Ibarra |
+| `superadmin@vtb.demo` | `SEED_DEMO_SUPERADMIN_PASSWORD` — **required, no default** | Super admin | Marta Reyes |
+| `superadmin@vtb.system` | `SEED_SUPERADMIN_PASSWORD` — **required, no default** | Super admin (platform) | Super Admin |
 
-### Real blockchain demo accounts
+> **Privileged account passwords are never hardcoded and never published here.**
+> `npm run seed` aborts, naming the missing variable, if any of the three
+> `SEED_*` variables above is absent or shorter than 12 characters. Generate
+> each one with:
+>
+> ```bash
+> node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))"
+> ```
+>
+> Only the two student demo accounts keep a default, because they hold no
+> privileges on a fictional domain. If you are deploying anywhere reachable
+> from the internet, set `SEED_DEMO_STUDENT_PASSWORD` too.
 
-These accounts must use the configured blockchain relayer. With Sepolia env
-values they receive a real tx hash visible on Etherscan.
+### Real institutional accounts
 
-| Account | Password | Role |
-|---|---|---|
-| `carlos@ufv.es` | `demo123` | Voter |
-| `laura@ufv.es` | `demo123` | Voter |
-| `miguel@ufv.es` | `demo123` | Voter |
-| `sofia@ufv.es` | `demo123` | Voter |
-| `julio@ufv.es` | `profesor123` | Voter |
-| `admin@ufv.es` | `admin123` | Admin |
-| `susana@eps.ufv.es` | `director123` | Admin |
-| `olga@eps.ufv.es` | `director123` | Admin |
-| `admin@eps.ufv.es` | `admin123` | Admin |
-| `student5@highlands.edu` | `demo123` | Voter |
-| `student6@highlands.edu` | `demo123` | Voter |
-| `student7@highlands.edu` | `demo123` | Voter |
-| `julio@highlands.edu` | `profesor123` | Voter |
-| `admin@highlands.edu` | `admin123` | Admin |
-| `superadmin@vtb.system` | `superadmin123` | Super admin |
+The seed script (`seedDatabase.ts`) no longer creates accounts for any real
+institution — only `vtb.demo` (the fictional Meridian University) and
+`vtb.system` (the platform superadmin). A real institutional deployment gets
+its own domain and admin-created accounts, added through the admin panel or
+CSV import, not through this seed. Those accounts vote through the configured
+Ethereum network and receive a real transaction hash instead of a synthetic
+one.
+
+> If you're maintaining an older deployment that still has accounts under a
+> different domain from before this change, they were not deleted — the seed
+> only stopped *creating new ones*. See the "Demo data" note in `seedDatabase.ts`
+> for the exact idempotency guarantees.
 
 ## Requirements
 
@@ -268,8 +279,8 @@ Choose one mode.
 
 ### Mode A: Sepolia real voting
 
-Use this when you want `@ufv.es` and `@highlands.edu` votes to appear on
-Etherscan.
+Use this when you want votes from a real institutional domain (not
+`@vtb.demo`) to appear on Etherscan.
 
 1. Configure `backend/.env` with Sepolia `RPC_URL`, `CONTRACT_ADDRESS`,
    `PRIVATE_KEY`, and `EXPLORER_URL=https://sepolia.etherscan.io`.

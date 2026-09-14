@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import dotenv from "dotenv";
 import { getDatabase } from "../config/database.js";
+import { formatError } from "../utils/errors.js";
 
 dotenv.config({ quiet: true });
 
@@ -91,16 +92,16 @@ export async function syncElectionsToBlockchain(): Promise<void> {
         onChainCount++;
 
         await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (err: any) {
-        console.error(`  Failed to create "${election.name}": ${err.message}`);
+      } catch (err) {
+        console.error(`  Failed to create "${election.name}": ${formatError(err)}`);
       }
     }
 
     const finalCount = Number(await contract.electionCount());
     console.log(`Sync complete: ${created} created, ${skipped} already existed`);
     console.log(`Final on-chain count: ${finalCount}`);
-  } catch (err: any) {
-    console.error("Election sync failed (non-fatal):", err.message);
+  } catch (err) {
+    console.error("Election sync failed (non-fatal):", formatError(err));
   }
 }
 
@@ -109,8 +110,8 @@ if (isMain) {
   getDatabase()
     .initialize()
     .then(() => syncElectionsToBlockchain())
-    .catch((err: any) => {
-      console.error("Election sync failed:", err.message);
+    .catch((err) => {
+      console.error("Election sync failed:", formatError(err));
       process.exitCode = 1;
     });
 }

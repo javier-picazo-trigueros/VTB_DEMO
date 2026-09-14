@@ -21,7 +21,8 @@
         "migrate:status": "node-pg-migrate status",
         "migrate:create": "node-pg-migrate create",
         "db:migrate": "tsx scripts/migrate-sqlite-to-pg.ts",
-        "db:rollback": "tsx scripts/rollback-pg-to-sqlite.ts"
+        "db:rollback": "tsx scripts/rollback-pg-to-sqlite.ts",
+        "rotate-admin-passwords": "tsx scripts/rotate-weak-admin-passwords.ts"
     },
     "node-pg-migrate": {
         "migrations-dir": "migrations"

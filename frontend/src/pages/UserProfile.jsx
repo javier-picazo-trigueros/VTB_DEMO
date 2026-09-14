@@ -65,9 +65,9 @@ export function UserProfile() {
         return;
       }
       if (!err.response || err.code === 'ERR_NETWORK') {
-        setError('Backend is waking up — please wait a moment and retry.');
+        setError('El backend se está reactivando — espera unos segundos y vuelve a intentarlo.');
       } else {
-        setError(err.response?.data?.error || err.message || 'Error loading profile');
+        setError(err.response?.data?.error || err.message || 'No se ha podido cargar el perfil.');
       }
     } finally {
       setLoading(false);
@@ -85,9 +85,9 @@ export function UserProfile() {
         setAuthUser(prev => ({ ...prev, name: res.data.user.name }));
       }
       setEditing(false);
-      toast.success('Profile updated successfully');
+      toast.success('Perfil actualizado correctamente');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error saving profile');
+      toast.error(err.response?.data?.error || 'No se ha podido guardar el perfil.');
     } finally {
       setSaving(false);
     }
@@ -95,11 +95,11 @@ export function UserProfile() {
 
   const handleChangePassword = async () => {
     if (pwForm.next !== pwForm.confirm) {
-      setPwError('New passwords do not match');
+      setPwError('Las contraseñas nuevas no coinciden.');
       return;
     }
     if (pwForm.next.length < 6) {
-      setPwError('Password must be at least 6 characters');
+      setPwError('La contraseña debe tener al menos 6 caracteres.');
       return;
     }
     setPwLoading(true);
@@ -109,10 +109,10 @@ export function UserProfile() {
         currentPassword: pwForm.current,
         newPassword: pwForm.next,
       });
-      toast.success('Password changed successfully!');
+      toast.success('Contraseña actualizada correctamente');
       setPwForm({ current: '', next: '', confirm: '' });
     } catch (err) {
-      setPwError(err.response?.data?.error || 'Error changing password');
+      setPwError(err.response?.data?.error || 'No se ha podido cambiar la contraseña.');
     } finally {
       setPwLoading(false);
     }
@@ -127,63 +127,59 @@ export function UserProfile() {
   )?.years || 4;
 
   const getRoleColor = (role) => {
-    if (role === 'superadmin') return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300';
-    if (role === 'admin') return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300';
-    return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300';
+    if (role === 'superadmin') return 'bg-purple-100 text-purple-700';
+    if (role === 'admin') return 'bg-emerald-100 text-emerald-700';
+    return 'bg-brand-50 text-brand-700';
   };
 
   const tabs = [
-    { id: 'profile', label: '👤 Profile' },
-    { id: 'security', label: '🔐 Security' },
-    { id: 'activity', label: '📊 Activity' },
+    { id: 'profile', label: 'Perfil' },
+    { id: 'security', label: 'Seguridad' },
+    { id: 'activity', label: 'Actividad' },
   ];
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center gap-4">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-        <p className="text-slate-500 dark:text-slate-400 text-sm">Loading profile...</p>
+      <div className="min-h-screen bg-warm-50 flex flex-col items-center justify-center gap-4">
+        <div className="w-6 h-6 border-2 border-warm-200 border-t-brand-600 rounded-full animate-spin" />
+        <p className="text-slate-500 text-sm">Cargando perfil…</p>
         <button
           onClick={() => navigate(-1)}
-          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm underline"
+          className="text-slate-400 hover:text-slate-600 text-sm underline"
         >
-          ← Back
+          ← Volver
         </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-warm-50">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+      <div className="bg-white border-b border-warm-200">
         <div className="max-w-3xl mx-auto px-4 py-6">
           <button
             onClick={() => navigate(-1)}
-            className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-sm mb-4 flex items-center gap-1"
+            className="text-slate-500 hover:text-slate-700 text-sm mb-4 flex items-center gap-1"
           >
-            ← Back
+            ← Volver
           </button>
 
           <div className="flex items-center gap-4">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg flex-shrink-0"
-            >
+            <div className="w-14 h-14 rounded-full bg-brand-600 flex items-center justify-center text-white text-xl font-semibold flex-shrink-0">
               {profile?.name?.charAt(0)?.toUpperCase() || '?'}
-            </motion.div>
+            </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              <h1 className="text-xl font-semibold text-slate-900">
                 {profile?.name}
               </h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">{profile?.email}</p>
+              <p className="text-slate-500 text-sm">{profile?.email}</p>
               <div className="flex items-center gap-2 mt-1">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getRoleColor(profile?.role)}`}>
+                <span className={`text-xs px-2 py-0.5 rounded font-medium ${getRoleColor(profile?.role)}`}>
                   {profile?.role}
                 </span>
                 {profile?.student_id && (
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                  <span className="text-xs text-slate-400 tabular">
                     ID: {profile.student_id}
                   </span>
                 )}
@@ -199,10 +195,10 @@ export function UserProfile() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition ${
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    ? 'border-brand-600 text-brand-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
                 {tab.label}
@@ -216,13 +212,13 @@ export function UserProfile() {
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
 
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-sm text-red-700 dark:text-red-300 flex items-center justify-between gap-3">
-            <span>❌ {error}</span>
+          <div className="bg-red-50 border border-red-200 rounded p-4 text-sm text-red-700 flex items-center justify-between gap-3">
+            <span>{error}</span>
             <button
               onClick={loadProfile}
-              className="shrink-0 px-3 py-1.5 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 rounded-lg text-xs font-medium transition"
+              className="shrink-0 px-3 py-1.5 bg-red-100 hover:bg-red-200 rounded text-xs font-medium transition-colors"
             >
-              Retry
+              Reintentar
             </button>
           </div>
         )}
@@ -232,33 +228,33 @@ export function UserProfile() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+            className="bg-white rounded-lg shadow-sm border border-warm-200 p-6"
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Personal information
+              <h2 className="text-base font-semibold text-slate-900">
+                Información personal
               </h2>
               {!editing ? (
                 <button
                   onClick={() => setEditing(true)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
+                  className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded text-sm font-medium transition-colors"
                 >
-                  ✏️ Edit
+                  Editar
                 </button>
               ) : (
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setEditing(false); setError(''); }}
-                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm transition hover:bg-slate-50 dark:hover:bg-slate-700"
+                    className="px-4 py-2 border border-slate-200 text-slate-700 rounded text-sm transition-colors hover:bg-slate-50"
                   >
-                    Cancel
+                    Cancelar
                   </button>
                   <button
                     onClick={handleSaveProfile}
                     disabled={saving}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition"
+                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded text-sm font-medium transition-colors"
                   >
-                    {saving ? 'Saving...' : '✓ Save'}
+                    {saving ? 'Guardando…' : 'Guardar'}
                   </button>
                 </div>
               )}
@@ -267,50 +263,50 @@ export function UserProfile() {
             <div className="space-y-4">
               {/* Name */}
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                  Full name
+                <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                  Nombre completo
                 </label>
                 {editing ? (
                   <input
                     type="text"
                     value={editForm.name}
                     onChange={(e) => setEditForm(p => ({ ...p, name: e.target.value }))}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-4 py-2.5 rounded border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                   />
                 ) : (
-                  <p className="text-slate-900 dark:text-white text-sm font-medium">{profile?.name || '—'}</p>
+                  <p className="text-slate-900 text-sm font-medium">{profile?.name || '—'}</p>
                 )}
               </div>
 
               {/* Email */}
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
                   Email
                 </label>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">
+                <p className="text-slate-500 text-sm">
                   {profile?.email}
-                  <span className="ml-2 text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 px-2 py-0.5 rounded-full">
-                    Cannot be changed
+                  <span className="ml-2 text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">
+                    No se puede modificar
                   </span>
                 </p>
               </div>
 
               {/* Student ID */}
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                  Student ID
+                <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                  Identificador
                 </label>
-                <p className="text-slate-900 dark:text-white text-sm">{profile?.student_id || '—'}</p>
+                <p className="text-slate-900 text-sm tabular">{profile?.student_id || '—'}</p>
               </div>
 
               {/* Member since */}
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                  Member since
+                <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                  Miembro desde
                 </label>
-                <p className="text-slate-900 dark:text-white text-sm">
+                <p className="text-slate-900 text-sm">
                   {profile?.created_at
-                    ? new Date(profile.created_at).toLocaleDateString('en-GB', {
+                    ? new Date(profile.created_at).toLocaleDateString('es-ES', {
                         day: 'numeric', month: 'long', year: 'numeric',
                       })
                     : '—'}
@@ -318,8 +314,8 @@ export function UserProfile() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                  Onboarding
+                <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                  Guía de bienvenida
                 </label>
                 <button
                   onClick={() => {
@@ -336,55 +332,56 @@ export function UserProfile() {
                     } catch { /* ignore */ }
                     navigate('/dashboard');
                   }}
-                  className="text-sm text-blue-500 hover:underline"
+                  className="text-sm text-brand-600 hover:underline"
                 >
-                  🔄 Restart onboarding tour
+                  Reiniciar guía de bienvenida
                 </button>
-              </div>            </div>
+              </div>
+            </div>
 
             {/* Academic info */}
             {(profile?.school || editing) && (
               <>
-                <hr className="border-slate-200 dark:border-slate-700 my-6" />
-                <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-4">
-                  Academic information
+                <hr className="border-warm-200 my-6" />
+                <h3 className="text-sm font-semibold text-slate-900 mb-4">
+                  Información académica
                 </h3>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                      School / Faculty
+                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                      Facultad / Escuela
                     </label>
                     {editing && schools.length > 0 ? (
                       <select
                         value={editForm.school}
                         onChange={(e) => setEditForm(p => ({ ...p, school: e.target.value, degree: '', year: '' }))}
-                        className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-4 py-2.5 rounded border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                       >
-                        <option value="">Select school...</option>
+                        <option value="">Selecciona una facultad…</option>
                         {schools.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     ) : (
-                      <p className="text-slate-900 dark:text-white text-sm">{profile?.school || '—'}</p>
+                      <p className="text-slate-900 text-sm">{profile?.school || '—'}</p>
                     )}
                   </div>
 
                   {(editForm.school || profile?.degree) && (
                     <div>
-                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                        Degree / Programme
+                      <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                        Titulación
                       </label>
                       {editing && degrees.length > 0 ? (
                         <select
                           value={editForm.degree}
                           onChange={(e) => setEditForm(p => ({ ...p, degree: e.target.value, year: '' }))}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                          className="w-full px-4 py-2.5 rounded border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                         >
-                          <option value="">Select degree...</option>
+                          <option value="">Selecciona una titulación…</option>
                           {degrees.map(d => <option key={d} value={d}>{d}</option>)}
                         </select>
                       ) : (
-                        <p className="text-slate-900 dark:text-white text-sm">{profile?.degree || '—'}</p>
+                        <p className="text-slate-900 text-sm">{profile?.degree || '—'}</p>
                       )}
                     </div>
                   )}
@@ -392,41 +389,41 @@ export function UserProfile() {
                   {(editForm.degree || profile?.year) && (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                          Year
+                        <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                          Curso
                         </label>
                         {editing ? (
                           <select
                             value={editForm.year}
                             onChange={(e) => setEditForm(p => ({ ...p, year: e.target.value }))}
-                            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            className="w-full px-4 py-2.5 rounded border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                           >
-                            <option value="">Select year...</option>
+                            <option value="">Selecciona un curso…</option>
                             {Array.from({ length: maxYears }, (_, i) => i + 1).map(y => (
-                              <option key={y} value={y}>Year {y}</option>
+                              <option key={y} value={y}>{y}º curso</option>
                             ))}
                           </select>
                         ) : (
-                          <p className="text-slate-900 dark:text-white text-sm">
-                            {profile?.year ? `Year ${profile.year}` : '—'}
+                          <p className="text-slate-900 text-sm">
+                            {profile?.year ? `${profile.year}º curso` : '—'}
                           </p>
                         )}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                          Group
+                        <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                          Grupo
                         </label>
                         {editing ? (
                           <input
                             type="text"
                             value={editForm.study_group}
                             onChange={(e) => setEditForm(p => ({ ...p, study_group: e.target.value }))}
-                            placeholder="e.g. A, B..."
-                            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="p. ej. A, B…"
+                            className="w-full px-4 py-2.5 rounded border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                           />
                         ) : (
-                          <p className="text-slate-900 dark:text-white text-sm">{profile?.study_group || '—'}</p>
+                          <p className="text-slate-900 text-sm">{profile?.study_group || '—'}</p>
                         )}
                       </div>
                     </div>
@@ -442,32 +439,32 @@ export function UserProfile() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+            className="bg-white rounded-lg shadow-sm border border-warm-200 p-6"
           >
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">
-              Change password
+            <h2 className="text-base font-semibold text-slate-900 mb-6">
+              Cambiar contraseña
             </h2>
 
             {pwError && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4 text-sm text-red-700 dark:text-red-300">
+              <div className="bg-red-50 border border-red-200 rounded p-3 mb-4 text-sm text-red-700">
                 {pwError}
               </div>
             )}
             <div className="space-y-4 max-w-sm">
               {[
-                { key: 'current', label: 'Current password' },
-                { key: 'next', label: 'New password' },
-                { key: 'confirm', label: 'Confirm new password' },
+                { key: 'current', label: 'Contraseña actual' },
+                { key: 'next', label: 'Contraseña nueva' },
+                { key: 'confirm', label: 'Confirmar contraseña nueva' },
               ].map(({ key, label }) => (
                 <div key={key}>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
                     {label}
                   </label>
                   <input
                     type="password"
                     value={pwForm[key]}
                     onChange={(e) => setPwForm(p => ({ ...p, [key]: e.target.value }))}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-4 py-2.5 rounded border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                   />
                 </div>
               ))}
@@ -475,15 +472,15 @@ export function UserProfile() {
               <button
                 onClick={handleChangePassword}
                 disabled={pwLoading || !pwForm.current || !pwForm.next}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl transition"
+                className="w-full py-3 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-semibold rounded transition-colors"
               >
-                {pwLoading ? 'Updating...' : '🔐 Update password'}
+                {pwLoading ? 'Actualizando…' : 'Actualizar contraseña'}
               </button>
             </div>
 
-            <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                🔒 Your password is encrypted with bcrypt. VTB never stores passwords in plain text.
+            <div className="mt-6 p-4 bg-slate-50 rounded">
+              <p className="text-xs text-slate-500">
+                Tu contraseña se cifra con bcrypt. VTB nunca almacena contraseñas en texto plano.
               </p>
             </div>
           </motion.div>
@@ -494,21 +491,23 @@ export function UserProfile() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+            className="bg-white rounded-lg shadow-sm border border-warm-200 p-6"
           >
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">
-              Election activity
+            <h2 className="text-base font-semibold text-slate-900 mb-6">
+              Actividad electoral
             </h2>
 
             {activity.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 dark:text-slate-500">
-                <p className="text-4xl mb-3">🗳️</p>
-                <p className="text-sm">No elections found for your account.</p>
+              <div className="text-center py-12 text-slate-400">
+                <svg className="w-8 h-8 mx-auto mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" />
+                </svg>
+                <p className="text-sm">No hay elecciones asociadas a tu cuenta.</p>
                 <button
                   onClick={() => navigate('/dashboard')}
-                  className="mt-4 text-blue-500 hover:underline text-sm"
+                  className="mt-4 text-brand-600 hover:underline text-sm"
                 >
-                  Go to Dashboard →
+                  Ir al panel →
                 </button>
               </div>
             ) : (
@@ -516,15 +515,16 @@ export function UserProfile() {
                 {activity.map(election => (
                   <div
                     key={election.id}
-                    className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"
+                    className="flex items-center justify-between p-4 rounded border border-warm-200 hover:bg-warm-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                      <p className="text-sm font-medium text-slate-900 truncate">
                         {election.name}
                       </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {election.isActive ? '🟢 Active' : '⚫ Closed'}
-                        {election.has_voted && ' · ✅ Voted'}
+                      <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${election.isActive ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+                        {election.isActive ? 'Activa' : 'Cerrada'}
+                        {election.has_voted && ' · Ya has votado'}
                       </p>
                     </div>
                     <button
@@ -533,9 +533,9 @@ export function UserProfile() {
                           ? `/voting/${election.id}`
                           : `/results/${election.id}`
                       )}
-                      className="ml-4 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition"
+                      className="ml-4 px-3 py-1.5 text-xs font-medium rounded bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors"
                     >
-                      {election.isActive ? 'Vote →' : 'Results →'}
+                      {election.isActive ? 'Votar →' : 'Resultados →'}
                     </button>
                   </div>
                 ))}

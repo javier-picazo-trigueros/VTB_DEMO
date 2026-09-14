@@ -16,7 +16,7 @@ router.get("/:domain", async (req: Request, res: Response): Promise<void> => {
   const { domain } = req.params;
 
   if (!domain || domain.trim() === "") {
-    res.status(400).json({ error: "Domain parameter is required" });
+    res.status(400).json({ error: "Falta el parámetro de dominio" });
     return;
   }
 
@@ -32,7 +32,7 @@ router.get("/:domain", async (req: Request, res: Response): Promise<void> => {
     );
 
     if (!org) {
-      res.status(404).json({ error: "Institution not found" });
+      res.status(404).json({ error: "Institución no encontrada" });
       return;
     }
 
@@ -43,7 +43,7 @@ router.get("/:domain", async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     console.error("Error fetching organization by domain:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 

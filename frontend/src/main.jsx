@@ -19,3 +19,10 @@ ReactDOM.createRoot(document.getElementById('app')).render(
     </ThemeProvider>
   </React.StrictMode>,
 )
+
+// Retira la pantalla de arranque de index.html. Vive fuera de #app, así que
+// React no la toca: hay que quitarla aquí. Se espera al siguiente frame para
+// que el primer render ya haya pintado y no aparezca un destello en blanco.
+requestAnimationFrame(() => {
+  document.getElementById('app-boot')?.remove()
+})

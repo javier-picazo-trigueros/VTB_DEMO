@@ -2,13 +2,63 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/logos/vtb.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VTB - Vote Through Blockchain</title>
-    <meta name="description" content="VTB: Sistema de votacion hibrido Web2+Web3 con blockchain" />
-    <meta name="theme-color" content="#0f172a" />
+    <title>VTB — Vote Through Blockchain</title>
+    <meta name="description" content="Plataforma de votación institucional con verificación criptográfica y auditoría pública en Ethereum Sepolia. Para universidades, organizaciones y gobiernos." />
+    <meta name="theme-color" content="#1B4D6A" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="VTB" />
+    <meta property="og:title" content="VTB — Vote Through Blockchain" />
+    <meta property="og:description" content="Plataforma de votación institucional con verificación criptográfica y auditoría pública en Ethereum Sepolia." />
+    <meta property="og:image" content="/logos/vtb-og.svg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:url" content="https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app" />
+    <meta property="og:locale" content="es_ES" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="VTB — Vote Through Blockchain" />
+    <meta name="twitter:description" content="Plataforma de votación institucional con verificación criptográfica y auditoría pública en Ethereum Sepolia." />
+    <meta name="twitter:image" content="/logos/vtb-og.svg" />
+
+    <style>
+      /* Pantalla de arranque: evita el destello en blanco durante la carga
+         del bundle. main.jsx la retira en el primer frame tras montar React. */
+      #app-boot {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 12px;
+        background: #F5F3EF; z-index: 9999;
+      }
+      #app-boot .mark {
+        width: 40px; height: 40px; border-radius: 8px;
+        background: #1B4D6A; color: #fff; display: flex;
+        align-items: center; justify-content: center;
+        font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+        font-weight: 700; font-size: 13px; letter-spacing: 0.02em;
+      }
+      #app-boot .spinner {
+        width: 16px; height: 16px; border-radius: 50%;
+        border: 2px solid #E2DDD8; border-top-color: #1B4D6A;
+        animation: app-boot-spin 0.7s linear infinite;
+      }
+      @keyframes app-boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        #app-boot .spinner { animation: none; }
+      }
+    </style>
   </head>
   <body>
+    <!-- Fuera de #app a propósito: React 18 avisa en consola al montar sobre
+         un contenedor que ya tiene hijos, y los borra de forma implícita.
+         Como hermano, lo retira main.jsx explícitamente tras el primer frame. -->
+    <div id="app-boot" aria-hidden="true">
+      <div class="mark">VTB</div>
+      <div class="spinner"></div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

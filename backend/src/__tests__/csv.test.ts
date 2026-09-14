@@ -12,9 +12,10 @@
  *   { success: true, results: { created: number, skipped: number, errors: string[] } }
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
+import { createFixtureUser, loginAsFixture } from './helpers/fixtures.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -22,29 +23,29 @@ function csvBuffer(content: string): Buffer {
   return Buffer.from(content, 'utf-8');
 }
 
-async function loginAsAdmin(email: string, password: string) {
-  const agent = request.agent(app);
-  const res   = await agent.post('/auth/login').send({ email, password });
-  if (res.status !== 200)
-    throw new Error(`Admin login failed (${res.status}): ${JSON.stringify(res.body)}`);
-  const raw: string[] = Array.isArray(res.headers['set-cookie'])
-    ? res.headers['set-cookie']
-    : res.headers['set-cookie'] ? [res.headers['set-cookie'] as string] : [];
-  const csrf = raw.find(c => c.startsWith('vtb_csrf='))
-    ?.split(';')[0].split('=').slice(1).join('=') ?? '';
-  return { agent, csrf };
-}
-
 // ── Suite ──────────────────────────────────────────────────────────────────────
 
 describe('POST /admin/users/import — CSV import', () => {
+  let adminEmail: string;
+  let adminPassword: string;
+
+  beforeAll(async () => {
+    const admin = await createFixtureUser({ role: 'admin', adminDomain: 'test.vtb' });
+    adminEmail = admin.email;
+    adminPassword = admin.password;
+  });
+
+  async function loginAsAdmin(email: string, password: string) {
+    return loginAsFixture(email, password);
+  }
+
   it('CSV válido crea usuarios correctamente', async () => {
-    const { agent, csrf } = await loginAsAdmin('admin@ufv.es', 'admin123');
+    const { agent, csrf } = await loginAsAdmin(adminEmail, adminPassword);
 
     const csv = [
       'email,full_name,student_id',
-      'csvtest1@ufv.es,CSV Test User One,CSV-TEST-001',
-      'csvtest2@ufv.es,CSV Test User Two,CSV-TEST-002',
+      'csvtest1@test.vtb,CSV Test User One,CSV-TEST-001',
+      'csvtest2@test.vtb,CSV Test User Two,CSV-TEST-002',
     ].join('\n');
 
     const res = await agent
@@ -59,15 +60,15 @@ describe('POST /admin/users/import — CSV import', () => {
   });
 
   it('S16 — campo con coma entre comillas se parsea correctamente', async () => {
-    const { agent, csrf } = await loginAsAdmin('admin@ufv.es', 'admin123');
+    const { agent, csrf } = await loginAsAdmin(adminEmail, adminPassword);
 
     // "García, Juan" tiene una coma dentro de las comillas.
     // Un split(',') simple rompería esta fila en tres columnas dando
-    // email=csv.quoted@ufv.es, full_name="García", student_id=" Juan" → error de datos.
+    // email=csv.quoted@test.vtb, full_name="García", student_id=" Juan" → error de datos.
     // Con csv-parse el campo se procesa correctamente.
     const csv = [
       'email,full_name,student_id',
-      '"csv.quoted@ufv.es","García, Juan",CSV-QUOTED-001',
+      '"csv.quoted@test.vtb","García, Juan",CSV-QUOTED-001',
     ].join('\n');
 
     const res = await agent
@@ -82,14 +83,14 @@ describe('POST /admin/users/import — CSV import', () => {
   });
 
   it('CSV con filas rotas se ignoran sin bloquear las válidas', async () => {
-    const { agent, csrf } = await loginAsAdmin('admin@ufv.es', 'admin123');
+    const { agent, csrf } = await loginAsAdmin(adminEmail, adminPassword);
 
     const csv = [
       'email,full_name,student_id',
-      'csvgood@ufv.es,Good Row,CSV-GOOD-001',   // fila válida
+      'csvgood@test.vtb,Good Row,CSV-GOOD-001',   // fila válida
       ',Missing Email,CSV-NOMAIL-001',            // sin email → error
-      'csvnoname@ufv.es,,CSV-NONAME-001',         // sin nombre → error
-      'csvnoid@ufv.es,No Student ID,',            // sin student_id → error
+      'csvnoname@test.vtb,,CSV-NONAME-001',         // sin nombre → error
+      'csvnoid@test.vtb,No Student ID,',            // sin student_id → error
     ].join('\n');
 
     const res = await agent
@@ -106,7 +107,7 @@ describe('POST /admin/users/import — CSV import', () => {
   });
 
   it('CSV vacío (solo cabecera) devuelve 0 creados', async () => {
-    const { agent, csrf } = await loginAsAdmin('admin@ufv.es', 'admin123');
+    const { agent, csrf } = await loginAsAdmin(adminEmail, adminPassword);
 
     const csv = 'email,full_name,student_id\n'; // solo cabecera, sin filas
 
@@ -121,7 +122,7 @@ describe('POST /admin/users/import — CSV import', () => {
   });
 
   it('requiere autenticación (401 sin cookie)', async () => {
-    const csv = csvBuffer('email,full_name,student_id\ntest@ufv.es,T,T-001');
+    const csv = csvBuffer('email,full_name,student_id\ntest@test.vtb,T,T-001');
 
     const res = await request(app)
       .post('/admin/users/import')

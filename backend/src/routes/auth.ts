@@ -1,6 +1,5 @@
 import express, { Request, Response } from "express";
 import { z } from "zod";
-import rateLimit from "express-rate-limit";
 import { getDatabase } from "../config/database.js";
 import {
   hashPassword,
@@ -20,6 +19,7 @@ import {
 } from "../utils/auth.js";
 import { extractToken, requireAuth, requireAdmin } from "../middleware/auth.js";
 import { sendPasswordReset } from "../services/email/index.js";
+import { forgotIpLimiter, forgotEmailLimiter } from "../middleware/rateLimit.js";
 
 const router = express.Router();
 const db = getDatabase();
@@ -315,7 +315,7 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
       [req.user!.userId]
     );
     if (!user) {
-      res.status(404).json({ error: "User not found" });
+      res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }
     res.json({
@@ -328,7 +328,7 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
@@ -344,24 +344,24 @@ router.patch("/change-password", requireAuth, async (req: Request, res: Response
   const userId = req.user!.userId;
 
   if (!currentPassword || !newPassword) {
-    res.status(400).json({ error: "Both passwords are required" });
+    res.status(400).json({ error: "Debes indicar la contraseña actual y la nueva" });
     return;
   }
   if (newPassword.length < 6) {
-    res.status(400).json({ error: "Password must be at least 6 characters" });
+    res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
     return;
   }
 
   try {
     const user = await db.get<{ password_hash: string }>("SELECT password_hash FROM users WHERE id = ?", [userId]);
     if (!user) {
-      res.status(404).json({ error: "User not found" });
+      res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }
 
     const isValid = await verifyPassword(currentPassword, user.password_hash);
     if (!isValid) {
-      res.status(401).json({ error: "Current password is incorrect" });
+      res.status(401).json({ error: "La contraseña actual no es correcta" });
       return;
     }
 
@@ -370,7 +370,7 @@ router.patch("/change-password", requireAuth, async (req: Request, res: Response
       "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
       [newHash, userId]
     );
-    res.json({ success: true, message: "Password updated successfully" });
+    res.json({ success: true, message: "Contraseña actualizada correctamente" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -395,7 +395,7 @@ router.get("/me/profile", requireAuth, async (req: Request, res: Response) => {
       [userId]
     );
     if (!user) {
-      res.status(404).json({ error: "User not found" });
+      res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }
     res.json({ user });
@@ -413,7 +413,7 @@ router.patch("/me/profile", requireAuth, async (req: Request, res: Response) => 
   const { name, school, degree, year, study_group } = req.body;
 
   if (name !== undefined && (!name || name.trim().length < 2)) {
-    res.status(400).json({ error: "Name must be at least 2 characters" });
+    res.status(400).json({ error: "El nombre debe tener al menos 2 caracteres" });
     return;
   }
 
@@ -525,23 +525,6 @@ router.post('/logout', async (req: Request, res: Response) => {
 
 const RESET_TTL_MINUTES = 15;
 
-// Limita por dirección de email para que un atacante no inunde de emails
-// una cuenta usando IPs distintas. El keyGenerator accede a req.body porque
-// express.json() ya ha parseado el cuerpo antes de llegar a esta ruta.
-const forgotEmailLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
-  max: 3,
-  keyGenerator: (req: any) => {
-    const email = typeof req.body?.email === 'string'
-      ? req.body.email.trim().toLowerCase()
-      : null;
-    return email ? `forgot:email:${email}` : `forgot:ip:${req.ip ?? 'unknown'}`;
-  },
-  message: { error: 'Demasiadas solicitudes de recuperación. Espera 15 minutos.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
 const forgotSchema = z.object({
   email: z.string().email(),
 });
@@ -556,7 +539,7 @@ const resetSchema = z.object({
  * @desc  Genera un token de un solo uso y envía email con enlace de reset.
  *        Responde siempre 200 (no revela si el email existe).
  */
-router.post('/forgot-password', forgotEmailLimiter, async (req: Request, res: Response) => {
+router.post('/forgot-password', forgotIpLimiter, forgotEmailLimiter, async (req: Request, res: Response) => {
   try {
     const parsed = forgotSchema.safeParse(req.body);
     if (!parsed.success) {

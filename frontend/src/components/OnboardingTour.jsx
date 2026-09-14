@@ -1,6 +1,7 @@
 import { Joyride, STATUS } from 'react-joyride';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { optionalStorageDeclined } from './CookieBanner';
 
 function getTourIdentity(userId) {
   return userId || (() => {
@@ -24,6 +25,10 @@ export function OnboardingTour({ role = 'student', userId }) {
   const keyRef = useRef('');
 
   useEffect(() => {
+    // El aviso de cookies ofrece "rechazar las opcionales"; la marca del tour
+    // es una de ellas. Sin esto, el botón no hacía nada.
+    if (optionalStorageDeclined()) return undefined;
+
     const key = makeTourKey(userId);
     if (!key) return undefined;
 

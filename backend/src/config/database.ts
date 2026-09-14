@@ -278,6 +278,35 @@ export class Database {
       'CREATE INDEX IF NOT EXISTS idx_email_log_status ON email_log(status, created_at)'
     ).catch(() => {});
 
+    // ── Cola de emails con estado en BD (HIGH-1) ─────────────────────────────
+    // next_retry_at   → cuándo vuelve a ser elegible (sustituye a los setTimeout)
+    // claimed_at      → cuándo la reclamó un worker; permite recuperar filas
+    //                   que quedaron en 'sending' porque el proceso murió
+    // idempotency_key → se envía a Resend para que un reintento tras un crash
+    //                   no entregue el mismo correo dos veces
+    await this.exec('ALTER TABLE email_log ADD COLUMN next_retry_at DATETIME DEFAULT NULL').catch(() => {});
+    await this.exec('ALTER TABLE email_log ADD COLUMN claimed_at DATETIME DEFAULT NULL').catch(() => {});
+    await this.exec('ALTER TABLE email_log ADD COLUMN idempotency_key TEXT DEFAULT NULL').catch(() => {});
+    await this.exec(
+      'CREATE INDEX IF NOT EXISTS idx_email_log_pending ON email_log(status, next_retry_at)'
+    ).catch(() => {});
+
+    // Reconciliación de filas anteriores al cambio de máquina de estados.
+    // 'failed' dejó de ser un estado de espera: ahora lo pendiente es 'queued'
+    // y lo agotado es 'dead'. Sin esto, los correos que quedaron en 'failed'
+    // no los recogería nadie.
+    await this.exec(
+      "UPDATE email_log SET status = 'queued' WHERE status = 'failed' AND attempts < 5"
+    ).catch(() => {});
+    await this.exec(
+      "UPDATE email_log SET status = 'dead' WHERE status = 'failed' AND attempts >= 5"
+    ).catch(() => {});
+    // Filas 'queued' antiguas sin next_retry_at: elegibles ya.
+    await this.exec(
+      "UPDATE email_log SET next_retry_at = ? WHERE status = 'queued' AND next_retry_at IS NULL",
+      [new Date().toISOString()]
+    ).catch(() => {});
+
     await this.exec(`
       CREATE TABLE IF NOT EXISTS password_reset_tokens (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,

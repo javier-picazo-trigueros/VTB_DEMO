@@ -6,6 +6,7 @@ import { parse as parseCSVLib } from "csv-parse/sync";
 import { getDatabase } from "../config/database.js";
 import { hashPassword, generateToken, generateSecureToken } from "../utils/auth.js";
 import { requireAdmin } from "../middleware/auth.js";
+import { formatError } from "../utils/errors.js";
 import { ethers } from "ethers";
 import {
   sendCensusInvitation,
@@ -196,7 +197,7 @@ router.get("/dashboard", requireAdmin, async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error in dashboard:", error);
-    res.status(500).json({ error: "Error loading dashboard stats" });
+    res.status(500).json({ error: "Error al cargar las estadísticas del panel" });
   }
 });
 
@@ -322,7 +323,7 @@ router.post("/users", requireAdmin, async (req: Request, res: Response) => {
 router.post("/users/import", requireAdmin, upload.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
-      res.status(400).json({ error: 'No file provided' });
+      res.status(400).json({ error: "No se ha adjuntado ningún archivo" });
       return;
     }
 
@@ -336,7 +337,7 @@ router.post("/users/import", requireAdmin, upload.single('file'), async (req: Re
       const role = row.role?.trim() || 'student';
 
       if (!email || !full_name || !student_id) {
-        results.errors.push(`Skipped row with missing data: ${JSON.stringify(row)}`);
+        results.errors.push(`Fila omitida por datos incompletos: ${JSON.stringify(row)}`);
         continue;
       }
 
@@ -345,7 +346,7 @@ router.post("/users/import", requireAdmin, upload.single('file'), async (req: Re
         const adminDomain = getAdminDomain(req);
         const emailDomain = email.split('@')[1];
         if (adminDomain && !isSubDomain(emailDomain, adminDomain)) {
-          results.errors.push(`Domain not allowed: ${email}`);
+          results.errors.push(`Dominio no permitido: ${email}`);
           continue;
         }
       }
@@ -383,7 +384,7 @@ router.post("/users/import", requireAdmin, upload.single('file'), async (req: Re
     res.json({ success: true, results });
   } catch (error) {
     console.error("Error importing users CSV:", error);
-    res.status(500).json({ error: "Error importing users" });
+    res.status(500).json({ error: "Error al importar usuarios" });
   }
 });
 
@@ -704,8 +705,8 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
         }
 
         console.log(`Election "${name}" registered on-chain: ${tx.hash} (block ${receipt?.blockNumber})`);
-      } catch (bcErr: any) {
-        console.warn(`Could not register election on-chain (best-effort): ${bcErr.message}`);
+      } catch (bcErr) {
+        console.warn(`Could not register election on-chain (best-effort): ${formatError(bcErr)}`);
       }
     }
 
@@ -717,7 +718,7 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
       message: `Elección "${name}" creada exitosamente`,
     });
   } catch (error) {
-    console.error("Error creando elección:", error);
+    console.error("Error creando elección:", formatError(error));
     res.status(500).json({ error: "Error al crear elección" });
   }
 });
@@ -758,7 +759,7 @@ router.patch("/elections/:id", requireAdmin, async (req: Request, res: Response)
   try {
     const election = await db.get("SELECT * FROM elections WHERE id = ?", [id]);
     if (!election) {
-      res.status(404).json({ error: "Election not found" });
+      res.status(404).json({ error: "Elección no encontrada" });
       return;
     }
     await db.exec(
@@ -770,7 +771,7 @@ router.patch("/elections/:id", requireAdmin, async (req: Request, res: Response)
        WHERE id = ?`,
       [name || null, description || null, end_time || null, id]
     );
-    res.json({ success: true, message: "Election updated" });
+    res.json({ success: true, message: "Elección actualizada" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -783,7 +784,7 @@ router.post("/elections/:id/image", requireAdmin, upload.single('file'), async (
   try {
     const { id } = req.params;
     if (!req.file) {
-      res.status(400).json({ error: 'No image file provided' });
+      res.status(400).json({ error: "No se ha adjuntado ninguna imagen" });
       return;
     }
 
@@ -793,10 +794,10 @@ router.post("/elections/:id/image", requireAdmin, upload.single('file'), async (
 
     await db.exec("UPDATE elections SET image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [imageUrl, id]);
 
-    res.json({ success: true, message: 'Image uploaded successfully' });
+    res.json({ success: true, message: 'Imagen subida correctamente' });
   } catch (error) {
     console.error("Error uploading election image:", error);
-    res.status(500).json({ error: "Error uploading image" });
+    res.status(500).json({ error: "Error al subir la imagen" });
   }
 });
 
@@ -814,7 +815,7 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
     const { id } = paramParsed.data;
 
     if (!req.file) {
-      res.status(400).json({ error: 'No file provided' });
+      res.status(400).json({ error: "No se ha adjuntado ningún archivo" });
       return;
     }
 
@@ -822,7 +823,7 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
       "SELECT id, name FROM elections WHERE id = ?", [id]
     );
     if (!election) {
-      res.status(404).json({ error: 'Election not found' });
+      res.status(404).json({ error: "Elección no encontrada" });
       return;
     }
 
@@ -835,7 +836,7 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
       const student_id = row.student_id?.trim();
 
       if (!email) {
-        results.errors.push(`Row missing email: ${JSON.stringify(row)}`);
+        results.errors.push(`Fila sin email: ${JSON.stringify(row)}`);
         continue;
       }
 
@@ -853,7 +854,7 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
 
       if (!user) {
         if (!full_name || !student_id) {
-          results.errors.push(`New user ${email} missing full_name or student_id`);
+          results.errors.push(`Falta full_name o student_id para el usuario nuevo ${email}`);
           continue;
         }
         try {
@@ -915,7 +916,7 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
     res.json({ success: true, results });
   } catch (error) {
     console.error("Error importing voters CSV:", error);
-    res.status(500).json({ error: "Error importing voters" });
+    res.status(500).json({ error: "Error al importar votantes" });
   }
 });
 
@@ -1080,7 +1081,7 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
     );
 
     if (!request) {
-      res.status(404).json({ error: "Request not found" });
+      res.status(404).json({ error: "Solicitud no encontrada" });
       return;
     }
 
@@ -1089,7 +1090,7 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
         const adminDomain = getAdminDomain(req);
         const requestDomain = request.email.split('@')[1];
         if (adminDomain && !isSubDomain(requestDomain, adminDomain)) {
-          res.status(403).json({ error: "You can only manage requests from your domain" });
+          res.status(403).json({ error: "Solo puedes gestionar solicitudes de tu propio dominio" });
           return;
         }
       }
@@ -1330,7 +1331,7 @@ router.get("/org-units", requireAdmin, async (req: Request, res: Response) => {
     res.json({ units: units || [] });
   } catch (error) {
     console.error("Error getting org units:", error);
-    res.status(500).json({ error: "Error getting org units" });
+    res.status(500).json({ error: "Error al obtener las unidades organizativas" });
   }
 });
 
@@ -1342,14 +1343,14 @@ router.post("/org-units", requireAdmin, async (req: Request, res: Response) => {
     const { name, domain, parent_domain, unit_type } = req.body;
 
     if (!name || !domain || !unit_type) {
-      res.status(400).json({ error: "name, domain and unit_type are required" });
+      res.status(400).json({ error: "Nombre, dominio y tipo de unidad son obligatorios" });
       return;
     }
 
     if (!isSuperAdmin(req)) {
       const adminDomain = getAdminDomain(req);
       if (!adminDomain || !isSubDomain(domain, adminDomain)) {
-        res.status(403).json({ error: "You can only create org units within your domain" });
+        res.status(403).json({ error: "Solo puedes crear unidades organizativas dentro de tu dominio" });
         return;
       }
     }
@@ -1367,13 +1368,13 @@ router.post("/org-units", requireAdmin, async (req: Request, res: Response) => {
       [name, domain, parent_domain || null, unit_type, institution_domain]
     );
 
-    res.json({ success: true, id: result.lastID, message: `Org unit ${name} created` });
+    res.json({ success: true, id: result.lastID, message: `Unidad organizativa "${name}" creada` });
   } catch (error: any) {
     if (error.message?.includes('UNIQUE')) {
-      res.status(409).json({ error: "Domain already exists in org units" });
+      res.status(409).json({ error: "Ese dominio ya existe entre las unidades organizativas" });
     } else {
       console.error("Error creating org unit:", error);
-      res.status(500).json({ error: "Error creating org unit" });
+      res.status(500).json({ error: "Error al crear la unidad organizativa" });
     }
   }
 });
@@ -1525,6 +1526,9 @@ router.get("/blockchain-status", requireAdmin, async (req: Request, res: Respons
       electionCount: electionCount.toString(),
     });
   } catch (err: any) {
+    console.warn("blockchain-status check failed:", formatError(err));
+    // NOTA (P1-15, HIGH sin tocar): `reason` sigue enviando err.message crudo
+    // al cliente. El saneado de A1 cubre el log, no esta respuesta.
     res.json({
       connected: false,
       reason: err.message || "Could not connect to blockchain node",
@@ -1548,7 +1552,7 @@ router.get("/elections/:id/stats", requireAdmin, async (req: Request, res: Respo
       [id]
     );
     if (!election) {
-      res.status(404).json({ error: "Election not found" });
+      res.status(404).json({ error: "Elección no encontrada" });
       return;
     }
 
@@ -1614,7 +1618,7 @@ router.get("/elections/:id/stats", requireAdmin, async (req: Request, res: Respo
     });
   } catch (error) {
     console.error("Error in election stats:", error);
-    res.status(500).json({ error: "Error loading election stats" });
+    res.status(500).json({ error: "Error al cargar las estadísticas de la elección" });
   }
 });
 

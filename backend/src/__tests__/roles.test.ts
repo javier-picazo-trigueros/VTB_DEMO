@@ -1,22 +1,23 @@
 /**
  * Tests de control de acceso por rol.
  * Migrado de Authorization: Bearer a autenticación por cookie.
+ * Usa usuarios fixture propios — no depende del seed global.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
+import { createFixtureUser, loginAsFixture } from './helpers/fixtures.js';
 
 describe('Role access control', () => {
-  // Supertest agents mantienen el jar de cookies entre peticiones
   let studentAgent: ReturnType<typeof request.agent>;
   let adminAgent: ReturnType<typeof request.agent>;
 
   beforeAll(async () => {
-    studentAgent = request.agent(app);
-    await studentAgent.post('/auth/login').send({ email: 'carlos@ufv.es', password: 'demo123' });
+    const student = await createFixtureUser({ role: 'student' });
+    const admin = await createFixtureUser({ role: 'admin', adminDomain: 'test.vtb' });
 
-    adminAgent = request.agent(app);
-    await adminAgent.post('/auth/login').send({ email: 'admin@ufv.es', password: 'admin123' });
+    ({ agent: studentAgent } = await loginAsFixture(student.email, student.password));
+    ({ agent: adminAgent } = await loginAsFixture(admin.email, admin.password));
   });
 
   it('unauthenticated request to /api/elections returns 401', async () => {

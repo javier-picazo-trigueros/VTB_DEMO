@@ -4,11 +4,18 @@ import express, { Express, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import { getDatabase } from "./config/database.js";
 import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
 import { verifyToken, validateCsrfToken, COOKIE_NAME_ACCESS, COOKIE_NAME_CSRF } from "./utils/auth.js";
 import { requireAdmin, requireAuth } from "./middleware/auth.js";
+import { formatError } from "./utils/errors.js";
+import {
+  loginLimiter,
+  registerLimiter,
+  resetPasswordLimiter,
+  voteUserLimiter,
+  voteIpLimiter,
+} from "./middleware/rateLimit.js";
 import authRoutes from "./routes/auth.js";
 import electionRoutes from "./routes/elections.js";
 import adminRoutes from "./routes/admin.js";
@@ -16,6 +23,20 @@ import registrationRoutes from "./routes/registration.js";
 import organizationRoutes from "./routes/organizations.js";
 
 const app: Express = express();
+
+// ============================================================
+// TRUST PROXY (A3)
+// En Render/Vercel la app corre detrás de un proxy inverso. Sin esto,
+// req.ip es la IP del proxy y TODOS los usuarios comparten el mismo cubo
+// de rate limiting: el primer usuario que agote el límite bloquea al resto.
+//
+// Se confía en un único salto, no en `true`. Con `true` cualquier cliente
+// podría falsificar X-Forwarded-For y saltarse los límites por IP.
+// ============================================================
+
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 // ============================================================
 // SECURITY HEADERS (helmet)
@@ -177,40 +198,8 @@ app.use((req: any, res: any, next: any) => {
 
 // ============================================================
 // RATE LIMITING
+// Todos los limitadores viven en middleware/rateLimit.ts (A3).
 // ============================================================
-
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production'
-    ? parseInt(process.env.RATE_LIMIT_MAX || '10')
-    : 100,
-  message: { error: 'Too many login attempts. Try again in 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Per-user vote limiter: 3 per minute keyed on authenticated userId.
-// requireAuth must have already set req.user before this runs.
-// In test mode the limit is lifted so sequential tests don't exhaust the quota.
-const voteUserLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: process.env.NODE_ENV === 'test' ? 1_000_000 : 3,
-  keyGenerator: (req: any) => `vote:user:${req.user?.userId ?? 'anon'}`,
-  message: { error: 'Demasiados intentos de voto. Espera un minuto.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// IP backstop — high enough to not block a NAT'd campus (typically
-// hundreds of users behind one public IP), low enough to stop scripted floods.
-const voteIpLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: process.env.NODE_ENV === 'test' ? 1_000_000 : 500,
-  keyGenerator: (req: any) => `vote:ip:${req.ip ?? 'unknown'}`,
-  message: { error: 'Demasiados intentos de voto desde esta red. Espera un minuto.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 // ============================================================
 // ROUTES
@@ -245,7 +234,7 @@ app.get("/api/org-units", async (req: any, res: Response) => {
     res.json({ units: units || [] });
   } catch (error) {
     console.error("Error getting public org units:", error);
-    res.status(500).json({ error: "Error getting org units" });
+    res.status(500).json({ error: "Error al obtener las unidades organizativas" });
   }
 });
 
@@ -282,9 +271,9 @@ app.get('/api/stats', async (req: any, res: Response) => {
 });
 
 app.post('/api/admin/sync-blockchain', requireAdmin, async (req: any, res: Response) => {
-  res.json({ message: 'Sync started', status: 'running' });
+  res.json({ message: 'Sincronización iniciada', status: 'running' });
   syncElectionsToBlockchain().catch(err => {
-    console.error('Manual sync error:', err);
+    console.error('Manual sync error:', formatError(err));
   });
 });
 
@@ -312,7 +301,12 @@ app.get('/api/audit/public', async (req: any, res: Response) => {
   }
 });
 
+// A3: limitadores montados antes del router, para que se apliquen aunque el
+// handler cambie de sitio. /auth/forgot-password lleva los suyos (IP + email)
+// dentro de routes/auth.ts, junto al handler.
 app.post("/auth/login", loginLimiter);
+app.post("/auth/register", registerLimiter);
+app.post("/auth/reset-password", resetPasswordLimiter);
 app.use("/auth", authRoutes);
 
 // requireAuth runs first so req.user is available to voteUserLimiter's keyGenerator.
@@ -323,6 +317,7 @@ app.use("/api/organizations", organizationRoutes);
 
 app.use("/admin", adminRoutes);
 
+app.post("/registration/request", registerLimiter);
 app.use("/registration", registrationRoutes);
 
 app.get("/api/schools-degrees", async (req: any, res: Response) => {
@@ -338,7 +333,7 @@ app.get("/api/schools-degrees", async (req: any, res: Response) => {
     res.json({ schools_degrees: items || [] });
   } catch (error) {
     console.error("Error fetching schools/degrees:", error);
-    res.status(500).json({ error: "Error fetching schools and degrees" });
+    res.status(500).json({ error: "Error al obtener escuelas y titulaciones" });
   }
 });
 
@@ -356,7 +351,9 @@ app.get("/", (req: any, res: Response) => {
 });
 
 app.use((err: any, req: any, res: any, next: any) => {
-  console.error("Error no manejado:", err);
+  // Catch-all: cualquier rechazo no capturado llega aquí, incluidos los de
+  // ethers si algún camino se escapa de su try. Saneado por defecto (A1).
+  console.error("Error no manejado:", formatError(err));
   res.status(500).json({ error: "Error interno del servidor" });
 });
 

@@ -18,6 +18,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
 import { getDatabase } from '../config/database.js';
+import { createFixtureUser, loginAsFixture } from './helpers/fixtures.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -212,17 +213,24 @@ describe('Protección de rutas', () => {
 // ── Suite de aislamiento de dominio ───────────────────────────────────────────
 
 describe('Aislamiento de dominio admin', () => {
-  it('admin de ufv.es no puede ver usuarios de highlands.edu', async () => {
-    const { agent, csrf } = await loginAs('admin@ufv.es', 'admin123');
+  it('un admin no puede ver usuarios de un dominio distinto al suyo', async () => {
+    // Segunda "institución" creada solo para este test, no depende del seed
+    // global — así el aislamiento se comprueba con datos propios y no se ve
+    // afectado si la universidad ficticia del seed cambia de nombre o dominio.
+    const domainA = `dept-a-${Date.now()}.test`;
+    const domainB = `dept-b-${Date.now()}.test`;
 
-    // Buscar un usuario de highlands.edu: el admin UFV no debería verlo
+    const admin = await createFixtureUser({ role: 'admin', adminDomain: domainA });
+    const otherDomainUser = await createFixtureUser({ email: `student@${domainB}`, role: 'student' });
+
+    const { agent, csrf } = await loginAsFixture(admin.email, admin.password);
+
     const res = await agent
       .get('/admin/users?approved=true')
       .set('X-CSRF-Token', csrf);
 
     expect(res.status).toBe(200);
     const emails: string[] = (res.body.users ?? []).map((u: { email: string }) => u.email);
-    const crossDomain = emails.filter(e => e.endsWith('@highlands.edu'));
-    expect(crossDomain.length).toBe(0);
+    expect(emails).not.toContain(otherDomainUser.email);
   });
 });

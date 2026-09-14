@@ -6,12 +6,50 @@ import { hashPassword, generateNullifier } from "../utils/auth.js";
  * - Idempotente: no duplica datos si ya existen.
  * - Se llama automáticamente al arrancar la app si la BD está vacía.
  * - También ejecutable manualmente: npm run seed
+ *
+ * Solo genera datos para la universidad ficticia "Meridian University"
+ * (dominio vtb.demo) y el superadmin de plataforma (vtb.system). No crea
+ * ni mantiene ninguna otra institución — si una base de datos ya tiene
+ * cuentas reales bajo otros dominios (p. ej. de un piloto real), este
+ * script nunca las toca ni las borra: solo usa INSERT OR IGNORE / UPDATE
+ * sobre las cuentas de vtb.demo y vtb.system.
  */
+/**
+ * Contraseña de una cuenta privilegiada del seed (A4).
+ *
+ * No hay valor por defecto: si la variable falta o es demasiado corta, el seed
+ * aborta nombrándola. Antes estas contraseñas estaban escritas en el código
+ * ("superadmin123", "admin123") y publicadas en el README, lo que convertía
+ * cualquier despliegue sembrado en un superadmin de acceso público.
+ */
+function requiredSeedPassword(varName: string, account: string): string {
+  const value = process.env[varName];
+  if (!value || value.trim().length < 12) {
+    throw new Error(
+      `FATAL: la variable de entorno "${varName}" es obligatoria para sembrar ` +
+      `la cuenta privilegiada ${account}, y debe tener al menos 12 caracteres.\n` +
+      `  Genera una con:\n` +
+      `    node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))"\n` +
+      `  y defínela en backend/.env (local) o en las variables de entorno de tu proveedor.\n` +
+      `  Nunca vuelvas a poner una contraseña de administrador en el código ni en el README.`,
+    );
+  }
+  return value;
+}
+
+/**
+ * Contraseña de las cuentas de estudiante de demostración.
+ * Estas sí conservan un valor por defecto: son cuentas sin privilegios en un
+ * dominio ficticio (@vtb.demo) y existen para poder enseñar el flujo de voto.
+ */
+function demoStudentPassword(): string {
+  return process.env.SEED_DEMO_STUDENT_PASSWORD || 'demo123';
+}
+
 export async function seedDemoData(): Promise<void> {
   const db = getDatabase();
 
-  // Normalize the Highlands domain in existing databases. Only @vtb.demo is demo-only;
-  // UFV and Highlands accounts are real Sepolia voters.
+  // Defensive typo-fix for historical rows only (does not create demo data).
   await db.exec("UPDATE users SET email = replace(email, '@highland.edu', '@highlands.edu') WHERE email LIKE '%@highland.edu'").catch(() => {});
   await db.exec("UPDATE users SET admin_domain = 'highlands.edu' WHERE admin_domain = 'highland.edu'").catch(() => {});
   await db.exec("UPDATE org_units SET domain = 'highlands.edu' WHERE domain = 'highland.edu'").catch(() => {});
@@ -25,12 +63,50 @@ export async function seedDemoData(): Promise<void> {
      AND user_id IN (SELECT id FROM users WHERE email NOT LIKE '%@vtb.demo')`
   ).catch(() => {});
 
-  // Seed org units always (idempotent) — kept for backward compat with legacy features
+  // Rename the "vtb.demo" sandbox identity to "Meridian University" for live demos.
+  // Domain and emails are UNCHANGED (student@vtb.demo etc. — tests and DemoLoginModal
+  // depend on these literal addresses); only display names change. Idempotent.
+  await db.exec("UPDATE users SET name = 'Alex Ferrer' WHERE email = 'student@vtb.demo' AND name = 'Demo Student'").catch(() => {});
+  await db.exec("UPDATE users SET name = 'Marina Costa' WHERE email = 'student2@vtb.demo' AND name = 'Demo Student VTB 2'").catch(() => {});
+  await db.exec("UPDATE users SET name = 'Elena Ibarra' WHERE email = 'admin@vtb.demo' AND name = 'Demo Administrator'").catch(() => {});
+  await db.exec("UPDATE users SET name = 'Marta Reyes' WHERE email = 'superadmin@vtb.demo' AND name = 'Demo Super Admin'").catch(() => {});
+  await db.exec("UPDATE elections SET name = 'Meridian University Student Council Election', description = 'Elige a los representantes del consejo estudiantil de Meridian University para el curso 2026.' WHERE name = 'VTB Demo Sandbox Election'").catch(() => {});
+  await db.exec("UPDATE elections SET name = 'Elección al Consejo de Estudiantes — Meridian University', description = 'Elige a tus representantes en el Consejo de Estudiantes de Meridian University para el curso 2026.' WHERE name = 'Meridian University Student Council Election'").catch(() => {});
+  await db.exec("UPDATE elections SET name = 'Referéndum Conjunto entre Instituciones', description = 'Consulta sobre el modelo de auditoría de las votaciones.' WHERE name = 'Multi-Institution Demo Referendum'").catch(() => {});
+  await db.exec("UPDATE elections SET name = 'Votación de Gobernanza entre Administradores', description = 'Los administradores deciden la frecuencia de las exportaciones de auditoría pública.' WHERE name = 'Admin Demo Governance Vote'").catch(() => {});
+  await db.exec(
+    `UPDATE candidates SET name = 'Laura Sáez', description = '3º de Económicas — más espacios de estudio flexibles y talleres abiertos a toda la comunidad.'
+     WHERE name = 'Open Campus Proposal' AND election_id IN (SELECT id FROM elections WHERE name = 'Elección al Consejo de Estudiantes — Meridian University')`
+  ).catch(() => {});
+  await db.exec(
+    `UPDATE candidates SET name = 'Marco Ibáñez', description = '2º de Ingeniería — más servicios digitales, paneles en tiempo real y participación remota.'
+     WHERE name = 'Digital First Proposal' AND election_id IN (SELECT id FROM elections WHERE name = 'Elección al Consejo de Estudiantes — Meridian University')`
+  ).catch(() => {});
+  await db.exec(
+    `UPDATE candidates SET name = 'Auditoría Pública Ampliada', description = 'Publicar más detalle de cada proceso electoral en el panel de auditoría pública.'
+     WHERE name = 'Adopt Blockchain Audits' AND election_id IN (SELECT id FROM elections WHERE name = 'Referéndum Conjunto entre Instituciones')`
+  ).catch(() => {});
+  await db.exec(
+    `UPDATE candidates SET name = 'Mantener Auditoría Actual', description = 'Mantener el nivel de detalle actual en los registros públicos.'
+     WHERE name = 'Keep Internal Audits' AND election_id IN (SELECT id FROM elections WHERE name = 'Referéndum Conjunto entre Instituciones')`
+  ).catch(() => {});
+  await db.exec(
+    `UPDATE candidates SET name = 'Auditoría Mensual', description = 'Exigir una exportación pública de auditoría cada mes.'
+     WHERE name = 'Enable Monthly Audits' AND election_id IN (SELECT id FROM elections WHERE name = 'Votación de Gobernanza entre Administradores')`
+  ).catch(() => {});
+  await db.exec(
+    `UPDATE candidates SET name = 'Auditoría Trimestral', description = 'Exigir una exportación pública de auditoría cada trimestre.'
+     WHERE name = 'Enable Quarterly Audits' AND election_id IN (SELECT id FROM elections WHERE name = 'Votación de Gobernanza entre Administradores')`
+  ).catch(() => {});
+  // These two elections used to be cross-institution demos; now Meridian-only.
+  await db.exec("DELETE FROM election_access WHERE email_domain != 'vtb.demo' AND election_id IN (SELECT id FROM elections WHERE name IN ('Referéndum Conjunto entre Instituciones', 'Votación de Gobernanza entre Administradores'))").catch(() => {});
+
+  // ============================================================
+  // Org unit — solo Meridian University (vtb.demo) + plataforma (vtb.system)
+  // ============================================================
   const orgUnits = [
-    { name: 'Universidad Francisco de Vitoria', domain: 'ufv.es', parent_domain: null, unit_type: 'institution', institution_domain: 'ufv.es', logo_url: '/logos/ufv.png', primary_color: '#004b87' },
-    { name: 'Highlands School', domain: 'highlands.edu', parent_domain: null, unit_type: 'institution', institution_domain: 'highlands.edu', logo_url: '/logos/highland.png', primary_color: '#0f204b' },
-    { name: 'VTB Administration', domain: 'vtb.system', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.system', logo_url: '/logos/vtb.svg', primary_color: '#3b82f6' },
-    { name: 'VTB Demo Sandbox', domain: 'vtb.demo', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.demo', logo_url: '/logos/vtb.svg', primary_color: '#2563eb' },
+    { name: 'VTB Administration', domain: 'vtb.system', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.system', logo_url: '/logos/vtb.svg', primary_color: '#1B4D6A' },
+    { name: 'Meridian University', domain: 'vtb.demo', parent_domain: null, unit_type: 'institution', institution_domain: 'vtb.demo', logo_url: '/logos/vtb.svg', primary_color: '#1B4D6A' },
   ];
   for (const ou of orgUnits) {
     await db.exec(
@@ -42,133 +118,71 @@ export async function seedDemoData(): Promise<void> {
       `UPDATE org_units SET institution_domain = ? WHERE domain = ? AND (institution_domain = '' OR institution_domain IS NULL)`,
       [ou.institution_domain, ou.domain]
     ).catch(() => {});
-    if (ou.unit_type === 'institution') {
-      await db.exec(
-        `UPDATE org_units SET name = ?, logo_url = ?, primary_color = ? WHERE domain = ?`,
-        [ou.name, ou.logo_url, ou.primary_color, ou.domain]
-      ).catch(() => {});
-    }
+    await db.exec(
+      `UPDATE org_units SET name = ?, logo_url = ?, primary_color = ? WHERE domain = ?`,
+      [ou.name, ou.logo_url, ou.primary_color, ou.domain]
+    ).catch(() => {});
   }
 
-  // Seed schools_and_degrees (idempotent)
-  const ufvSchoolsAndDegrees = [
-    // Escuela Politécnica Superior (EPS)
-    { school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', code: 'GINF', years: 4 },
-    { school: 'Escuela Politécnica Superior', degree: 'Ingeniería en Sistemas Industriales', code: 'GISI', years: 4 },
-    { school: 'Escuela Politécnica Superior', degree: 'Ingeniería de la Industria Conectada', code: 'GIIC', years: 4 },
-    { school: 'Escuela Politécnica Superior', degree: 'Ingeniería Mecánica', code: 'GMEC', years: 4 },
-    { school: 'Escuela Politécnica Superior', degree: 'Arquitectura', code: 'GARQ', years: 5 },
-    // Facultad de Ciencias de la Salud
-    { school: 'Facultad de Ciencias de la Salud', degree: 'Medicina', code: 'GMED', years: 6 },
-    { school: 'Facultad de Ciencias de la Salud', degree: 'Enfermería', code: 'GENF', years: 4 },
-    { school: 'Facultad de Ciencias de la Salud', degree: 'Fisioterapia', code: 'GFIS', years: 4 },
-    { school: 'Facultad de Ciencias de la Salud', degree: 'Farmacia', code: 'GFAR', years: 5 },
-    { school: 'Facultad de Ciencias de la Salud', degree: 'Nutrición Humana y Dietética', code: 'GNUT', years: 4 },
-    { school: 'Facultad de Ciencias de la Salud', degree: 'Biomedicina', code: 'GBIO', years: 4 },
-    // Facultad de Derecho, Empresa y Gobierno
-    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Derecho', code: 'GDER', years: 4 },
-    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Administración y Dirección de Empresas', code: 'GADE', years: 4 },
-    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Criminología', code: 'GCRI', years: 4 },
-    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Relaciones Internacionales', code: 'GRII', years: 4 },
-    { school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Gastronomía y Artes Culinarias', code: 'GGAS', years: 4 },
-    // Facultad de Ciencias de la Comunicación
-    { school: 'Facultad de Ciencias de la Comunicación', degree: 'Periodismo', code: 'GPER', years: 4 },
-    { school: 'Facultad de Ciencias de la Comunicación', degree: 'Comunicación Audiovisual', code: 'GCAV', years: 4 },
-    { school: 'Facultad de Ciencias de la Comunicación', degree: 'Publicidad y Relaciones Públicas', code: 'GPRP', years: 4 },
-    // Facultad de Educación y Psicología
-    { school: 'Facultad de Educación y Psicología', degree: 'Psicología', code: 'GPSI', years: 4 },
-    { school: 'Facultad de Educación y Psicología', degree: 'Educación Infantil', code: 'GEDI', years: 4 },
-    { school: 'Facultad de Educación y Psicología', degree: 'Educación Primaria', code: 'GEDP', years: 4 },
-    { school: 'Facultad de Educación y Psicología', degree: 'Ciencias de la Actividad Física y del Deporte', code: 'GCAF', years: 4 },
-    // Facultad de Ciencias Experimentales
-    { school: 'Facultad de Ciencias Experimentales', degree: 'Biotecnología', code: 'FBIO', years: 4 },
-    { school: 'Facultad de Ciencias Experimentales', degree: 'Ciencias Ambientales', code: 'GCAM', years: 4 },
-    { school: 'Facultad de Ciencias Experimentales', degree: 'Matemáticas', code: 'GMAT', years: 4 },
+  // ============================================================
+  // Facultades y titulaciones de Meridian University (idempotente)
+  // ============================================================
+  const meridianDegrees = [
+    { school: 'Facultad de Ciencias Económicas y Empresariales', degree: 'Economía', code: 'MER-ECO', years: 4 },
+    { school: 'Facultad de Ciencias Económicas y Empresariales', degree: 'Administración y Dirección de Empresas', code: 'MER-ADE', years: 4 },
+    { school: 'Escuela de Ingeniería', degree: 'Ingeniería Informática', code: 'MER-INF', years: 4 },
+    { school: 'Escuela de Ingeniería', degree: 'Ingeniería Industrial', code: 'MER-IND', years: 4 },
+    { school: 'Facultad de Comunicación', degree: 'Comunicación Audiovisual', code: 'MER-CAV', years: 4 },
+    { school: 'Facultad de Comunicación', degree: 'Periodismo', code: 'MER-PER', years: 4 },
+    { school: 'Facultad de Ciencias de la Salud', degree: 'Psicología', code: 'MER-PSI', years: 4 },
+    { school: 'Facultad de Ciencias de la Salud', degree: 'Enfermería', code: 'MER-ENF', years: 4 },
+    { school: 'Facultad de Derecho', degree: 'Derecho', code: 'MER-DER', years: 4 },
+    { school: 'Facultad de Derecho', degree: 'Criminología', code: 'MER-CRI', years: 4 },
   ];
-  for (const item of ufvSchoolsAndDegrees) {
+  for (const item of meridianDegrees) {
     const exists = await db.get<{ id: number }>(
       'SELECT id FROM schools_and_degrees WHERE institution_domain = ? AND school_name = ? AND degree_name = ?',
-      ['ufv.es', item.school, item.degree]
+      ['vtb.demo', item.school, item.degree]
     );
     if (!exists) {
       await db.exec(
         `INSERT INTO schools_and_degrees (institution_domain, school_name, degree_name, degree_code, years)
          VALUES (?, ?, ?, ?, ?)`,
-        ['ufv.es', item.school, item.degree, item.code, item.years]
+        ['vtb.demo', item.school, item.degree, item.code, item.years]
       ).catch(() => {});
     }
   }
 
-  const highlandsDegrees = [
-    { school: 'Secondary School', degree: 'GCSE Programme', years: 2 },
-    { school: 'Secondary School', degree: 'A-Level Programme', years: 2 },
-    { school: 'Sixth Form', degree: 'IB Diploma Programme', years: 2 },
-  ];
-  for (const item of highlandsDegrees) {
-    const exists = await db.get<{ id: number }>(
-      'SELECT id FROM schools_and_degrees WHERE institution_domain = ? AND degree_name = ?',
-      ['highlands.edu', item.degree]
-    );
-    if (!exists) {
-      await db.exec(
-        `INSERT INTO schools_and_degrees (institution_domain, school_name, degree_name, years)
-         VALUES (?, ?, ?, ?)`,
-        ['highlands.edu', item.school, item.degree, item.years]
-      ).catch(() => {});
-    }
-  }
-
-  // Always upsert critical demo accounts so production DB stays consistent
+  // ============================================================
+  // Cuentas demo — se mantienen en cada arranque (idempotente)
+  // ============================================================
   const criticalAccounts = [
-    { email: "superadmin@vtb.system", name: "Super Admin",           student_id: "SUPERADMIN-001", password: "superadmin123", role: "superadmin", admin_domain: null },
-    { email: "admin@ufv.es",           name: "Admin UFV",             student_id: "ADMIN-UFV-001",  password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
-    { email: "admin@universidad.edu",  name: "Admin Universidad",     student_id: "ADMIN-EDU-001",  password: "admin123",      role: "admin",      admin_domain: "universidad.edu" },
-    { email: "admin@highlands.edu",     name: "Admin Highlands",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highlands.edu" },
-    { email: "admin@eps.ufv.es",       name: "Admin EPS UFV",         student_id: "ADMIN-EPS-001",  password: "admin123",      role: "admin",      admin_domain: "eps.ufv.es" },
-    { email: "admin@vtb.demo",         name: "Demo Administrator",    student_id: "DEMO-ADM-001",   password: "admin123",      role: "admin",      admin_domain: "vtb.demo" },
-    { email: "admin.demo@ufv.es",      name: "Demo Admin UFV",        student_id: "ADMIN-UFV-DEMO", password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
-    { email: "admin.demo@highlands.edu",name: "Demo Admin Highlands",   student_id: "ADMIN-HLD-DEMO", password: "admin123",      role: "admin",      admin_domain: "highlands.edu" },
-    { email: "admin.demo@universidad.edu", name: "Demo Admin Universidad", student_id: "ADMIN-EDU-DEMO", password: "admin123", role: "admin",      admin_domain: "universidad.edu" },
-    { email: "superadmin@vtb.demo",    name: "Demo Super Admin",      student_id: "SUPERADMIN-DEMO", password: "superadmin123", role: "superadmin", admin_domain: null },
-    { email: "student@vtb.demo",       name: "Demo Student",          student_id: "DEMO-STU-001",   password: "demo123",       role: "student",    admin_domain: null },
-    { email: "student2@vtb.demo",      name: "Demo Student VTB 2",    student_id: "VTB-DEMO-002",   password: "demo123",       role: "student",    admin_domain: null },
-    { email: "julio@ufv.es",           name: "Julio Martinez Campos",  student_id: "UFV-PROF-001",   password: "profesor123",   role: "student",    admin_domain: null },
-    { email: "susana@eps.ufv.es",      name: "Susana Ferreira Blanco", student_id: "EPS-DIR-001",    password: "director123",   role: "admin",      admin_domain: "eps.ufv.es" },
-    { email: "olga@eps.ufv.es",        name: "Olga Navarro Ruiz",      student_id: "EPS-DIR-002",    password: "director123",   role: "admin",      admin_domain: "eps.ufv.es" },
-    { email: "julio@highlands.edu",     name: "Julio Martinez Campos (Highlands)", student_id: "HLD-PROF-001", password: "profesor123", role: "student", admin_domain: null },
-    { email: "demo.ufv@ufv.es",        name: "Demo Student UFV",      student_id: "UFV-DEMO-001",   password: "demo123",       role: "student",    admin_domain: null },
-    { email: "demo.eps@ufv.es",        name: "Demo Student EPS UFV",  student_id: "UFV-DEMO-002",   password: "demo123",       role: "student",    admin_domain: null },
-    { email: "demo.highland@highlands.edu", name: "Demo Student Highlands", student_id: "HLD-DEMO-001", password: "demo123",    role: "student",    admin_domain: null },
-    { email: "demo.universidad@universidad.edu", name: "Demo Student Universidad", student_id: "EDU-DEMO-001", password: "demo123", role: "student", admin_domain: null },
-    { email: "carlos@ufv.es",          name: "Carlos López Fernández", student_id: "UFV-2024-001", password: "demo123",       role: "student",    admin_domain: null },
-    { email: "laura@ufv.es",           name: "Laura Martínez García",  student_id: "UFV-2024-002", password: "demo123",       role: "student",    admin_domain: null },
-    { email: "miguel@ufv.es",          name: "Miguel Torres Sánchez",  student_id: "UFV-2024-003", password: "demo123",       role: "student",    admin_domain: null },
-    { email: "sofia@ufv.es",           name: "Sofía Rodríguez Pérez",  student_id: "UFV-2024-004", password: "demo123",       role: "student",    admin_domain: null },
-    { email: "andres@ufv.es",          name: "Andrés Navarro Gil",      student_id: "UFV-2024-005", password: "demo123",       role: "student",    admin_domain: null },
-    { email: "patricia@ufv.es",        name: "Patricia Vega Moreno",    student_id: "UFV-2024-006", password: "demo123",       role: "student",    admin_domain: null },
-    { email: "student5@highlands.edu",  name: "James Wilson",            student_id: "HLD-001",      password: "demo123",       role: "student",    admin_domain: null },
-    { email: "student6@highlands.edu",  name: "Emma Thompson",           student_id: "HLD-002",      password: "demo123",       role: "student",    admin_domain: null },
-    { email: "student7@highlands.edu",  name: "Oliver Davis",            student_id: "HLD-003",      password: "demo123",       role: "student",    admin_domain: null },
-    { email: "juan@universidad.edu",   name: "Juan García Martín",      student_id: "EDU-2024-001", password: "demo123",       role: "student",    admin_domain: null },
-    { email: "elena@universidad.edu",  name: "Elena Castro Ruiz",       student_id: "EDU-2024-003", password: "demo123",       role: "student",    admin_domain: null },
+    { email: "superadmin@vtb.system", name: "Super Admin",  student_id: "SUPERADMIN-001",  password: requiredSeedPassword('SEED_SUPERADMIN_PASSWORD', 'superadmin@vtb.system'), role: "superadmin", admin_domain: null },
+    { email: "admin@vtb.demo",        name: "Elena Ibarra", student_id: "DEMO-ADM-001",    password: requiredSeedPassword('SEED_DEMO_ADMIN_PASSWORD', 'admin@vtb.demo'),           role: "admin",      admin_domain: "vtb.demo" },
+    { email: "superadmin@vtb.demo",   name: "Marta Reyes",  student_id: "SUPERADMIN-DEMO", password: requiredSeedPassword('SEED_DEMO_SUPERADMIN_PASSWORD', 'superadmin@vtb.demo'), role: "superadmin", admin_domain: null },
+    { email: "student@vtb.demo",      name: "Alex Ferrer",  student_id: "DEMO-STU-001",    password: demoStudentPassword(), role: "student",    admin_domain: null },
+    { email: "student2@vtb.demo",     name: "Marina Costa", student_id: "VTB-DEMO-002",    password: demoStudentPassword(), role: "student",    admin_domain: null },
   ];
 
   console.log("🔄 Ensuring critical demo accounts exist with correct passwords...");
+  const userIdMap: Record<string, number> = {};
   for (const account of criticalAccounts) {
     try {
       const hash = await hashPassword(account.password);
       const row = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [account.email]);
       if (row) {
+        userIdMap[account.email] = row.id;
         await db.exec(
           "UPDATE users SET password_hash = ?, role = ?, admin_domain = ?, is_approved = 1, approved_at = CURRENT_TIMESTAMP WHERE email = ?",
           [hash, account.role, account.admin_domain, account.email]
         );
       } else {
-        await db.exec(
+        const result = await db.exec(
           `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain, is_approved, approved_at, is_eligible)
            VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, 1)`,
           [account.email, hash, account.name, account.student_id, account.role, account.admin_domain]
         );
+        userIdMap[account.email] = result.lastID;
       }
     } catch (err: any) {
       console.error(`  ❌ Failed to upsert ${account.email}: ${err.message}`);
@@ -176,19 +190,10 @@ export async function seedDemoData(): Promise<void> {
   }
   console.log("✅ Demo accounts ensured (upserted)");
 
-  // Update school/degree/year for known UFV demo students
+  // Datos académicos de los estudiantes demo
   const studentAcademicData = [
-    { email: 'julio@ufv.es',  school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', year: null },
-    { email: 'carlos@ufv.es', school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', year: 3 },
-    { email: 'laura@ufv.es',  school: 'Escuela Politécnica Superior', degree: 'Ingeniería Informática', year: 2 },
-    { email: 'miguel@ufv.es', school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Derecho', year: 1 },
-    { email: 'sofia@ufv.es',  school: 'Facultad de Ciencias de la Salud', degree: 'Medicina', year: 2 },
-    { email: 'student@vtb.demo', school: 'VTB Demo Sandbox', degree: 'Demo Voting Track', year: 1 },
-    { email: 'student2@vtb.demo', school: 'VTB Demo Sandbox', degree: 'Demo Voting Track', year: 1 },
-    { email: 'demo.ufv@ufv.es', school: 'Facultad de Derecho, Empresa y Gobierno', degree: 'Administracion y Direccion de Empresas', year: 2 },
-    { email: 'demo.eps@ufv.es', school: 'Escuela Politecnica Superior', degree: 'Ingenieria Informatica', year: 3 },
-    { email: 'demo.highland@highlands.edu', school: 'Sixth Form', degree: 'IB Diploma Programme', year: 1 },
-    { email: 'demo.universidad@universidad.edu', school: 'Campus Central', degree: 'Demo Governance', year: 2 },
+    { email: 'student@vtb.demo',  school: 'Facultad de Ciencias Económicas y Empresariales', degree: 'Administración y Dirección de Empresas', year: 3 },
+    { email: 'student2@vtb.demo', school: 'Escuela de Ingeniería',                            degree: 'Ingeniería Informática',                  year: 2 },
   ];
   for (const s of studentAcademicData) {
     await db.exec(
@@ -197,189 +202,79 @@ export async function seedDemoData(): Promise<void> {
     ).catch(() => {});
   }
 
-  const freshDemoEmails = [
-    "student@vtb.demo",
-    "student2@vtb.demo",
-    "demo.ufv@ufv.es",
-    "demo.eps@ufv.es",
-    "demo.highland@highlands.edu",
-    "demo.universidad@universidad.edu",
-  ];
-
-  for (const email of freshDemoEmails) {
+  // Limpia auditoría "pendiente" de las cuentas demo en cada arranque para que
+  // el flujo de voto se pueda repetir en sucesivas demos en vivo.
+  for (const email of ['student@vtb.demo', 'student2@vtb.demo']) {
     const demoUser = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]);
     if (demoUser) {
       await db.exec("DELETE FROM nullifier_audit WHERE user_id = ?", [demoUser.id]).catch(() => {});
     }
   }
 
+  // ============================================================
+  // Elecciones de Meridian University — se mantienen en cada arranque
+  // ============================================================
   const alwaysNow = Math.floor(Date.now() / 1000);
   const alwaysDemoElections = [
     {
       election_id_blockchain: 101,
-      name: "VTB Demo Sandbox Election",
-      description: "Fresh local demo election for vtb.demo accounts.",
+      name: "Elección al Consejo de Estudiantes — Meridian University",
+      description: "Elige a tus representantes en el Consejo de Estudiantes de Meridian University para el curso 2026.",
       domains: ["vtb.demo"],
       voter_role: "student",
       candidates: [
-        { name: "Open Campus Proposal", description: "Prioritize flexible study spaces and public workshops." },
-        { name: "Digital First Proposal", description: "Prioritize online services, dashboards, and remote participation." },
+        { name: "Laura Sáez", description: "3º de Económicas — más espacios de estudio flexibles y talleres abiertos a toda la comunidad." },
+        { name: "Marco Ibáñez", description: "2º de Ingeniería — más servicios digitales, paneles en tiempo real y participación remota." },
       ],
     },
     {
-      election_id_blockchain: 102,
-      name: "UFV Fresh Demo Vote",
-      description: "Active UFV demo election with clean demo accounts.",
-      domains: ["ufv.es"],
+      election_id_blockchain: 107,
+      name: "Elección a Delegado de Centro — Meridian University",
+      description: "Elige al delegado o delegada que representará a tu centro ante la dirección académica este curso.",
+      domains: ["vtb.demo"],
       voter_role: "student",
       candidates: [
-        { name: "Innovation Week", description: "Fund a week of student-led technical and social innovation." },
-        { name: "Campus Life Fund", description: "Fund clubs, events, and cross-faculty activities." },
-        { name: "Library Extension", description: "Extend library hours during exam periods." },
+        { name: "Diego Roldán", description: "2º de Comunicación — mejora del calendario de exámenes y horarios de tutoría." },
+        { name: "Nuria Campos", description: "3º de Psicología — más apoyo a la salud mental y programas de mentoría entre cursos." },
+        { name: "Álvaro Bustos", description: "1º de Empresariales — canal directo de propuestas estudiantiles a dirección." },
       ],
     },
     {
-      election_id_blockchain: 103,
-      name: "Highlands Fresh Demo Vote",
-      description: "Active Highlands demo election with clean demo accounts.",
-      domains: ["highlands.edu"],
+      election_id_blockchain: 108,
+      name: "Elección de Representantes de Claustro — Meridian University",
+      description: "Elige a los representantes estudiantiles que formarán parte del Claustro Universitario este curso.",
+      domains: ["vtb.demo"],
       voter_role: "student",
       candidates: [
-        { name: "House Activities", description: "More inter-house activities and student-led events." },
-        { name: "STEM Lab Upgrade", description: "Upgrade lab equipment for science and robotics projects." },
-      ],
-    },
-    {
-      election_id_blockchain: 104,
-      name: "Universidad Fresh Demo Vote",
-      description: "Active universidad.edu demo election with clean demo accounts.",
-      domains: ["universidad.edu"],
-      voter_role: "student",
-      candidates: [
-        { name: "Student Wellbeing", description: "Invest in wellbeing, mentoring, and academic support." },
-        { name: "Green Campus", description: "Invest in sustainability projects and energy efficiency." },
+        { name: "Beatriz Lerma", description: "4º de Derecho — antigua delegada de curso, defensora de la transparencia en las actas del Claustro." },
+        { name: "Iván Casares", description: "3º de Ingeniería — foco en digitalización de trámites académicos." },
       ],
     },
     {
       election_id_blockchain: 105,
-      name: "Multi-Institution Demo Referendum",
-      description: "Cross-domain demo vote for UFV, Highlands, Universidad, and VTB demo users.",
-      domains: ["vtb.demo", "ufv.es", "highlands.edu", "universidad.edu"],
+      name: "Referéndum Conjunto entre Instituciones",
+      description: "Consulta sobre el modelo de auditoría de las votaciones.",
+      domains: ["vtb.demo"],
       voter_role: "student",
       candidates: [
-        { name: "Adopt Blockchain Audits", description: "Publish anonymized voting proofs for every institutional vote." },
-        { name: "Keep Internal Audits", description: "Keep audit trails inside institutional systems only." },
+        { name: "Auditoría Pública Ampliada", description: "Publicar más detalle de cada proceso electoral en el panel de auditoría pública." },
+        { name: "Mantener Auditoría Actual", description: "Mantener el nivel de detalle actual en los registros públicos." },
       ],
     },
     {
       election_id_blockchain: 106,
-      name: "Admin Demo Governance Vote",
-      description: "Admin-only demo election for testing management workflows.",
-      domains: ["vtb.demo", "ufv.es", "highlands.edu", "universidad.edu"],
+      name: "Votación de Gobernanza entre Administradores",
+      description: "Los administradores deciden la frecuencia de las exportaciones de auditoría pública.",
+      domains: ["vtb.demo"],
       voter_role: "admin",
       candidates: [
-        { name: "Enable Monthly Audits", description: "Require a public monthly audit export." },
-        { name: "Enable Quarterly Audits", description: "Require a public quarterly audit export." },
-      ],
-    },
-    // ── Extra demo elections for a richer sandbox experience ──
-    {
-      election_id_blockchain: 110,
-      name: "UFV Student Council President 2025",
-      description: "Annual election for the Student Council President at Universidad Francisco de Vitoria.",
-      domains: ["ufv.es"],
-      voter_role: "student",
-      candidates: [
-        { name: "Alejandro Vega", description: "Proposes expanded mentoring programs and academic exchange agreements." },
-        { name: "Cristina Molina", description: "Focuses on campus sustainability and mental health resources." },
-        { name: "David Herrero", description: "Champions entrepreneurship, startup incubators, and industry partnerships." },
-      ],
-    },
-    {
-      election_id_blockchain: 111,
-      name: "UFV Best Student Research Project 2025",
-      description: "Vote for the most impactful student research project of the academic year.",
-      domains: ["ufv.es"],
-      voter_role: "student",
-      candidates: [
-        { name: "AI-Assisted Medical Diagnosis", description: "ML model for early detection of rare diseases from imaging data." },
-        { name: "Carbon Footprint Tracker App", description: "Mobile app that maps and gamifies personal CO₂ reduction." },
-        { name: "Blockchain Voting Audit System", description: "A transparent on-chain audit layer for institutional elections." },
-        { name: "Smart Campus Energy Manager", description: "IoT-based system to optimize building energy consumption in real time." },
-      ],
-    },
-    {
-      election_id_blockchain: 112,
-      name: "UFV EPS Faculty Representative",
-      description: "Election for the student faculty representative at the Escuela Politécnica Superior.",
-      domains: ["ufv.es"],
-      voter_role: "student",
-      candidates: [
-        { name: "Lucía Fernández", description: "3rd year Computer Engineering. Focus on lab resources and internship access." },
-        { name: "Marcos Ortiz", description: "4th year Industrial Engineering. Focus on international mobility programs." },
-      ],
-    },
-    {
-      election_id_blockchain: 113,
-      name: "Highlands Head of House Election",
-      description: "Annual student vote to elect the Head of House across all Highlands houses.",
-      domains: ["highlands.edu"],
-      voter_role: "student",
-      candidates: [
-        { name: "Oliver Bennett", description: "Sixth Form student committed to inclusive inter-house events." },
-        { name: "Sophie Clarke", description: "A-Level student focused on academic support and study groups." },
-        { name: "Harry Dawson", description: "GCSE student with a plan for weekly student voice meetings." },
-      ],
-    },
-    {
-      election_id_blockchain: 114,
-      name: "Highlands Student Budget Allocation",
-      description: "How should the student activities fund be allocated this academic year?",
-      domains: ["highlands.edu"],
-      voter_role: "student",
-      candidates: [
-        { name: "Sports & Outdoor Activities (40%)", description: "Increase budget for sports trips, equipment, and club tournaments." },
-        { name: "Arts & Culture (40%)", description: "Fund school productions, art exhibitions, and music events." },
-        { name: "Balanced Split (20/20)", description: "Equal share across all student activity categories." },
-      ],
-    },
-    {
-      election_id_blockchain: 115,
-      name: "Universidad Campus Improvement Priority",
-      description: "What should be the #1 campus improvement investment for next year?",
-      domains: ["universidad.edu"],
-      voter_role: "student",
-      candidates: [
-        { name: "New Collaborative Study Spaces", description: "Modern co-working areas with booking systems and high-speed Wi-Fi." },
-        { name: "Student Mental Health Centre", description: "Expand counselling, wellness workshops, and peer support networks." },
-        { name: "Upgraded Computing Labs", description: "New workstations, GPU clusters, and 24/7 lab access." },
-        { name: "Green Courtyard Project", description: "Transform unused outdoor space into a sustainable green study area." },
-      ],
-    },
-    {
-      election_id_blockchain: 116,
-      name: "Open Source vs Proprietary Tools — Developer Vote",
-      description: "VTB community referendum: should the platform prioritise open-source tooling?",
-      domains: ["vtb.demo", "ufv.es"],
-      voter_role: "student",
-      candidates: [
-        { name: "Open Source First", description: "Prefer open-source stacks; full transparency and community auditing." },
-        { name: "Best Tool for the Job", description: "Use proprietary tools where they offer clear quality advantages." },
-      ],
-    },
-    {
-      election_id_blockchain: 117,
-      name: "Annual Sustainability Referendum",
-      description: "Multi-institution vote on which sustainability initiative to champion next year.",
-      domains: ["vtb.demo", "ufv.es", "highlands.edu", "universidad.edu"],
-      voter_role: "student",
-      candidates: [
-        { name: "Zero-Waste Campus Initiative", description: "Eliminate single-use plastics and introduce composting across all facilities." },
-        { name: "100% Renewable Energy by 2027", description: "Install solar panels and switch to certified green electricity providers." },
-        { name: "Carbon-Neutral Transport Plan", description: "Subsidise cycling, carpooling and electric shuttle buses for students." },
+        { name: "Auditoría Mensual", description: "Exigir una exportación pública de auditoría cada mes." },
+        { name: "Auditoría Trimestral", description: "Exigir una exportación pública de auditoría cada trimestre." },
       ],
     },
   ];
+
+  const electionIdMap: Record<string, number> = {};
 
   for (const election of alwaysDemoElections) {
     let row = await db.get<{ id: number }>("SELECT id FROM elections WHERE name = ?", [election.name]);
@@ -403,6 +298,7 @@ export async function seedDemoData(): Promise<void> {
         [alwaysNow - 86400, alwaysNow + 90 * 86400, election.voter_role, row.id]
       ).catch(() => {});
     }
+    electionIdMap[election.name] = row.id;
 
     for (const candidate of election.candidates) {
       const candidateExists = await db.get<{ id: number }>(
@@ -452,486 +348,17 @@ export async function seedDemoData(): Promise<void> {
     }
   }
 
-  // Comprobar si ya hay datos
-  const existing = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users");
-  if (existing && existing.count > 0) {
-    console.log("ℹ️  Base de datos ya tiene datos, omitiendo seed completo.");
-    return;
-  }
-
-  console.log("\n🌱 Sembrando datos demo en VTB...\n");
-
-  // ============================================================
-  // 1. USUARIOS
-  // ============================================================
-  console.log("👥 Creando usuarios...");
-
-  const usersToCreate = [
-    // SUPERADMIN
-    { email: "superadmin@vtb.system", name: "Super Admin",           student_id: "SUPERADMIN-001", password: "superadmin123", role: "superadmin", admin_domain: null },
-    // ADMINS
-    { email: "admin@ufv.es",           name: "Admin UFV",             student_id: "ADMIN-UFV-001",  password: "admin123",      role: "admin",      admin_domain: "ufv.es" },
-    { email: "admin@universidad.edu",  name: "Admin Universidad",     student_id: "ADMIN-EDU-001",  password: "admin123",      role: "admin",      admin_domain: "universidad.edu" },
-    { email: "admin@highlands.edu",     name: "Admin Highlands",        student_id: "ADMIN-HLD-001",  password: "admin123",      role: "admin",      admin_domain: "highlands.edu" },
-    { email: "admin@eps.ufv.es",       name: "Admin EPS UFV",         student_id: "ADMIN-EPS-001",  password: "admin123",      role: "admin",      admin_domain: "eps.ufv.es" },
-    // UFV STUDENTS
-    { email: "carlos@ufv.es",          name: "Carlos López Fernández",   student_id: "UFV-2024-001", password: "demo123", role: "student", admin_domain: null },
-    { email: "laura@ufv.es",           name: "Laura Martínez García",    student_id: "UFV-2024-002", password: "demo123", role: "student", admin_domain: null },
-    { email: "miguel@ufv.es",          name: "Miguel Torres Sánchez",    student_id: "UFV-2024-003", password: "demo123", role: "student", admin_domain: null },
-    { email: "sofia@ufv.es",           name: "Sofía Rodríguez Pérez",    student_id: "UFV-2024-004", password: "demo123", role: "student", admin_domain: null },
-    { email: "andres@ufv.es",          name: "Andrés Navarro Gil",       student_id: "UFV-2024-005", password: "demo123", role: "student", admin_domain: null },
-    { email: "patricia@ufv.es",        name: "Patricia Vega Moreno",     student_id: "UFV-2024-006", password: "demo123", role: "student", admin_domain: null },
-    // HIGHLAND STUDENTS
-    { email: "student5@highlands.edu",  name: "James Wilson",             student_id: "HLD-001",      password: "demo123", role: "student", admin_domain: null },
-    { email: "student6@highlands.edu",  name: "Emma Thompson",            student_id: "HLD-002",      password: "demo123", role: "student", admin_domain: null },
-    { email: "student7@highlands.edu",  name: "Oliver Davis",             student_id: "HLD-003",      password: "demo123", role: "student", admin_domain: null },
-    // EDU STUDENTS
-    { email: "juan@universidad.edu",   name: "Juan García Martín",       student_id: "EDU-2024-001", password: "demo123", role: "student", admin_domain: null },
-    { email: "maria@universidad.edu",  name: "María López Díaz",         student_id: "EDU-2024-002", password: "demo123", role: "student", admin_domain: null },
-    { email: "elena@universidad.edu",  name: "Elena Castro Ruiz",        student_id: "EDU-2024-003", password: "demo123", role: "student", admin_domain: null },
-    { email: "roberto@universidad.edu",name: "Roberto Sánchez Leal",     student_id: "EDU-2024-004", password: "demo123", role: "student", admin_domain: null },
-    // UFV PROFESSOR / NEW STAFF
-    { email: "julio@ufv.es",           name: "Julio Martinez Campos",  student_id: "UFV-PROF-001",   password: "profesor123", role: "student", admin_domain: null },
-    { email: "susana@eps.ufv.es",      name: "Susana Ferreira Blanco", student_id: "EPS-DIR-001",    password: "director123", role: "admin",   admin_domain: "eps.ufv.es" },
-    { email: "olga@eps.ufv.es",        name: "Olga Navarro Ruiz",      student_id: "EPS-DIR-002",    password: "director123", role: "admin",   admin_domain: "eps.ufv.es" },
-    { email: "julio@highlands.edu",     name: "Julio Martinez Campos (Highlands)", student_id: "HLD-PROF-001", password: "profesor123", role: "student", admin_domain: null },
-    // NEW UFV STUDENTS
-    { email: "student8@ufv.es",   name: "María José García",       student_id: "UFV-2024-008", password: "demo123", role: "student", admin_domain: null },
-    { email: "student9@ufv.es",   name: "Carlos Alberto López",    student_id: "UFV-2024-009", password: "demo123", role: "student", admin_domain: null },
-    { email: "student10@ufv.es",  name: "Ana Belén Martínez",      student_id: "UFV-2024-010", password: "demo123", role: "student", admin_domain: null },
-    { email: "student11@ufv.es",  name: "David Fernández Ruiz",    student_id: "UFV-2024-011", password: "demo123", role: "student", admin_domain: null },
-    { email: "student12@ufv.es",  name: "Laura González Torres",   student_id: "UFV-2024-012", password: "demo123", role: "student", admin_domain: null },
-    // NEW HIGHLAND STUDENTS
-    { email: "student8@highlands.edu",  name: "William Johnson",    student_id: "HLD-008",      password: "demo123", role: "student", admin_domain: null },
-    { email: "student9@highlands.edu",  name: "Charlotte Williams", student_id: "HLD-009",      password: "demo123", role: "student", admin_domain: null },
-    { email: "student10@highlands.edu", name: "George Taylor",      student_id: "HLD-010",      password: "demo123", role: "student", admin_domain: null },
-    // NEW UNIVERSIDAD STUDENTS
-    { email: "student8@universidad.edu", name: "Roberto Sánchez",  student_id: "EDU-2024-008", password: "demo123", role: "student", admin_domain: null },
-    { email: "student9@universidad.edu", name: "Carmen Díaz",      student_id: "EDU-2024-009", password: "demo123", role: "student", admin_domain: null },
+  // Un par de votos ya emitidos en el Consejo de Estudiantes, para que la
+  // demo no arranque siempre con 0 participación. Idempotente (INSERT OR IGNORE).
+  const precastVotes = [
+    { userEmail: "student@vtb.demo",  electionName: "Elección al Consejo de Estudiantes — Meridian University" },
   ];
-
-  const userIdMap: Record<string, number> = {};
-
-  for (const u of usersToCreate) {
-    try {
-      const hash = await hashPassword(u.password);
-      const result = await db.exec(
-        `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain, is_approved, approved_at, is_eligible)
-         VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, 1)`,
-        [u.email, hash, u.name, u.student_id, u.role, u.admin_domain]
-      );
-      userIdMap[u.email] = result.lastID;
-      console.log(`  ✅ [${u.role.padEnd(10)}] ${u.email}`);
-    } catch (err: any) {
-      if (err.message?.includes("UNIQUE")) {
-        const row = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [u.email]);
-        if (row) userIdMap[u.email] = row.id;
-        console.log(`  ℹ️  Ya existe: ${u.email}`);
-      } else {
-        console.error(`  ❌ Error: ${err.message}`);
-      }
-    }
-  }
-
-  // ============================================================
-  // 2. ELECCIONES
-  // ============================================================
-  console.log("\n🗳️  Creando elecciones...");
-
-  const now   = Math.floor(Date.now() / 1000);
-  const past  = (days: number) => now - days * 86400;
-  const future= (days: number) => now + days * 86400;
-
-  type CandidateDef = { name: string; description: string };
-  type ElectionDef = {
-    election_id_blockchain: number;
-    name: string;
-    description: string;
-    start_time: number;
-    end_time: number;
-    is_active: number;
-    voter_role?: string;
-    domains: string[];
-    candidates: CandidateDef[];
-  };
-
-  const electionsToCreate: ElectionDef[] = [
-    // ── UFV ──────────────────────────────────────────────────────────
-    {
-      election_id_blockchain: 1,
-      name: "Delegado UFV 2026-2027",
-      description: "Elige al delegado estudiantil que representará a tu año en el consejo académico.",
-      start_time: past(7), end_time: future(60), is_active: 1,
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Ana Beltrán",    description: "3º Ingeniería Informática — mejora de horarios de laboratorio" },
-        { name: "Pablo Méndez",   description: "2º Administración — programa de mentoring entre estudiantes" },
-        { name: "Lucía Herrera",  description: "4º Derecho — opciones vegetarianas en la cafetería" },
-      ],
-    },
-    {
-      election_id_blockchain: 2,
-      name: "Mejora Campus UFV 2026",
-      description: "Vota la iniciativa de mejora del campus que quieres ver implementada el próximo semestre.",
-      start_time: past(3), end_time: future(30), is_active: 1,
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Nuevo Polideportivo",    description: "Pabellón moderno con pistas cubiertas y piscina" },
-        { name: "Biblioteca 24h",         description: "Ampliar la biblioteca a horario 24/7 en época de exámenes" },
-        { name: "Campus Verde",           description: "Paneles solares, puntos de reciclaje y lanzaderas eléctricas" },
-        { name: "Upgrade Laboratorios",   description: "Nuevos equipos y realidad virtual en todos los labs" },
-      ],
-    },
-    {
-      election_id_blockchain: 3,
-      name: "Premio Mejor Profesor UFV 2026",
-      description: "Nomina al profesor que más ha impactado tu experiencia académica este curso.",
-      start_time: past(10), end_time: future(5), is_active: 1,
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Prof. García Moreno",  description: "Ingeniería de Sistemas — métodos de enseñanza innovadores" },
-        { name: "Prof. Sánchez Vega",   description: "Ciencia de Datos — siempre disponible para tutorías" },
-        { name: "Prof. Ortiz Luna",     description: "IA & Machine Learning — conecta teoría con proyectos reales" },
-      ],
-    },
-    {
-      election_id_blockchain: 4,
-      name: "Elección Finalizada: Renovación Aulas UFV",
-      description: "Votación ya cerrada sobre la renovación de aulas. Consulta los resultados.",
-      start_time: past(30), end_time: past(5), is_active: 0,
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Pizarras digitales",     description: "Instalar pizarras táctiles en todas las aulas" },
-        { name: "Proyectores 4K",         description: "Reemplazar proyectores actuales por modelos 4K" },
-        { name: "Mobiliario flexible",    description: "Mesas y sillas reorganizables para trabajo en grupo" },
-      ],
-    },
-    // ── UNIVERSIDAD.EDU ──────────────────────────────────────────────
-    {
-      election_id_blockchain: 5,
-      name: "Prioridad Investigación EDU 2026",
-      description: "Ayuda al comité académico a decidir qué áreas de investigación priorizar.",
-      start_time: past(5), end_time: future(45), is_active: 1,
-      domains: ["universidad.edu"],
-      candidates: [
-        { name: "Inteligencia Artificial & Ética", description: "Desarrollo responsable de IA y gobernanza" },
-        { name: "Soluciones Cambio Climático",      description: "Energías renovables y estudios de sostenibilidad" },
-        { name: "Ingeniería Biomédica",             description: "Prótesis avanzadas e innovación en dispositivos médicos" },
-      ],
-    },
-    {
-      election_id_blockchain: 6,
-      name: "Presidente Consejo Estudiantil EDU 2026-2027",
-      description: "Elige al presidente del Consejo Estudiantil para el año académico 2026-2027.",
-      start_time: past(2), end_time: future(20), is_active: 1,
-      domains: ["universidad.edu"],
-      candidates: [
-        { name: "Claudia Fernández", description: "Establecer convenios para prácticas de estudiantes" },
-        { name: "Daniel Morales",    description: "Centro de bienestar y salud mental para el campus" },
-        { name: "Sara Ibáñez",       description: "Ampliación de la oferta de transporte universitario" },
-      ],
-    },
-    // ── HIGHLAND SCHOOL ──────────────────────────────────────────────
-    {
-      election_id_blockchain: 7,
-      name: "Highlands School Council Election 2026",
-      description: "Vote for your student council representatives",
-      start_time: past(3), end_time: future(365), is_active: 1,
-      domains: ["highlands.edu"],
-      candidates: [
-        { name: "Alice Johnson",  description: "Student welfare and activities coordinator" },
-        { name: "Bob Martinez",   description: "Academic support and resources" },
-        { name: "Carol White",    description: "Sports and extracurriculars" },
-      ],
-    },
-    // ── INTER-UNIVERSITARIA ──────────────────────────────────────────
-    {
-      election_id_blockchain: 8,
-      name: "Formato Debate Interuniversitario",
-      description: "Ambas comunidades votan el formato del próximo debate interuniversitario.",
-      start_time: past(1), end_time: future(14), is_active: 1,
-      domains: ["ufv.es", "universidad.edu"],
-      candidates: [
-        { name: "Formato Oxford",         description: "Debate estructurado tradicional entre dos equipos" },
-        { name: "Lincoln-Douglas",        description: "Debate uno-a-uno basado en valores" },
-        { name: "Estilo Parlamentario",   description: "Gobierno vs. Oposición con múltiples oradores" },
-      ],
-    },
-    // ── NEW UFV ELECTIONS ────────────────────────────────────────────
-    {
-      election_id_blockchain: 9,
-      name: "Faculty Representative Election — Engineering 2026",
-      description: "Choose your faculty representative for the School of Engineering academic committee",
-      start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Dr. Carlos Mendoza",    description: "Research & innovation advocate" },
-        { name: "Prof. Ana Ruiz",        description: "Student welfare and curriculum reform" },
-        { name: "Dr. Luis Fernández",    description: "Industry partnerships coordinator" },
-      ],
-    },
-    {
-      election_id_blockchain: 10,
-      name: "VTB Platform Feedback Survey 2026",
-      description: "Rate your experience with the VTB voting platform and suggest improvements",
-      start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Excellent — No changes needed",  description: "The platform meets all our needs" },
-        { name: "Good — Minor improvements",      description: "Small UX tweaks would help" },
-        { name: "Needs significant work",         description: "Major features are missing" },
-      ],
-    },
-    {
-      election_id_blockchain: 11,
-      name: "Campus Sustainability Initiative Vote",
-      description: "Vote for the sustainability project you want implemented on campus this semester",
-      start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Solar Panel Installation",           description: "Renewable energy for campus buildings" },
-        { name: "Bike Sharing Program",               description: "Green transport between campus zones" },
-        { name: "Campus Food Garden",                 description: "Community organic garden project" },
-        { name: "Electric Vehicle Charging Stations", description: "EV infrastructure for students and staff" },
-      ],
-    },
-    {
-      election_id_blockchain: 12,
-      name: "Student Union Budget Allocation 2026",
-      description: "Help decide how the student union budget should be allocated this academic year",
-      start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Sports & Recreation (40%)",  description: "Facilities, equipment and sports events" },
-        { name: "Cultural Events (40%)",      description: "Concerts, exhibitions and cultural trips" },
-        { name: "Academic Resources (40%)",   description: "Books, software licences and tutoring" },
-        { name: "Social Spaces (40%)",        description: "Common areas and study lounges" },
-      ],
-    },
-    {
-      election_id_blockchain: 13,
-      name: "Best Professor Award — Engineering Faculty",
-      description: "Nominate and vote for the best professor in the School of Engineering",
-      start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Prof. García (Web Development)", description: "Innovative teaching and real-world projects" },
-        { name: "Prof. Martínez (Algorithms)",    description: "Clear explanations and student support" },
-        { name: "Prof. López (Networks)",         description: "Industry experience and practical labs" },
-        { name: "Prof. Sánchez (Databases)",      description: "Research-driven and always available" },
-      ],
-    },
-    // ── NEW HIGHLAND ELECTIONS ───────────────────────────────────────
-    {
-      election_id_blockchain: 14,
-      name: "Highlands School Prefect Election 2026",
-      description: "Vote for your school prefect representatives for the 2026 academic year",
-      start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["highlands.edu"],
-      candidates: [
-        { name: "James Wilson",    description: "Student welfare and inclusion champion" },
-        { name: "Sophie Clarke",   description: "Academic excellence and peer support" },
-        { name: "Oliver Brown",    description: "Sports and extra-curricular activities" },
-        { name: "Emma Thompson",   description: "Environmental and sustainability lead" },
-      ],
-    },
-    {
-      election_id_blockchain: 15,
-      name: "Highlands School Trip Destination Vote",
-      description: "Choose where the school trip should go this year",
-      start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["highlands.edu"],
-      candidates: [
-        { name: "Paris, France",         description: "Art, culture and the Eiffel Tower" },
-        { name: "Rome, Italy",           description: "History, cuisine and the Colosseum" },
-        { name: "Barcelona, Spain",      description: "Gaudí architecture and beach culture" },
-        { name: "Amsterdam, Netherlands", description: "Canals, museums and cycling" },
-      ],
-    },
-    // ── NEW UNIVERSIDAD ELECTIONS ────────────────────────────────────
-    {
-      election_id_blockchain: 16,
-      name: "Research Department Priority Vote 2026",
-      description: "Help the faculty board decide which research area receives additional funding",
-      start_time: past(7), end_time: future(365), is_active: 1,
-      domains: ["universidad.edu"],
-      candidates: [
-        { name: "Machine Learning & AI",  description: "Neural networks, LLMs and applied AI systems" },
-        { name: "Cybersecurity",          description: "Threat detection, cryptography and secure systems" },
-        { name: "Blockchain & Web3",      description: "Decentralised protocols and smart contracts" },
-        { name: "Biomedical Computing",   description: "Medical imaging, genomics and health data" },
-      ],
-    },
-    // ── ADMIN-TO-ADMIN ELECTION ─────────────────────────────────
-    {
-      election_id_blockchain: 17,
-      name: "EPS Department Heads Vote 2026",
-      description: "School of Engineering administrators vote on academic priorities for 2026-2027",
-      start_time: past(7), end_time: future(365), is_active: 1,
-      voter_role: 'admin',
-      domains: ["ufv.es"],
-      candidates: [
-        { name: "Increase industry partnerships",  description: "Strengthen links between EPS and tech companies" },
-        { name: "Expand research programs",        description: "Grow funded research groups and PhD positions" },
-        { name: "Improve student mentorship",      description: "Structured mentoring by faculty and alumni" },
-      ],
-    },
-  ];
-
-  const electionIdMap: Record<string, number> = {};
-
-  for (const e of electionsToCreate) {
-    try {
-      const voterRole = e.voter_role || 'student';
-      const result = await db.exec(
-        `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active, voter_role)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [e.election_id_blockchain, e.name, e.description, e.start_time, e.end_time, e.is_active, voterRole]
-      );
-      electionIdMap[e.name] = result.lastID;
-
-      for (let i = 0; i < e.candidates.length; i++) {
-        await db.exec(
-          "INSERT INTO candidates (election_id, name, description, position) VALUES (?, ?, ?, ?)",
-          [result.lastID, e.candidates[i].name, e.candidates[i].description, i]
-        );
-      }
-
-      for (const domain of e.domains) {
-        await db.exec(
-          "INSERT OR IGNORE INTO election_access (election_id, email_domain) VALUES (?, ?)",
-          [result.lastID, domain]
-        );
-      }
-
-      const status = e.is_active ? "activa" : "cerrada";
-      const roleLabel = voterRole !== 'student' ? ` [${voterRole}]` : '';
-      console.log(`  ✅ [${status.padEnd(7)}] ${e.name} — dominios: ${e.domains.join(", ")}${roleLabel}`);
-    } catch (err: any) {
-      console.error(`  ❌ Error creando elección "${e.name}": ${err.message}`);
-    }
-  }
-
-  // ============================================================
-  // 3. ASIGNAR VOTANTES POR DOMINIO
-  // ============================================================
-  console.log("\n📝 Asignando votantes...");
-
-  const allStudents = await db.run<{ id: number; email: string }>(
-    "SELECT id, email FROM users WHERE role = 'student'"
-  );
-  const allAccess = await db.run<{ election_id: number; email_domain: string }>(
-    "SELECT election_id, email_domain FROM election_access"
-  );
-
-  let assigned = 0;
-  for (const user of allStudents) {
-    const domain = user.email.split("@")[1];
-    for (const access of allAccess) {
-      if (access.email_domain === domain) {
-        try {
-          await db.exec(
-            "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
-            [access.election_id, user.id]
-          );
-          assigned++;
-        } catch { /* ya asignado */ }
-      }
-    }
-  }
-  console.log(`  ✅ ${assigned} asignaciones creadas`);
-
-  // Assign admins to admin-role elections
-  console.log("\n👔 Asignando admins a elecciones de admins...");
-  const adminElectionAccess = await db.run<{ election_id: number; email_domain: string }>(
-    `SELECT ea.election_id, ea.email_domain FROM election_access ea
-     JOIN elections e ON ea.election_id = e.id
-     WHERE e.voter_role = 'admin'`
-  );
-  const allAdmins = await db.run<{ id: number; email: string; admin_domain: string | null }>(
-    "SELECT id, email, admin_domain FROM users WHERE role IN ('admin', 'superadmin')"
-  );
-  let adminAssigned = 0;
-  for (const admin of allAdmins) {
-    for (const access of adminElectionAccess) {
-      const adminDomain = admin.admin_domain || '';
-      if (adminDomain === access.email_domain || adminDomain.endsWith('.' + access.email_domain)) {
-        try {
-          await db.exec(
-            "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
-            [access.election_id, admin.id]
-          );
-          adminAssigned++;
-        } catch { /* ya asignado */ }
-      }
-    }
-  }
-  console.log(`  ✅ ${adminAssigned} asignaciones de admin creadas`);
-
-  // ============================================================
-  // 4. SIMULAR VOTOS YA EMITIDOS (nullifier_audit)
-  //
-  //  Elección 1 "Delegado UFV"       → carlos + laura + andres ya votaron
-  //  Elección 2 "Mejora Campus"       → nadie ha votado aún
-  //  Elección 3 "Premio Profesor"     → TODOS los de UFV han votado
-  //  Elección 4 "Renovación Aulas"    → cerrada, todos votaron
-  //  Elección 5 "Investigación EDU"   → juan + maria ya votaron
-  //  Elección 6 "Consejo EDU"         → nadie ha votado aún
-  //  Elección 7 "Debate Inter"        → carlos + juan ya votaron
-  // ============================================================
-  console.log("\n🗳️  Simulando votos ya emitidos...");
-
-  type VoteEntry = { userEmail: string; electionName: string };
-
-  const precastVotes: VoteEntry[] = [
-    // Elección 1 — parcialmente votada (UFV)
-    { userEmail: "carlos@ufv.es",          electionName: "Delegado UFV 2026-2027" },
-    { userEmail: "laura@ufv.es",           electionName: "Delegado UFV 2026-2027" },
-    { userEmail: "andres@ufv.es",          electionName: "Delegado UFV 2026-2027" },
-
-    // Elección 3 — totalmente votada (UFV)
-    { userEmail: "carlos@ufv.es",          electionName: "Premio Mejor Profesor UFV 2026" },
-    { userEmail: "laura@ufv.es",           electionName: "Premio Mejor Profesor UFV 2026" },
-    { userEmail: "miguel@ufv.es",          electionName: "Premio Mejor Profesor UFV 2026" },
-    { userEmail: "sofia@ufv.es",           electionName: "Premio Mejor Profesor UFV 2026" },
-    { userEmail: "andres@ufv.es",          electionName: "Premio Mejor Profesor UFV 2026" },
-    { userEmail: "patricia@ufv.es",        electionName: "Premio Mejor Profesor UFV 2026" },
-
-    // Elección 4 — cerrada, todos votaron (UFV)
-    { userEmail: "carlos@ufv.es",          electionName: "Elección Finalizada: Renovación Aulas UFV" },
-    { userEmail: "laura@ufv.es",           electionName: "Elección Finalizada: Renovación Aulas UFV" },
-    { userEmail: "miguel@ufv.es",          electionName: "Elección Finalizada: Renovación Aulas UFV" },
-    { userEmail: "sofia@ufv.es",           electionName: "Elección Finalizada: Renovación Aulas UFV" },
-    { userEmail: "andres@ufv.es",          electionName: "Elección Finalizada: Renovación Aulas UFV" },
-    { userEmail: "patricia@ufv.es",        electionName: "Elección Finalizada: Renovación Aulas UFV" },
-
-    // Elección 5 — parcialmente votada (EDU)
-    { userEmail: "juan@universidad.edu",   electionName: "Prioridad Investigación EDU 2026" },
-    { userEmail: "maria@universidad.edu",  electionName: "Prioridad Investigación EDU 2026" },
-
-    // Elección 7 — inter-universitaria, parcialmente votada
-    { userEmail: "carlos@ufv.es",          electionName: "Formato Debate Interuniversitario" },
-    { userEmail: "sofia@ufv.es",           electionName: "Formato Debate Interuniversitario" },
-    { userEmail: "juan@universidad.edu",   electionName: "Formato Debate Interuniversitario" },
-    { userEmail: "elena@universidad.edu",  electionName: "Formato Debate Interuniversitario" },
-  ];
-
   let voteCount = 0;
   for (const vote of precastVotes) {
-    if (!vote.userEmail.endsWith("@vtb.demo")) {
-      continue;
-    }
-
-    const userId    = userIdMap[vote.userEmail];
+    const userId = userIdMap[vote.userEmail];
     const electionId = electionIdMap[vote.electionName];
-
-    if (!userId || !electionId) {
-      console.warn(`  ⚠️  No encontrado: ${vote.userEmail} / ${vote.electionName}`);
-      continue;
-    }
-
+    if (!userId || !electionId) continue;
     const nullifierHash = generateNullifier(userId, electionId);
-
     try {
       await db.exec(
         `INSERT OR IGNORE INTO nullifier_audit (user_id, election_id, nullifier_hash)
@@ -943,47 +370,20 @@ export async function seedDemoData(): Promise<void> {
       console.error(`  ❌ Error simulando voto: ${err.message}`);
     }
   }
-  console.log(`  ✅ ${voteCount} votos simulados`);
 
-  // ============================================================
-  // RESUMEN
-  // ============================================================
   console.log("\n" + "=".repeat(62));
-  console.log("✅ Seed completado — datos demo listos");
+  console.log("✅ Seed completado — Meridian University lista para demo");
   console.log("=".repeat(62));
+  // A4: no se imprime ninguna contraseña. Las privilegiadas vienen del entorno
+  // y quien despliega ya las conoce; volcarlas aquí las dejaba en los logs de
+  // Render, que son legibles por cualquiera con acceso al panel.
   console.log("\n📚 Cuentas demo:");
-  console.log("  🔧 superadmin@vtb.system     / superadmin123");
-  console.log("  👨‍💼 admin@ufv.es               / admin123");
-  console.log("  👨‍💼 admin@universidad.edu      / admin123");
-  console.log("  🎓 carlos@ufv.es             / demo123  (ha votado en varias)");
-  console.log("  🎓 miguel@ufv.es             / demo123  (puede votar)");
-  console.log("  🎓 sofia@ufv.es              / demo123  (ha votado en alguna)");
-  console.log("  🎓 juan@universidad.edu      / demo123  (ha votado en alguna)");
-  console.log("  🎓 elena@universidad.edu     / demo123  (puede votar)");
-  console.log("  👨‍💼 admin@highlands.edu        / admin123");
-  console.log("  👨‍💼 admin@eps.ufv.es          / admin123");
-  console.log("  🎓 student5@highlands.edu     / demo123");
-  console.log("  🎓 student6@highlands.edu     / demo123");
-  console.log("  🎓 student7@highlands.edu     / demo123");
-  console.log("  🎓 student8@ufv.es           / demo123  (María José García)");
-  console.log("  🎓 student9@ufv.es           / demo123  (Carlos Alberto López)");
-  console.log("  🎓 student10@ufv.es          / demo123  (Ana Belén Martínez)");
-  console.log("  🎓 student11@ufv.es          / demo123  (David Fernández Ruiz)");
-  console.log("  🎓 student12@ufv.es          / demo123  (Laura González Torres)");
-  console.log("  🎓 student8@highlands.edu     / demo123  (William Johnson)");
-  console.log("  🎓 student9@highlands.edu     / demo123  (Charlotte Williams)");
-  console.log("  🎓 student10@highlands.edu    / demo123  (George Taylor)");
-  console.log("  🎓 student8@universidad.edu  / demo123  (Roberto Sánchez)");
-  console.log("  🎓 student9@universidad.edu  / demo123  (Carmen Díaz)");
-  console.log("\n🗳️  Estado de las elecciones:");
-  console.log("  ✔  Delegado UFV              → 3/6 votos emitidos");
-  console.log("  ✔  Mejora Campus UFV         → 0/6 votos (nadie ha votado aún)");
-  console.log("  ✔  Premio Profesor UFV       → 6/6 votos (participación completa)");
-  console.log("  ✔  Renovación Aulas UFV      → cerrada, 6/6 votos");
-  console.log("  ✔  Investigación EDU         → 2/4 votos emitidos");
-  console.log("  ✔  Consejo Estudiantil EDU   → 0/4 votos (nadie ha votado aún)");
-  console.log("  ✔  Debate Interuniversitario → 4/10 votos emitidos");
-  console.log("");
+  console.log("  🔧 superadmin@vtb.system   (plataforma)      → SEED_SUPERADMIN_PASSWORD");
+  console.log("  👨‍💼 admin@vtb.demo          (Elena Ibarra)     → SEED_DEMO_ADMIN_PASSWORD");
+  console.log("  🔧 superadmin@vtb.demo     (Marta Reyes)      → SEED_DEMO_SUPERADMIN_PASSWORD");
+  console.log("  🎓 student@vtb.demo        (Alex Ferrer — ya ha votado en Consejo de Estudiantes)");
+  console.log("  🎓 student2@vtb.demo       (Marina Costa)");
+  console.log(`\n🗳️  ${voteCount} voto(s) simulado(s) en Consejo de Estudiantes.\n`);
 }
 
 // ─── Ejecución directa (npm run seed) ───────────────────────────────────────
@@ -1015,5 +415,3 @@ const isMain = process.argv[1]?.includes("seedDatabase");
 if (isMain) {
   runSeedScript();
 }
-
-

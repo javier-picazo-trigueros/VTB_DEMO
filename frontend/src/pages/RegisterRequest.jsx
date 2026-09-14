@@ -128,9 +128,9 @@ export const RegisterRequest = () => {
 
   const fillDemoData = () => {
     setFormData({
-      fullName: 'Demo Student',
-      email: 'demo@ufv.es',
-      studentId: 'E20240001',
+      fullName: 'Nuria Campos',
+      email: `nuria.campos.${Date.now()}@vtb.demo`,
+      studentId: `MER-${Date.now().toString().slice(-6)}`,
       password: 'demo123',
       confirmPassword: 'demo123',
       school: '',
@@ -194,14 +194,14 @@ export const RegisterRequest = () => {
             <>
               <div className="flex items-start justify-between mb-1">
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                  Request Access
+                  Solicitar acceso
                 </h2>
                 <button
                   type="button"
                   onClick={fillDemoData}
                   className="text-xs px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition font-medium"
                 >
-                  Fill demo data
+                  Rellenar datos de ejemplo
                 </button>
               </div>
               <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">
