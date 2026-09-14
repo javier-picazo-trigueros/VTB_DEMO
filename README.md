@@ -172,6 +172,46 @@ permissions on `%LOCALAPPDATA%\npm-cache` or use a local cache for that install:
 npm.cmd ci --cache .npm-cache
 ```
 
+## Development Workflow
+
+`main` is the stable branch — Vercel (frontend) and Render (backend) both
+redeploy automatically on every push to it, so it should only receive
+reviewed, working code.
+
+Day-to-day development happens on personal branches:
+
+| Branch | Owner |
+|---|---|
+| `JavierPicazo` | Javier |
+| `JaimeOrdovas` | Jaime |
+
+Switch to your branch and pull the latest changes before starting work:
+
+```bash
+git checkout JavierPicazo   # or JaimeOrdovas
+git pull origin JavierPicazo
+```
+
+Commit and push to your own branch as you go:
+
+```bash
+git add <files>
+git commit -m "..."
+git push origin JavierPicazo
+```
+
+Keep your branch in sync with `main` periodically so it doesn't drift too far:
+
+```bash
+git checkout JavierPicazo
+git merge main
+git push origin JavierPicazo
+```
+
+When work is ready to ship, open a pull request from your branch into `main`.
+Run the [Verification Commands](#verification-commands) before opening the
+PR, get it reviewed, then merge into `main` to trigger deployment.
+
 ## Environment Files
 
 macOS/Linux:
