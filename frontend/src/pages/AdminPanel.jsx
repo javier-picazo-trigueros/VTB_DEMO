@@ -44,6 +44,9 @@ export const AdminPanel = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("dashboard");
+  // R2: detalle de la última importación CSV fallida, visible hasta que se
+  // cierre o una importación posterior vaya bien. { title, errors, totalRows }
+  const [importErrors, setImportErrors] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -509,6 +512,21 @@ export const AdminPanel = () => {
     URL.revokeObjectURL(url);
   };
 
+  // R2: muestra el fallo de una importación CSV de forma persistente, con las
+  // filas concretas que devuelve el backend ("Línea 3: ...").
+  //
+  // Antes el catch solo hacía toast.error con el mensaje genérico. Medido en el
+  // navegador: el aviso aparecía a los ~280 ms y desaparecía a los ~5 s, y el
+  // array `errors` con los números de línea no se mostraba en ningún sitio. Un
+  // aviso de 5 segundos no sirve para corregir un fichero de 800 filas.
+  const showImportFailure = (err, fallback) => {
+    const data = err.response?.data ?? {};
+    const title = data.error || fallback;
+    const errors = Array.isArray(data.errors) ? data.errors : [];
+    setImportErrors({ title, errors, totalRows: data.totalRows ?? null });
+    toast.error(title);
+  };
+
   const handleCSVImport = async (e, electionId) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -521,10 +539,11 @@ export const AdminPanel = () => {
       );
       const r = res.data.results;
       toast.success(`CSV importado: ${r.created} usuarios creados, ${r.added} añadidos, ${r.skipped} omitidos`);
+      setImportErrors(null);
       if (r.errors?.length) console.warn('Import errors:', r.errors);
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "No se ha podido importar el CSV");
+      showImportFailure(err, "No se ha podido importar el CSV");
     }
     e.target.value = '';
   };
@@ -541,10 +560,11 @@ export const AdminPanel = () => {
       );
       const r = res.data.results;
       toast.success(`Usuarios importados: ${r.created} creados, ${r.skipped} omitidos`);
+      setImportErrors(null);
       if (r.errors?.length) console.warn('Import errors:', r.errors);
       loadTabData();
     } catch (err) {
-      toast.error(err.response?.data?.error || "No se ha podido importar el CSV de usuarios");
+      showImportFailure(err, "No se ha podido importar el CSV de usuarios");
     }
     e.target.value = '';
   };
@@ -730,6 +750,38 @@ export const AdminPanel = () => {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
+              {importErrors && (
+                <div role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-red-800 dark:text-red-300">{importErrors.title}</p>
+                      {importErrors.errors.length > 0 && (
+                        <>
+                          <p className="mt-1 text-xs text-red-700 dark:text-red-400">
+                            {importErrors.errors.length === 1
+                              ? 'Corrige esta fila y vuelve a subir el fichero'
+                              : `Corrige estas ${importErrors.errors.length} filas y vuelve a subir el fichero`}
+                            {importErrors.totalRows ? ` (${importErrors.totalRows} filas leídas)` : ''}:
+                          </p>
+                          <ul className="mt-2 max-h-60 space-y-1 overflow-y-auto font-mono-vtb text-sm text-red-800 dark:text-red-300">
+                            {importErrors.errors.map((msg, i) => (
+                              <li key={i}>{msg}</li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setImportErrors(null)}
+                      aria-label="Cerrar el aviso de errores de importación"
+                      className="flex-shrink-0 text-sm text-red-700 hover:underline dark:text-red-300"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              )}
               {/* Dashboard */}
               {activeTab === "dashboard" && stats && (
                 <div className="space-y-6">
