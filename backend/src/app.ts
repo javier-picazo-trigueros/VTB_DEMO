@@ -171,7 +171,9 @@ app.use(async (req: any, res: any, next: any) => {
 // ============================================================
 
 const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const CSRF_EXEMPT_PATHS = new Set(['/auth/login', '/auth/refresh']);
+// /auth/demo-login va con /auth/login: ambos crean la sesión, así que no puede
+// exigirse un token CSRF que se deriva de una sesión que aún no existe.
+const CSRF_EXEMPT_PATHS = new Set(['/auth/login', '/auth/demo-login', '/auth/refresh']);
 
 app.use((req: any, res: any, next: any) => {
   if (CSRF_SAFE_METHODS.has(req.method)) return next();
@@ -330,6 +332,8 @@ app.get('/api/audit/public', async (req: any, res: Response) => {
 // handler cambie de sitio. /auth/forgot-password lleva los suyos (IP + email)
 // dentro de routes/auth.ts, junto al handler.
 app.post("/auth/login", loginLimiter);
+// Mismo límite que el login: /auth/demo-login también emite una sesión.
+app.post("/auth/demo-login", loginLimiter);
 app.post("/auth/register", registerLimiter);
 app.post("/auth/reset-password", resetPasswordLimiter);
 app.use("/auth", authRoutes);

@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../utils/apiClient';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
+// Ya no hay contraseñas aquí. Antes estaban escritas a mano ('demo123',
+// 'admin123') y además se mostraban en pantalla, pero el seed dejó de usar
+// contraseñas fijas para cuentas con privilegios: salen de variables de entorno
+// del servidor y cambian por despliegue. El login lo hace ahora el backend en
+// POST /auth/demo-login, que es quien las conoce.
 const DEMO_ACCOUNTS = {
   student: {
     email: 'student@vtb.demo',
-    password: 'demo123',
     label: 'Votante',
     sublabel: 'Meridian University',
     color: 'brand',
@@ -17,7 +20,6 @@ const DEMO_ACCOUNTS = {
   },
   admin: {
     email: 'admin@vtb.demo',
-    password: 'admin123',
     label: 'Administrador',
     sublabel: 'Meridian University',
     color: 'emerald',
@@ -28,24 +30,36 @@ const DEMO_ACCOUNTS = {
 
 export function DemoLoginModal({ isOpen, onClose }) {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { setAuthUser } = useAuth();
   const [loading, setLoading] = useState(null);
   const [error, setError] = useState('');
 
   const handleDemoLogin = async (type) => {
-    const account = DEMO_ACCOUNTS[type];
     setLoading(type);
     setError('');
     try {
-      const ok = await login(account.email, account.password);
-      if (ok) {
-        onClose();
-        navigate(type === 'admin' ? '/admin' : '/dashboard');
+      const { data } = await api.post('/auth/demo-login', { profile: type });
+      setAuthUser({
+        id:          data.user.id,
+        email:       data.user.email,
+        name:        data.user.name,
+        role:        data.user.role,
+        adminDomain: data.user.adminDomain || '',
+        mustChangePassword: !!data.user.mustChangePassword,
+      });
+      onClose();
+      navigate(type === 'admin' ? '/admin' : '/dashboard');
+    } catch (err) {
+      // Antes esto hacía `if (ok)` sobre el objeto {success, user} que devuelve
+      // login(): siempre verdadero, así que navegaba aunque el login fallase y
+      // era el guard de rutas quien rebotaba a /login?reason=expired sin
+      // explicar nada. Ahora solo se navega si la petición ha ido bien, y el
+      // error que se muestra es el que da el servidor.
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
       } else {
-        setError('No se ha podido iniciar sesión con la cuenta demo. Comprueba que el backend esté activo.');
+        setError('No se ha podido conectar con el backend. Comprueba que esté en ejecución.');
       }
-    } catch {
-      setError('No se ha podido conectar con el backend. Comprueba que esté en ejecución.');
     } finally {
       setLoading(null);
     }
@@ -118,7 +132,7 @@ export function DemoLoginModal({ isOpen, onClose }) {
                       ))}
                     </ul>
                     <div className="text-xs text-slate-400 dark:text-slate-500 font-mono-vtb mb-3 bg-slate-50 dark:bg-slate-900 rounded px-3 py-2 tabular">
-                      {account.email} / {account.password}
+                      {account.email}
                     </div>
                     <button
                       onClick={() => handleDemoLogin(type)}
@@ -143,7 +157,7 @@ export function DemoLoginModal({ isOpen, onClose }) {
               </div>
 
               <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-4">
-                Los datos de demostración se reinician periódicamente · Los votos son transacciones reales en Ethereum Sepolia
+                Los datos de demostración se reinician periódicamente · Los votos de las cuentas de demo generan un hash sintético y no se registran en Ethereum Sepolia
               </p>
             </div>
           </motion.div>

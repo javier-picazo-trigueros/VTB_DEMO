@@ -20,6 +20,7 @@ import {
 import { extractToken, requireAuth, requireAdmin } from "../middleware/auth.js";
 import { sendPasswordReset } from "../services/email/index.js";
 import { forgotIpLimiter, forgotEmailLimiter } from "../middleware/rateLimit.js";
+import { formatError } from "../utils/errors.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -215,6 +216,106 @@ router.post("/login", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Error al iniciar sesión" });
   }
 });
+/**
+ * @route POST /auth/demo-login
+ * @desc  Inicia sesión con una de las dos cuentas de demostración.
+ *
+ * Existe porque el botón "Demo" de la portada estaba roto: el frontend llevaba
+ * `demo123` y `admin123` escritos a mano, y el seed dejó de usar contraseñas por
+ * defecto para cuentas con privilegios (A4). `admin@vtb.demo` nunca podría
+ * funcionar así, porque su contraseña sale de SEED_DEMO_ADMIN_PASSWORD y cambia
+ * en cada despliegue.
+ *
+ * La alternativa era publicar esas contraseñas en el bundle del navegador. Esto
+ * las deja donde ya estaban: en el entorno del servidor.
+ *
+ * Restricciones deliberadas:
+ *   - Solo las dos cuentas del dominio ficticio vtb.demo. La lista es cerrada y
+ *     está escrita aquí: no se acepta ningún email del cliente.
+ *   - Cada perfil requiere que su variable SEED_* esté definida. Si no lo está,
+ *     devuelve 404 y el botón simplemente no funciona, en vez de abrir una
+ *     puerta con una contraseña adivinable.
+ *   - Comprueba la contraseña contra el hash de la base de datos igual que un
+ *     login normal, así que una cuenta borrada o no aprobada no entra.
+ *   - Va detrás del mismo rate limit que /auth/login (montado en app.ts).
+ */
+const DEMO_ACCOUNTS: Record<string, { email: string; envVar: string; fallback?: string }> = {
+  student: {
+    email: 'student@vtb.demo',
+    envVar: 'SEED_DEMO_STUDENT_PASSWORD',
+    // Única cuenta con valor por defecto: sin privilegios y en dominio ficticio.
+    // Coincide con demoStudentPassword() en seedDatabase.ts.
+    fallback: 'demo123',
+  },
+  admin: {
+    email: 'admin@vtb.demo',
+    envVar: 'SEED_DEMO_ADMIN_PASSWORD',
+  },
+};
+
+router.post('/demo-login', async (req: Request, res: Response) => {
+  try {
+    const profile = String(req.body?.profile ?? '');
+    const account = DEMO_ACCOUNTS[profile];
+    if (!account) {
+      res.status(400).json({ error: 'Perfil de demostración no válido' });
+      return;
+    }
+
+    // `||` y no `??`, para coincidir con demoStudentPassword() del seed: con la
+    // variable definida pero vacía, el seed siembra el valor por defecto, y aquí
+    // `??` habría probado la cadena vacía y devuelto 404 sin motivo.
+    const password = process.env[account.envVar] || account.fallback;
+    if (!password) {
+      res.status(404).json({
+        error: 'El acceso de demostración no está disponible en este despliegue',
+        code: 'DEMO_NOT_CONFIGURED',
+      });
+      return;
+    }
+
+    const user = await db.get<{
+      id: number; email: string; password_hash: string; name: string;
+      student_id: string; role: string; admin_domain: string | null;
+      is_approved: boolean | number; must_change_password: boolean | number;
+    }>(
+      `SELECT id, email, password_hash, name, student_id, role, admin_domain,
+              is_approved, must_change_password
+         FROM users WHERE email = ? AND deleted_at IS NULL`,
+      [account.email],
+    );
+
+    if (!user || !user.is_approved || !(await verifyPassword(password, user.password_hash))) {
+      // La cuenta no existe, no está aprobada, o la contraseña del entorno no
+      // corresponde con la sembrada. Lo segundo pasa si se cambió la variable
+      // sin volver a ejecutar el seed.
+      res.status(404).json({
+        error: 'La cuenta de demostración no está disponible. Ejecuta el seed.',
+        code: 'DEMO_NOT_SEEDED',
+      });
+      return;
+    }
+
+    await setSessionCookies(res, user.id, user.email, user.role, user.admin_domain);
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        student_id: user.student_id,
+        role: user.role,
+        adminDomain: user.admin_domain,
+        mustChangePassword: !!user.must_change_password,
+      },
+    });
+  } catch (error) {
+    console.error('Error en demo-login:', formatError(error));
+    res.status(500).json({ error: 'Error al iniciar sesión de demostración' });
+  }
+});
+
 /**
  * @route GET /auth/verify
  * @desc Verifica que un JWT sea válido

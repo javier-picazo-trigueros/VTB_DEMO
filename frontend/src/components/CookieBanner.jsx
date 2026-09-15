@@ -52,6 +52,12 @@ export function CookieBanner() {
     { key: 'i18nextLng',                    desc: t('cookies.items.lang'),    required: false },
   ];
 
+  // La franja ocupa todo el ancho de la pantalla (fixed inset-x-0), así que sin
+  // `pointer-events-none` capturaba los clics también en las zonas vacías a los
+  // lados de la tarjeta. Eso dejaba inaccesible el botón flotante de demo
+  // (DemoModeButton, esquina inferior derecha), que cae justo debajo: el banner
+  // está en z-50 y el botón en z-40. La tarjeta recupera los eventos con
+  // `pointer-events-auto` para que sus propios botones sigan funcionando.
   return (
     <AnimatePresence>
       {visible && (
@@ -60,11 +66,11 @@ export function CookieBanner() {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-6"
+          className="fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-6 pointer-events-none"
           role="region"
           aria-label={t('cookies.ariaLabel')}
         >
-          <div className="max-w-4xl mx-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 sm:p-6">
+          <div className="max-w-4xl mx-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 sm:p-6 pointer-events-auto">
             <div className="flex flex-col sm:flex-row items-start gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
