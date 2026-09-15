@@ -3,18 +3,44 @@
  * Todas las funciones son fire-and-forget: no bloquean y no lanzan.
  */
 
-import { enqueue } from './queue.js';
+import { enqueue, enqueueLinkEmail } from './queue.js';
 import {
-  renderInvitation,       type InvitationData,
   renderVoteConfirmation, type VoteConfirmationData,
-  renderPasswordReset,    type PasswordResetData,
   renderElectionOpen,     type ElectionOpenData,
   renderElectionClose,    type ElectionCloseData,
+  invitationSubject,
+  PASSWORD_RESET_SUBJECT,
 } from './templates.js';
+import type { InvitationLinkData, PasswordResetLinkData } from './link-emails.js';
 
-export function sendCensusInvitation(data: InvitationData): void {
-  const { subject, html, text } = renderInvitation(data);
-  enqueue({ to: data.to, subject, html, text, template: 'invitation' });
+/**
+ * Invitación al censo. No lleva enlace: el token de "establece tu contraseña"
+ * lo genera el worker al enviar, para que no quede en claro en email_log (P1-7).
+ */
+export interface InvitationRequest {
+  to: string;
+  userId: number;
+  name: string;
+  electionName: string;
+  institutionName: string;
+}
+
+/** Recuperación de contraseña. Igual que la invitación: sin enlace (P1-7). */
+export interface PasswordResetRequest {
+  to: string;
+  userId: number;
+  name: string;
+}
+
+export function sendCensusInvitation(req: InvitationRequest): void {
+  const data: InvitationLinkData = {
+    userId:          req.userId,
+    name:            req.name,
+    electionName:    req.electionName,
+    institutionName: req.institutionName,
+    requestedAt:     new Date().toISOString(),
+  };
+  enqueueLinkEmail({ template: 'invitation', to: req.to, subject: invitationSubject(req), data });
 }
 
 export function sendVoteConfirmation(data: VoteConfirmationData): void {
@@ -22,9 +48,13 @@ export function sendVoteConfirmation(data: VoteConfirmationData): void {
   enqueue({ to: data.to, subject, html, text, template: 'vote_confirmation' });
 }
 
-export function sendPasswordReset(data: PasswordResetData): void {
-  const { subject, html, text } = renderPasswordReset(data);
-  enqueue({ to: data.to, subject, html, text, template: 'password_reset' });
+export function sendPasswordReset(req: PasswordResetRequest): void {
+  const data: PasswordResetLinkData = {
+    userId:      req.userId,
+    name:        req.name,
+    requestedAt: new Date().toISOString(),
+  };
+  enqueueLinkEmail({ template: 'password_reset', to: req.to, subject: PASSWORD_RESET_SUBJECT, data });
 }
 
 export function sendElectionOpen(data: ElectionOpenData): void {
@@ -39,9 +69,7 @@ export function sendElectionClose(data: ElectionCloseData): void {
 
 // Re-export types por si las rutas los necesitan
 export type {
-  InvitationData,
   VoteConfirmationData,
-  PasswordResetData,
   ElectionOpenData,
   ElectionCloseData,
 };

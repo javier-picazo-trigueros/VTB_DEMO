@@ -4,7 +4,7 @@ import multer from "multer";
 import { z } from "zod";
 import { parse as parseCSVLib } from "csv-parse/sync";
 import { getDbClient, isUniqueViolation, withTransaction, type DbClient } from "../db/index.js";
-import { hashPassword, generateToken, generateSecureToken } from "../utils/auth.js";
+import { hashPassword, generateToken } from "../utils/auth.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { formatError } from "../utils/errors.js";
 import { ethers } from "ethers";
@@ -1004,17 +1004,17 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
 
     // ── FASE 2: escribir todo dentro de una transacción ─────────────────────
     //
-    // Los tokens de invitación se acumulan en memoria en vez de enviarse aquí:
-    // un correo no se puede deshacer, así que enviarlo dentro de la transacción
-    // significaría que un ROLLBACK deja a 700 personas con un enlace a una
+    // Las invitaciones se acumulan en memoria en vez de encolarse aquí: un
+    // correo no se puede deshacer, así que encolarlo dentro de la transacción
+    // significaría que un ROLLBACK deja a 700 personas con un correo para una
     // cuenta que ya no existe.
-    const INVITATION_TTL_DAYS = 7;
-    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    //
+    // El token de "establece tu contraseña" tampoco se genera aquí: lo emite el
+    // worker de la cola al enviar, para que el enlace no quede en claro en
+    // email_log (P1-7).
     const institutionName = adminDomain ?? 'tu institución';
 
-    const pendingInvites: Array<{
-      to: string; name: string; setPasswordUrl: string; expiresAt: Date;
-    }> = [];
+    const pendingInvites: Array<{ to: string; userId: number; name: string }> = [];
     let created = 0;
     let added = 0;
     let skipped = 0;
@@ -1035,20 +1035,7 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
           userId = inserted.lastID;
           created++;
 
-          const { plaintext, hash } = generateSecureToken();
-          const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 86400 * 1000);
-          await tx.exec(
-            `INSERT INTO password_reset_tokens (user_id, token_hash, type, expires_at)
-             VALUES (?, ?, 'invitation', ?)`,
-            [userId, hash, expiresAt.toISOString()],
-          );
-
-          pendingInvites.push({
-            to: entry.email,
-            name: entry.full_name,
-            setPasswordUrl: `${frontendUrl}/auth/set-password?token=${plaintext}`,
-            expiresAt,
-          });
+          pendingInvites.push({ to: entry.email, userId, name: entry.full_name });
         }
 
         const assigned = await tx.exec(
@@ -1068,11 +1055,10 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
     for (const invite of pendingInvites) {
       sendCensusInvitation({
         to:              invite.to,
+        userId:          invite.userId,
         name:            invite.name,
         electionName:    election.name,
         institutionName,
-        setPasswordUrl:  invite.setPasswordUrl,
-        expiresAt:       invite.expiresAt,
       });
     }
 

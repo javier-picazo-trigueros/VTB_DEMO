@@ -87,13 +87,13 @@ cd backend
 DATABASE_URL="postgresql://…@…render.com/vtb?sslmode=require" npm run migrate
 ```
 
-Debe terminar con `Migrations complete!` y aplicar **6** migraciones. Compruébalo:
+Debe terminar con `Migrations complete!` y aplicar **7** migraciones. Compruébalo:
 
 ```bash
 DATABASE_URL="postgresql://…?sslmode=require" npm run migrate:status
 ```
 
-Las 6 son:
+Las 7 son:
 
 ```
 20260808000001_initial_schema
@@ -102,6 +102,7 @@ Las 6 son:
 20260826000004_email_queue_state
 20260914000005_refresh_tokens_and_election_image   ← nueva
 20260914000006_enable_rls_deny_by_default          ← nueva
+20260915000007_email_log_without_tokens            ← nueva
 ```
 
 **La quinta no es opcional.** Crea `refresh_tokens`, que no existía en el esquema
@@ -112,6 +113,14 @@ así que sin ella **nadie puede iniciar sesión**, ni siquiera tú.
 nada. En Supabase es imprescindible: sin ella, la API REST pública de Supabase
 expone las tablas (usuarios con sus hashes, votos, tokens) a cualquiera con la
 *anon key*, que es pública por diseño.
+
+**La séptima** (P1-7) añade `email_log.template_data` y limpia lo que la cola
+guardaba antes: anula los tokens de recuperación e invitación que aparecían en
+claro en los cuerpos de los correos, descarta los correos pendientes que los
+llevaban y vacía los cuerpos ya enviados. Sin la columna, el backend no puede
+encolar invitaciones ni correos de recuperación. Efecto visible: un enlace de
+invitación o de recuperación enviado **antes** de aplicarla deja de funcionar, y
+hay que pedir otro o volver a invitar.
 
 ### Paso 3 — (Solo si conservas datos) migrar el contenido
 

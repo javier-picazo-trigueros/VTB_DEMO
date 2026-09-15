@@ -6,7 +6,6 @@ import { ethers } from "ethers";
 import net from "node:net";
 import { processEmailQueue } from "./services/email/queue.js";
 import { sendCensusInvitation, sendElectionOpen, sendElectionClose } from "./services/email/index.js";
-import { generateSecureToken } from "./utils/auth.js";
 import { formatError } from "./utils/errors.js";
 
 const PORT = Number(process.env.PORT || 3001);
@@ -96,12 +95,12 @@ async function start() {
 
       // ── Job periódico: reintento de emails huérfanos + notificaciones ────────
       // Corre cada 5 minutos independientemente del motor de BD.
-      // Recupera emails en 'queued'/'failed' que no se enviaron antes de un
-      // reinicio del servidor (el cuerpo queda guardado en email_log).
+      // Recupera emails en 'queued' que no se enviaron antes de un reinicio del
+      // servidor: en email_log queda el cuerpo o, si el correo lleva un enlace
+      // con token, los datos para generarlo al enviar (P1-7).
       // También detecta cambios de estado en elecciones y envía notificaciones.
       const FIVE_MIN = 5 * 60 * 1000;
       const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-      const INVITATION_TTL_DAYS = 7;
       const MAX_NOTIFY_BATCH = 1000;
 
       async function checkElectionNotifications(): Promise<void> {
@@ -135,31 +134,16 @@ async function start() {
           for (const v of voters) {
             if (v.must_change_password) {
               // Punto 2: usuario no ha activado su cuenta todavía.
-              // Regeneramos el token de invitación para que pueda acceder.
-              try {
-                await db.exec(
-                  `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP
-                   WHERE user_id = ? AND type = 'invitation' AND used_at IS NULL`,
-                  [v.id],
-                );
-                const { plaintext, hash } = generateSecureToken();
-                const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 86400 * 1000);
-                await db.exec(
-                  `INSERT INTO password_reset_tokens (user_id, token_hash, type, expires_at)
-                   VALUES (?, ?, 'invitation', ?)`,
-                  [v.id, hash, expiresAt.toISOString()],
-                );
-                sendCensusInvitation({
-                  to:              v.email,
-                  name:            v.name,
-                  electionName:    election.name,
-                  institutionName: 'tu institución',
-                  setPasswordUrl:  `${frontendUrl}/auth/set-password?token=${plaintext}`,
-                  expiresAt,
-                });
-              } catch (err) {
-                console.error(`[notify-open] error regenerando token para ${v.email}:`, err);
-              }
+              // Se le reenvía la invitación. El token nuevo (que anula los
+              // anteriores) lo emite el worker de la cola al enviar, para que
+              // no quede en claro en email_log (P1-7).
+              sendCensusInvitation({
+                to:              v.email,
+                userId:          v.id,
+                name:            v.name,
+                electionName:    election.name,
+                institutionName: 'tu institución',
+              });
             } else {
               sendElectionOpen({
                 to:           v.email,

@@ -105,8 +105,13 @@ export interface InvitationData {
   expiresAt: Date;
 }
 
+/** Aparte del render porque la cola guarda el asunto al encolar, antes de que exista el enlace. */
+export function invitationSubject(d: { electionName: string; institutionName: string }): string {
+  return `Invitación para votar en "${d.electionName}" — ${d.institutionName}`;
+}
+
 export function renderInvitation(d: InvitationData): { subject: string; html: string; text: string } {
-  const subject = `Invitación para votar en "${d.electionName}" — ${d.institutionName}`;
+  const subject = invitationSubject(d);
 
   const body =
     h1('Has sido incluido en el censo electoral') +
@@ -201,8 +206,11 @@ export interface PasswordResetData {
   expiresAt: Date;
 }
 
+/** Constante por la misma razón que invitationSubject(). */
+export const PASSWORD_RESET_SUBJECT = 'Restablece tu contraseña — VoteTrustBlock';
+
 export function renderPasswordReset(d: PasswordResetData): { subject: string; html: string; text: string } {
-  const subject = 'Restablece tu contraseña — VoteTrustBlock';
+  const subject = PASSWORD_RESET_SUBJECT;
 
   const body =
     h1('Solicitud de cambio de contraseña') +

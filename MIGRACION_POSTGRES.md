@@ -237,7 +237,7 @@ docker run -d --name vtb-pg -p 5432:5432 \
 Luego, desde `backend/`:
 
 ```bash
-# 1. Crear el esquema (las 6 migraciones)
+# 1. Crear el esquema (las 7 migraciones)
 DATABASE_URL=postgresql://vtb:vtb@localhost:5432/vtb npm run migrate
 
 # 2. Sembrar datos de demo en PostgreSQL. SOLO con la base vacía: si ya hay
@@ -348,7 +348,7 @@ backend**, y el build de Render no ejecuta migraciones.
    ```
 
    La URL externa exige SSL; de ahí el `?sslmode=require`. Comprueba que terminan
-   las 6 migraciones con `npm run migrate:status`.
+   las 7 migraciones con `npm run migrate:status`.
 
 3. **(Solo si vas a conservar datos)** Migrar el contenido del SQLite que hayas
    extraído:

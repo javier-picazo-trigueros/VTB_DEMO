@@ -10,7 +10,6 @@ import {
   generateRefreshToken,
   hashRefreshToken,
   generateCsrfToken,
-  generateSecureToken,
   hashSecureToken,
   COOKIE_NAME_ACCESS,
   COOKIE_NAME_REFRESH,
@@ -644,8 +643,6 @@ router.post('/logout', async (req: Request, res: Response) => {
 
 // ── Recuperación de contraseña ────────────────────────────────────────────────
 
-const RESET_TTL_MINUTES = 15;
-
 const forgotSchema = z.object({
   email: z.string().email(),
 });
@@ -657,7 +654,8 @@ const resetSchema = z.object({
 
 /**
  * @route POST /auth/forgot-password
- * @desc  Genera un token de un solo uso y envía email con enlace de reset.
+ * @desc  Encola el email de recuperación. El token de un solo uso lo genera
+ *        la cola al enviarlo, para que no quede en claro en email_log (P1-7).
  *        Responde siempre 200 (no revela si el email existe).
  */
 router.post('/forgot-password', forgotIpLimiter, forgotEmailLimiter, async (req: Request, res: Response) => {
@@ -679,36 +677,11 @@ router.post('/forgot-password', forgotIpLimiter, forgotEmailLimiter, async (req:
     );
     if (!user) return;
 
-    const { plaintext, hash } = generateSecureToken();
-    const expiresAt = new Date(Date.now() + RESET_TTL_MINUTES * 60 * 1000);
-
-    // Invalidar los anteriores y emitir el nuevo, en una sola operación.
-    //
-    // Si el INSERT fallase después del UPDATE quedarían cero enlaces válidos y
-    // el usuario tendría que volver a pedirlo: molesto, pero seguro. Lo que no
-    // puede pasar es lo contrario — que se emita el nuevo y sobrevivan los
-    // viejos — porque entonces "pedir otro enlace" dejaría de invalidar el
-    // anterior, que es la razón de que ese UPDATE exista.
-    await withTransaction(async (tx) => {
-      await tx.exec(
-        `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP
-         WHERE user_id = ? AND type = 'reset' AND used_at IS NULL`,
-        [user.id],
-      );
-      await tx.exec(
-        `INSERT INTO password_reset_tokens (user_id, token_hash, type, expires_at)
-         VALUES (?, ?, 'reset', ?)`,
-        [user.id, hash, expiresAt.toISOString()],
-      );
-    });
-
-    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-    sendPasswordReset({
-      to: email,
-      name: user.name,
-      resetUrl: `${frontendUrl}/auth/reset-password?token=${plaintext}`,
-      expiresAt,
-    });
+    // El enlace NO se genera aquí. Se encola a quién va y para qué usuario, y el
+    // worker de la cola emite el token al enviar (anulando los anteriores, en
+    // una transacción: ver services/email/tokens.ts). Así el token no queda en
+    // claro en email_log (P1-7).
+    sendPasswordReset({ to: email, userId: user.id, name: user.name });
   } catch (err) {
     console.error('Error en forgot-password:', err);
     // La respuesta 200 ya fue enviada; solo logamos el error

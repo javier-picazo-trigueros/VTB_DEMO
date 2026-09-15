@@ -21,7 +21,7 @@
  *   queued  → pendiente; elegible cuando next_retry_at <= ahora
  *   sending → reclamado por un worker (claimed_at marca cuándo)
  *   sent    → entregado (terminal)
- *   dead    → agotados los intentos (terminal)
+ *   dead    → agotados los intentos, o descartado (terminal)
  *   skipped → sin RESEND_API_KEY (terminal)
  *
  * ── Muerte del proceso ──────────────────────────────────────────────────────
@@ -41,10 +41,41 @@
  * Sin la clave de idempotencia el caso 2 no tiene solución local: no se puede
  * saber si la petición llegó a salir. Por eso la clave se genera en el INSERT
  * y se guarda, en lugar de generarse en cada intento.
+ *
+ * ── Enlaces con token (P1-7) ────────────────────────────────────────────────
+ *
+ * La invitación al censo y la recuperación de contraseña llevan un enlace con
+ * un token de un solo uso. Antes se renderizaban al encolar, y el cuerpo — con
+ * el token en claro — se quedaba en email_log para siempre: quien leyera esa
+ * tabla (una copia de seguridad, un DATABASE_URL filtrado) podía fijar la
+ * contraseña de cualquiera con un enlace vigente.
+ *
+ * Ahora esos correos se encolan SIN cuerpo, con template_data (datos no
+ * secretos), y el token lo emite link-emails.ts justo antes de enviar. Dos
+ * consecuencias:
+ *
+ *   - Cada intento emite un token nuevo y anula el anterior. Como el contenido
+ *     cambia, la clave de idempotencia es `<clave>:<intento>`: reutilizar la
+ *     misma con otro cuerpo haría que Resend rechazara el reintento. En el
+ *     caso 2 de arriba el destinatario recibe entonces dos correos y solo
+ *     funciona el último enlace. Es el precio de no guardar el token.
+ *   - Una recuperación que no ha salido a los RESET_TTL_MINUTES de pedirse
+ *     termina en 'dead' sin enviarse.
+ *
+ * ── Cuerpos en estado final ─────────────────────────────────────────────────
+ *
+ * Al llegar a sent, dead o skipped se vacían html_body y text_body, en todos
+ * los tipos de correo. El cuerpo solo hace falta para reintentar.
  */
 
 import { sendRaw, resendClient } from './client.js';
 import type { RawPayload } from './client.js';
+import {
+  prepareLinkEmail,
+  type LinkTemplate,
+  type InvitationLinkData,
+  type PasswordResetLinkData,
+} from './link-emails.js';
 import crypto from 'crypto';
 
 // Import diferido para evitar ciclos en el arranque
@@ -68,6 +99,9 @@ const STUCK_MS = 10 * 60 * 1000;
 /** Máximo de envíos por invocación del worker. */
 const BATCH_MAX = 100;
 
+/** Se añade a cada UPDATE que lleva una fila a un estado final. */
+const CLEAR_BODIES = 'html_body = NULL, text_body = NULL';
+
 /**
  * Pausa entre envíos. El plan gratuito de Resend limita a ~2 peticiones/s;
  * sin esto, una notificación masiva de 1.000 votantes disparaba 1.000
@@ -90,6 +124,11 @@ export interface QueuePayload extends RawPayload {
   template: string;
 }
 
+/** Correo con enlace de token: se encola sin cuerpo (ver cabecera, P1-7). */
+export type LinkQueuePayload =
+  | { template: 'invitation'; to: string; subject: string; data: InvitationLinkData }
+  | { template: 'password_reset'; to: string; subject: string; data: PasswordResetLinkData };
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -103,11 +142,41 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 // ── API pública ───────────────────────────────────────────────────────────────
 
 /**
- * Encola un email. Nunca lanza y nunca bloquea la petición HTTP.
+ * Encola un email ya renderizado. Nunca lanza y nunca bloquea la petición HTTP.
  * El envío lo hace el worker, que se despierta al final de esta función.
+ *
+ * No usar para correos que lleven un token: el cuerpo se guarda en email_log
+ * hasta que el correo sale. Para eso está enqueueLinkEmail().
  */
 export function enqueue(payload: QueuePayload): void {
-  insertQueued(payload)
+  schedule(insertQueued({
+    to: payload.to,
+    template: payload.template,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text,
+    templateData: null,
+  }));
+}
+
+/**
+ * Encola un correo con enlace de un solo uso. Solo se guardan los datos para
+ * renderizarlo; el token se genera al enviar.
+ */
+export function enqueueLinkEmail(payload: LinkQueuePayload): void {
+  const template: LinkTemplate = payload.template;
+  schedule(insertQueued({
+    to: payload.to,
+    template,
+    subject: payload.subject,
+    html: null,
+    text: null,
+    templateData: JSON.stringify(payload.data),
+  }));
+}
+
+function schedule(inserted: Promise<void>): void {
+  inserted
     .then(() => {
       // Arranca el worker sin esperarlo: la petición HTTP ya puede responder.
       void processEmailQueue().catch((err) =>
@@ -163,24 +232,33 @@ export const retryPendingEmails = processEmailQueue;
 interface QueueRow {
   id: number;
   recipient: string;
+  template_name: string;
   subject: string;
   html_body: string | null;
   text_body: string | null;
+  template_data: string | null;
   attempts: number;
   idempotency_key: string | null;
 }
 
-async function insertQueued(p: QueuePayload): Promise<void> {
+async function insertQueued(p: {
+  to: string;
+  template: string;
+  subject: string;
+  html: string | null;
+  text: string | null;
+  templateData: string | null;
+}): Promise<void> {
   const db = await getDb();
   // La clave se fija AQUÍ, no en cada intento: es lo que permite que un
   // reintento tras un crash no duplique el envío en Resend.
   const idempotencyKey = crypto.randomUUID();
   await db.exec(
     `INSERT INTO email_log
-       (recipient, template_name, subject, html_body, text_body,
+       (recipient, template_name, subject, html_body, text_body, template_data,
         status, attempts, next_retry_at, idempotency_key, created_at)
-     VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, CURRENT_TIMESTAMP)`,
-    [p.to, p.template, p.subject, p.html, p.text, nowIso(), idempotencyKey],
+     VALUES (?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, CURRENT_TIMESTAMP)`,
+    [p.to, p.template, p.subject, p.html, p.text, p.templateData, nowIso(), idempotencyKey],
   );
 }
 
@@ -211,10 +289,11 @@ async function reclaimStuck(): Promise<void> {
 async function claimNext(): Promise<QueueRow | null> {
   const db = await getDb();
 
+  // Enviable = tiene cuerpo (correo normal) o datos para renderizarlo (enlace).
   const candidates = await db.run<{ id: number }>(
     `SELECT id FROM email_log
       WHERE status = 'queued'
-        AND html_body IS NOT NULL
+        AND (html_body IS NOT NULL OR template_data IS NOT NULL)
         AND (next_retry_at IS NULL OR next_retry_at <= ?)
       ORDER BY created_at ASC
       LIMIT 10`,
@@ -232,7 +311,8 @@ async function claimNext(): Promise<QueueRow | null> {
     if (claim.changes !== 1) continue; // otro worker se la llevó
 
     const row = await db.get<QueueRow>(
-      `SELECT id, recipient, subject, html_body, text_body, attempts, idempotency_key
+      `SELECT id, recipient, template_name, subject, html_body, text_body, template_data,
+              attempts, idempotency_key
          FROM email_log WHERE id = ?`,
       [candidate.id],
     );
@@ -246,28 +326,44 @@ async function attemptSend(row: QueueRow): Promise<void> {
   const db = await getDb();
 
   if (!resendClient) {
+    // Sin clave no se envía, así que tampoco se emite ningún token.
     await db.exec(
-      `UPDATE email_log SET status = 'skipped', claimed_at = NULL WHERE id = ?`,
+      `UPDATE email_log SET status = 'skipped', claimed_at = NULL, ${CLEAR_BODIES} WHERE id = ?`,
       [row.id],
     ).catch(() => {});
     return;
   }
 
   try {
-    const resendId = await sendRaw(
-      {
+    let payload: RawPayload;
+    let idempotencyKey = row.idempotency_key ?? undefined;
+
+    if (row.template_data !== null) {
+      const prepared = await prepareLinkEmail(row.template_name, row.template_data, row.recipient);
+      if (prepared.kind === 'discard') {
+        await markDead(row.id, prepared.reason);
+        console.warn(`[email:queue] ${row.template_name} → ${row.recipient} descartado: ${prepared.reason}`);
+        return;
+      }
+      payload = prepared.payload;
+      // Token nuevo en cada intento, así que el contenido cambia: clave nueva.
+      if (idempotencyKey) idempotencyKey = `${idempotencyKey}:${row.attempts}`;
+    } else {
+      payload = {
         to: row.recipient,
         subject: row.subject,
         html: row.html_body ?? '',
         text: row.text_body ?? '',
-      },
-      row.idempotency_key ?? undefined,
-    );
+      };
+    }
+
+    const resendId = await sendRaw(payload, idempotencyKey);
 
     await db.exec(
       `UPDATE email_log
           SET status = 'sent', resend_id = ?, sent_at = CURRENT_TIMESTAMP,
-              last_error = NULL, claimed_at = NULL, next_retry_at = NULL
+              last_error = NULL, claimed_at = NULL, next_retry_at = NULL,
+              ${CLEAR_BODIES}
         WHERE id = ?`,
       [resendId, row.id],
     ).catch(() => {});
@@ -275,12 +371,7 @@ async function attemptSend(row: QueueRow): Promise<void> {
     const msg = String(err?.message ?? err).slice(0, 500);
 
     if (row.attempts >= MAX_ATTEMPTS) {
-      await db.exec(
-        `UPDATE email_log
-            SET status = 'dead', last_error = ?, claimed_at = NULL, next_retry_at = NULL
-          WHERE id = ?`,
-        [msg, row.id],
-      ).catch(() => {});
+      await markDead(row.id, msg);
       console.error(
         `[email:queue] FALLO DEFINITIVO tras ${row.attempts} intentos → ${row.recipient}: ${msg}`,
       );
@@ -299,4 +390,15 @@ async function attemptSend(row: QueueRow): Promise<void> {
       `reintento en ${Math.round(delay / 1000)}s: ${msg}`,
     );
   }
+}
+
+async function markDead(id: number, reason: string): Promise<void> {
+  const db = await getDb();
+  await db.exec(
+    `UPDATE email_log
+        SET status = 'dead', last_error = ?, claimed_at = NULL, next_retry_at = NULL,
+            ${CLEAR_BODIES}
+      WHERE id = ?`,
+    [reason.slice(0, 500), id],
+  ).catch(() => {});
 }

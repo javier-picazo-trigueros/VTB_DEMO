@@ -88,10 +88,14 @@ navegador real (Playwright/Chromium).
    escrita en un template literal con barras simples (la secuencia de escape de la b se convertía en un carácter de retroceso) y no podía
    coincidir con nada. Corregido y comprobado con una sonda: detecta un
    `is_active = 1` plantado y pasa sin él.
-4. **P1-7 sigue abierto.** Los tokens de recuperación e invitación quedan **en claro**
-   en `email_log` (`html_body`/`text_body`). Confirmado con el flujo real de
-   recuperación en una base aislada. Quien lea esa tabla puede cambiar la contraseña de
-   cualquier usuario con un correo pendiente.
+4. **P1-7 estaba abierto.** Los tokens de recuperación e invitación quedaban **en
+   claro** en `email_log` (`html_body`/`text_body`). Confirmado con el flujo real de
+   recuperación en una base aislada. Quien leyera esa tabla podía cambiar la contraseña
+   de cualquier usuario con un correo pendiente. **Resuelto después:** esos correos se
+   encolan sin cuerpo, solo con `template_data` (datos no secretos), y el token lo
+   genera el worker al enviar. Todo cuerpo se vacía al llegar a un estado final, y una
+   recuperación que no ha salido a los 15 minutos no se reintenta. La migración
+   `20260915000007_email_log_without_tokens` anula los tokens que ya estaban expuestos.
 
 ---
 

@@ -16,7 +16,7 @@
  * INSERT de la segunda. Es un fallo del motor, no uno simulado con un mock, que
  * es justo lo que hay que probar.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import {
   createFixtureUser,
   loginAsFixture,
@@ -87,10 +87,10 @@ describe('import-voters — fallo a mitad de la transacción', () => {
     expect(await censusSize(electionId)).toBe(censusBefore);
   });
 
-  it('no deja tokens de invitación huérfanos', async () => {
-    // Cada alta nueva genera un token en password_reset_tokens dentro de la
-    // misma transacción. Si el ROLLBACK no los arrastrara, quedarían enlaces de
-    // "establece tu contraseña" apuntando a usuarios que no existen.
+  it('no encola invitaciones ni deja tokens para las altas revertidas', async () => {
+    // Las invitaciones se encolan después del COMMIT. Si hay ROLLBACK no puede
+    // quedar ningún correo, ni ningún enlace de "establece tu contraseña", para
+    // usuarios que no existen.
     const { agent, csrf } = await loginAsFixture(adminEmail, adminPassword);
     const s = Date.now();
 
@@ -113,10 +113,16 @@ describe('import-voters — fallo a mitad de la transacción', () => {
       "SELECT COUNT(*) as n FROM password_reset_tokens WHERE type = 'invitation'",
     );
     expect(Number(after?.n ?? 0)).toBe(Number(before?.n ?? 0));
+
+    const queued = await db.get<{ n: number }>(
+      'SELECT COUNT(*) as n FROM email_log WHERE recipient LIKE ?', [`tok-%-${s}@test.vtb`],
+    );
+    expect(Number(queued?.n ?? 0)).toBe(0);
   });
 
-  it('un CSV correcto sí escribe usuarios, censo y tokens juntos', async () => {
-    // La contrapartida: comprobar que la transacción confirma las tres cosas.
+  it('un CSV correcto escribe usuarios y censo, y encola una invitación por alta sin el enlace', async () => {
+    // La contrapartida: comprobar que la transacción confirma y que, después,
+    // se encola la invitación de cada alta nueva.
     const { agent, csrf } = await loginAsFixture(adminEmail, adminPassword);
     const s = Date.now();
 
@@ -141,14 +147,28 @@ describe('import-voters — fallo a mitad de la transacción', () => {
     expect(await userExists(`ok-b-${s}@test.vtb`)).toBe(true);
     expect(await censusSize(electionId)).toBe(censusBefore + 2);
 
+    // P1-7: la invitación se encola con los datos para renderizarla, no con el
+    // cuerpo. El token se emite al enviar, así que no está en email_log.
     for (const email of [`ok-a-${s}@test.vtb`, `ok-b-${s}@test.vtb`]) {
-      const token = await db.get<{ n: number }>(
-        `SELECT COUNT(*) as n FROM password_reset_tokens prt
-           JOIN users u ON u.id = prt.user_id
-          WHERE u.email = ? AND prt.type = 'invitation'`,
-        [email],
-      );
-      expect(Number(token?.n ?? 0), `${email} debería tener su token de invitación`).toBe(1);
+      const user = await db.get<{ id: number }>('SELECT id FROM users WHERE email = ?', [email]);
+
+      type Row = { html_body: string | null; text_body: string | null; template_data: string | null };
+      let row: Row | undefined;
+      await vi.waitFor(async () => {
+        row = await db.get<Row>(
+          "SELECT html_body, text_body, template_data FROM email_log WHERE recipient = ? AND template_name = 'invitation'",
+          [email],
+        );
+        expect(row, `${email} debería tener su invitación encolada`).toBeTruthy();
+      }, { timeout: 5000 });
+
+      expect(row!.html_body).toBeNull();
+      expect(row!.text_body).toBeNull();
+      expect(JSON.parse(row!.template_data!)).toMatchObject({
+        userId: user!.id,
+        electionName: 'Elección atomicidad',
+      });
+      expect(row!.template_data).not.toMatch(/token/i);
     }
   });
 

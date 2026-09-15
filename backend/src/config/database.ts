@@ -1,4 +1,5 @@
 import sqlite3 from "sqlite3";
+import crypto from "crypto";
 import { promisify } from "util";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -325,6 +326,16 @@ export class Database {
       'CREATE INDEX IF NOT EXISTS idx_prt_hash ON password_reset_tokens(token_hash)'
     ).catch(() => {});
 
+    // ── P1-7: email_log no guarda tokens ─────────────────────────────────────
+    // Los correos con enlace se encolan con template_data, sin cuerpo, y el
+    // token se genera al enviar (services/email/queue.ts). Esto limpia lo que
+    // quedó guardado antes del cambio. En PostgreSQL lo hace la migración
+    // 20260915000007_email_log_without_tokens.
+    await this.exec('ALTER TABLE email_log ADD COLUMN template_data TEXT DEFAULT NULL').catch(() => {});
+    await this.scrubLoggedEmailTokens().catch((err) =>
+      console.error('[email_log] limpieza de tokens (P1-7) fallida:', err)
+    );
+
     // Tracking de notificaciones de elección (apertura / cierre)
     await this.exec(
       'ALTER TABLE elections ADD COLUMN notify_open_sent_at DATETIME DEFAULT NULL'
@@ -332,6 +343,52 @@ export class Database {
     await this.exec(
       'ALTER TABLE elections ADD COLUMN notify_close_sent_at DATETIME DEFAULT NULL'
     ).catch(() => {});
+  }
+
+  /**
+   * P1-7: anula los tokens cuyo texto en claro quedó en cuerpos de email_log,
+   * descarta los correos pendientes que lo llevan y vacía los cuerpos de las
+   * filas en estado final. Mismo efecto que la migración 007 de PostgreSQL.
+   *
+   * Se ejecuta en cada initialize(), y es barato: tras la primera pasada ya no
+   * quedan cuerpos con token que encontrar. El orden importa, porque el primer
+   * paso lee los cuerpos que el último borra.
+   */
+  async scrubLoggedEmailTokens(): Promise<void> {
+    const rows = await this.run<{ html_body: string | null; text_body: string | null }>(
+      "SELECT html_body, text_body FROM email_log WHERE html_body LIKE '%token=%' OR text_body LIKE '%token=%'"
+    );
+
+    // password_reset_tokens guarda sha256(token) en hex.
+    const leaked = new Set<string>();
+    for (const r of rows) {
+      for (const m of `${r.text_body ?? ''} ${r.html_body ?? ''}`.matchAll(/token=([0-9a-f]{64})/g)) {
+        leaked.add(crypto.createHash('sha256').update(m[1]).digest('hex'));
+      }
+    }
+    for (const hash of leaked) {
+      await this.exec(
+        'UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE token_hash = ? AND used_at IS NULL',
+        [hash]
+      );
+    }
+
+    await this.exec(
+      `UPDATE email_log
+          SET status = 'dead',
+              last_error = 'P1-7: el cuerpo llevaba el token en claro; descartado sin enviar',
+              claimed_at = NULL,
+              next_retry_at = NULL
+        WHERE status IN ('queued', 'sending')
+          AND template_data IS NULL
+          AND (html_body LIKE '%token=%' OR text_body LIKE '%token=%')`
+    );
+    await this.exec(
+      `UPDATE email_log
+          SET html_body = NULL, text_body = NULL
+        WHERE status IN ('sent', 'dead', 'skipped')
+          AND (html_body IS NOT NULL OR text_body IS NOT NULL)`
+    );
   }
 
   /**
