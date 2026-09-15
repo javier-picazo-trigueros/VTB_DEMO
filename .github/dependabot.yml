@@ -1,0 +1,58 @@
+version: 2
+
+updates:
+  # ── Backend (Express + TypeScript) ──────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      backend-minor-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - backend
+
+  # ── Frontend (React + Vite) ──────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      frontend-minor-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - frontend
+
+  # ── Blockchain (Hardhat + Solidity) ───────────────────────────────────────
+  # Sin agrupar: hardhat, hardhat-toolbox y hardhat-ethers deben subir juntos
+  # y a mano — un bump automático de mayor aquí es justo lo que dejó
+  # `npm run compile` roto en septiembre (SCRUM-15).
+  - package-ecosystem: npm
+    directory: /blockchain
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - blockchain
+
+  # ── GitHub Actions ────────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - ci
