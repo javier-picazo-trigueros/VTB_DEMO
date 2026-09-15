@@ -99,15 +99,24 @@ function fmtDate(d: Date): string {
 export interface InvitationData {
   to: string;
   name: string;
-  electionName: string;
+  /**
+   * Ausente cuando la invitación viene del censo general (`/admin/users/import`),
+   * que no importa a una elección concreta sino a la institución entera: la
+   * persona queda auto-asignada a todas las elecciones que casen con su dominio,
+   * que pueden ser ninguna o quince. Con elección se nombra; sin ella, el correo
+   * habla de acceso a la plataforma.
+   */
+  electionName?: string;
   institutionName: string;
   setPasswordUrl: string;
   expiresAt: Date;
 }
 
 /** Aparte del render porque la cola guarda el asunto al encolar, antes de que exista el enlace. */
-export function invitationSubject(d: { electionName: string; institutionName: string }): string {
-  return `Invitación para votar en "${d.electionName}" — ${d.institutionName}`;
+export function invitationSubject(d: { electionName?: string; institutionName: string }): string {
+  return d.electionName
+    ? `Invitación para votar en "${d.electionName}" — ${d.institutionName}`
+    : `Tu acceso a VoteTrustBlock — ${d.institutionName}`;
 }
 
 export function renderInvitation(d: InvitationData): { subject: string; html: string; text: string } {
@@ -116,9 +125,11 @@ export function renderInvitation(d: InvitationData): { subject: string; html: st
   const body =
     h1('Has sido incluido en el censo electoral') +
     p(`Hola <strong>${esc(d.name)}</strong>,`) +
-    p(`Tu institución, <strong>${esc(d.institutionName)}</strong>, te ha habilitado para participar en la siguiente votación:`) +
+    p(d.electionName
+      ? `Tu institución, <strong>${esc(d.institutionName)}</strong>, te ha habilitado para participar en la siguiente votación:`
+      : `Tu institución, <strong>${esc(d.institutionName)}</strong>, te ha dado acceso a la plataforma de votación. Recibirás un aviso cuando se abra cada proceso electoral en el que puedas participar.`) +
     table(
-      badge('Proceso electoral:', esc(d.electionName)) +
+      (d.electionName ? badge('Proceso electoral:', esc(d.electionName)) : '') +
       badge('Enlace válido hasta:', fmtDate(d.expiresAt)),
     ) +
     p('Para poder acceder, primero debes establecer tu contraseña. Haz clic en el botón para completar tu registro:') +
@@ -132,7 +143,9 @@ export function renderInvitation(d: InvitationData): { subject: string; html: st
     ``,
     `Hola ${d.name},`,
     ``,
-    `Tu institución (${d.institutionName}) te ha habilitado para votar en: ${d.electionName}.`,
+    d.electionName
+      ? `Tu institución (${d.institutionName}) te ha habilitado para votar en: ${d.electionName}.`
+      : `Tu institución (${d.institutionName}) te ha dado acceso a la plataforma de votación. Recibirás un aviso cuando se abra cada proceso electoral en el que puedas participar.`,
     ``,
     `Para acceder, establece tu contraseña antes del ${fmtDate(d.expiresAt)}:`,
     d.setPasswordUrl,

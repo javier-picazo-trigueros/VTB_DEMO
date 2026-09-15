@@ -17,7 +17,8 @@ export type LinkTemplate = 'invitation' | 'password_reset';
 export interface InvitationLinkData {
   userId: number;
   name: string;
-  electionName: string;
+  /** Ausente en el censo general, que no importa a una elección concreta. */
+  electionName?: string;
   institutionName: string;
   requestedAt: string;
 }
@@ -96,7 +97,11 @@ export async function prepareLinkEmail(
     ? renderInvitation({
         to,
         name,
-        electionName:    String(data.electionName ?? ''),
+        // Sin elección se deja undefined a propósito: '' haría que la plantilla
+        // la tratara como ausente igualmente, pero undefined es lo que declara
+        // el tipo y evita que un `''` accidental acabe dentro de unas comillas
+        // en el asunto si alguien cambia la condición.
+        electionName:    data.electionName ? String(data.electionName) : undefined,
         institutionName: String(data.institutionName ?? ''),
         setPasswordUrl:  `${frontendUrl}/auth/set-password?token=${issued.plaintext}`,
         expiresAt:       issued.expiresAt,
