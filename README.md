@@ -143,6 +143,10 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 
 ## Fresh Install
 
+> **Already have the repo and just pulled?** Follow [SETUP.md](SETUP.md) (in
+> Spanish): the exact steps from `git pull` to a running app, every environment
+> variable and what it is for, and whether to use a shared or your own database.
+
 Clone the repo:
 
 ```bash
@@ -533,7 +537,6 @@ Backend:
 | `npm run sync-blockchain` | Sync elections to configured chain |
 | `npm run migrate` | Apply pending PG migrations (requires `DB_CLIENT=postgres`) |
 | `npm run migrate:down` | Roll back the last PG migration |
-| `npm run migrate:status` | Show applied/pending PG migrations |
 | `npm run db:migrate` | Copy data from SQLite to PostgreSQL |
 | `npm run db:rollback` | Copy data from PostgreSQL back to SQLite |
 

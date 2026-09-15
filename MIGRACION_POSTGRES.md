@@ -348,7 +348,8 @@ backend**, y el build de Render no ejecuta migraciones.
    ```
 
    La URL externa exige SSL; de ahí el `?sslmode=require`. Comprueba que terminan
-   las 7 migraciones con `npm run migrate:status`.
+   las 7 migraciones con `SELECT id, name FROM pgmigrations ORDER BY id;`
+   (node-pg-migrate 7 no tiene comando `status`).
 
 3. **(Solo si vas a conservar datos)** Migrar el contenido del SQLite que hayas
    extraído:

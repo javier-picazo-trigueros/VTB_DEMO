@@ -87,10 +87,11 @@ cd backend
 DATABASE_URL="postgresql://…@…render.com/vtb?sslmode=require" npm run migrate
 ```
 
-Debe terminar con `Migrations complete!` y aplicar **7** migraciones. Compruébalo:
+Debe terminar con `Migrations complete!` y aplicar **7** migraciones. Compruébalo
+con una consulta en la base (node-pg-migrate 7 no tiene comando `status`):
 
-```bash
-DATABASE_URL="postgresql://…?sslmode=require" npm run migrate:status
+```sql
+SELECT id, name FROM pgmigrations ORDER BY id;
 ```
 
 Las 7 son:

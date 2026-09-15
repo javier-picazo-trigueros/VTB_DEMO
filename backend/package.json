@@ -19,7 +19,6 @@
         "test:watch": "vitest",
         "migrate": "node-pg-migrate up",
         "migrate:down": "node-pg-migrate down 1",
-        "migrate:status": "node-pg-migrate status",
         "migrate:create": "node-pg-migrate create",
         "db:migrate": "tsx scripts/migrate-sqlite-to-pg.ts",
         "db:rollback": "tsx scripts/rollback-pg-to-sqlite.ts",
