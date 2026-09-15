@@ -262,8 +262,8 @@ proyecto (ver arriba).
    npm run migrate
    ```
    Debe terminar con `Migrations complete!`. Para comprobar cuáles están aplicadas,
-   ejecuta en el SQL Editor de Supabase o con `psql` (node-pg-migrate 7 no tiene
-   comando `status`):
+   ejecuta en el SQL Editor de Supabase o con `psql` (`node-pg-migrate` tampoco
+   tiene comando `status` en v9 — solo `up`, `down`, `create` y `redo`):
    ```sql
    SELECT id, name FROM pgmigrations ORDER BY id;
    ```
