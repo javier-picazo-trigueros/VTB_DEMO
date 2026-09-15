@@ -157,7 +157,7 @@ async function start() {
                 electionName: election.name,
                 startTime:    new Date(election.start_time * 1000),
                 endTime:      new Date(election.end_time   * 1000),
-                voteUrl:      `${frontendUrl}/elections/${election.id}`,
+                voteUrl:      `${frontendUrl}/voting/${election.id}`,
               });
             }
           }
@@ -197,7 +197,7 @@ async function start() {
               name:         v.name,
               electionName: election.name,
               closedAt:     new Date(election.end_time * 1000),
-              resultsUrl:   `${frontendUrl}/elections/${election.id}/results`,
+              resultsUrl:   `${frontendUrl}/results/${election.id}`,
             });
           }
 

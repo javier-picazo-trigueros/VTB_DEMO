@@ -1844,7 +1844,7 @@ router.post("/elections/:id/notify-open", requireAdmin, async (req: Request, res
         electionName: election.name,
         startTime:    new Date(election.start_time * 1000),
         endTime:      new Date(election.end_time   * 1000),
-        voteUrl:      `${frontendUrl}/elections/${electionId}`,
+        voteUrl:      `${frontendUrl}/voting/${electionId}`,
       });
     }
 
@@ -1897,7 +1897,7 @@ router.post("/elections/:id/notify-close", requireAdmin, async (req: Request, re
         name:         v.name,
         electionName: election.name,
         closedAt,
-        resultsUrl:   `${frontendUrl}/elections/${electionId}/results`,
+        resultsUrl:   `${frontendUrl}/results/${electionId}`,
       });
     }
 
