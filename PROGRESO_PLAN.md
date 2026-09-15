@@ -50,7 +50,7 @@ está hecho.**
 | Sacar la clave privada de las variables de entorno | ❌ Pendiente | Planificado: `SCRUM-25`, Sprint 3 |
 | Registro de auditoría de acciones de administrador | ❌ Pendiente | Planificado: `SCRUM-20`, Sprint 2 |
 | **Revisar el historial por si se coló alguna clave** | ✅ Hecho | **`6697396e`** (yo, hoy) — encontrada y documentada la clave de Alchemy filtrada; el resto del historial son placeholders |
-| Auditoría de dependencias automática | ❌ Pendiente | Planificado: `SCRUM-15`, Sprint 1 (siguiente en la cola) |
+| Auditoría de dependencias automática | ✅ Hecho | **`b4a6ee6c`** (yo) — Dependabot semanal en los 3 `package.json` y las actions |
 
 ---
 
