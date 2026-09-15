@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Navbar } from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -334,6 +334,16 @@ export const Login = () => {
                 className={`w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white ${accentRing}`}
                 placeholder="••••••••"
               />
+              {/* R4: el endpoint de recuperación existía, pero no había forma de
+                  llegar a él desde la interfaz. */}
+              <div className="mt-2 text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-slate-500 hover:text-slate-700 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  {t("passwordRecovery.forgotLink")}
+                </Link>
+              </div>
             </div>
 
             <motion.button

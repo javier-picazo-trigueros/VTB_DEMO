@@ -25,6 +25,8 @@ import { ChangePassword } from './pages/ChangePassword'
 import { UserProfile } from './pages/UserProfile'
 import { Transparency } from './pages/Transparency'
 import { Pricing } from './pages/Pricing'
+import { ForgotPassword } from './pages/ForgotPassword'
+import { ResetPassword } from './pages/ResetPassword'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
@@ -99,6 +101,12 @@ const AppContent = () => {
       <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register-request" element={<RegisterRequest />} />
+      {/* Recuperación de contraseña. Las dos rutas /auth/* son las que ya
+          envían los correos (routes/auth.ts y routes/admin.ts): tienen que
+          coincidir literalmente, o los enlaces de los emails dan 404. */}
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/auth/reset-password" element={<ResetPassword mode="reset" />} />
+      <Route path="/auth/set-password" element={<ResetPassword mode="invitation" />} />
       <Route path="/portal/:domain" element={<InstitutionPortal />} />
       <Route path="/transparency" element={<Transparency />} />
       <Route path="/pricing" element={<Pricing />} />
