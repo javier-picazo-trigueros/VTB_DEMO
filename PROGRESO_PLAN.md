@@ -58,7 +58,7 @@ está hecho.**
 
 | Tarea del plan | Estado | Referencia |
 |---|---|---|
-| Integrar Resend (invitación, confirmación, recuperación, avisos) | ✅ Hecho | El servicio ya existía; Javier conectó las páginas que faltaban (`3f49b875`) — antes los enlaces daban 404 |
+| Integrar Resend (invitación, confirmación, recuperación, avisos) | ✅ Hecho | El servicio ya existía; Javier conectó las páginas que faltaban (`3f49b875`) — antes los enlaces daban 404. **`9f50ea44`** (yo) — la *invitación al censo* solo salía desde una de las dos rutas de importación: `/admin/users/import` creaba cuentas sin enviar nada. Esta línea del plan no estaba realmente cerrada hasta aquí |
 | SPF, DKIM, DMARC | ❌ Pendiente | Planificado: `SCRUM-27`, Sprint 3 |
 | Dominio propio con certificado | ❌ Pendiente | Sigue en `vtb-frontend-git-main-....vercel.app`. Planificado: `SCRUM-27`, Sprint 3 |
 | Monitorización y alertas | ❌ Pendiente | Solo `console.log`. Planificado: `SCRUM-26`, Sprint 3 |
