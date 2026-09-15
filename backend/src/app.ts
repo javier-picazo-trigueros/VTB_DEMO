@@ -210,13 +210,52 @@ app.use((req: any, res: any, next: any) => {
 // ============================================================
 
 // S15 fix: un solo health check. /api/health era alias duplicado.
-app.get(["/health", "/api/health"], (_req, res) => {
-  res.json({
-    status: "OK",
+//
+// R5: el health check consulta la base de datos. Antes devolvía 200 OK sin
+// tocarla, así que con la DATABASE_URL mal puesta el backend se declaraba sano
+// mientras todo lo demás respondía 500 — verificado: /health 200, /api/stats y
+// /auth/login 500. Render usa esta respuesta para decidir si un despliegue está
+// sano; un despliegue roto se ponía verde.
+//
+// `SELECT 1` con tiempo máximo: sin él, una base que se cuelga (en vez de
+// rechazar la conexión) dejaría la petición esperando hasta el timeout del pool,
+// y el health check de la plataforma caducaría antes de recibir el 503.
+// Configurable con HEALTH_DB_TIMEOUT_MS; por defecto 3 s.
+//
+// El 503 no incluye el mensaje de error: puede llevar el host o el usuario de la
+// base, y este endpoint es público. El detalle va solo al log, saneado.
+const HEALTH_DB_TIMEOUT_MS_DEFAULT = 3000;
+
+app.get(["/health", "/api/health"], async (_req, res) => {
+  const base = {
     service: "VTB Backend",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-  });
+  };
+  const timeoutMs =
+    Number.parseInt(process.env.HEALTH_DB_TIMEOUT_MS ?? "", 10) || HEALTH_DB_TIMEOUT_MS_DEFAULT;
+
+  res.set("Cache-Control", "no-store");
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      // getDbClient() puede lanzar de forma síncrona (p. ej. DB_CLIENT=postgres
+      // sin DATABASE_URL): está dentro del try, así que también acaba en 503.
+      getDbClient().get("SELECT 1 AS ok"),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`la base de datos no respondió en ${timeoutMs} ms`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+    res.json({ status: "OK", database: "ok", ...base });
+  } catch (err) {
+    console.error("Health check: la base de datos no responde:", formatError(err));
+    res.status(503).json({ status: "ERROR", database: "unreachable", ...base });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 });
 
 app.get("/api/org-units", async (req: any, res: Response) => {
