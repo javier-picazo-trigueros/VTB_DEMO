@@ -89,3 +89,10 @@ build_error.log
 backend/node_modules/
 frontend/node_modules/
 blockchain/node_modules/
+# Cualquier variante de .env en cualquier carpeta: copias de seguridad
+# (.env.bak-*, .env.backup), entornos (.env.staging), etc. Las plantillas
+# .env.example sí se versionan. Ojo: frontend/.env.production ya estaba
+# rastreado antes de esta regla, y una regla de ignore no saca del índice un
+# fichero rastreado; eso requiere `git rm --cached`.
+.env.*
+!.env.example
