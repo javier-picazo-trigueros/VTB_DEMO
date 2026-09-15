@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { getDatabase } from "../config/database.js";
+import { getDbClient } from "../db/index.js";
 
 /**
  * @title Organizations Router - VTB Backend
@@ -21,7 +21,7 @@ router.get("/:domain", async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const db = getDatabase();
+    const db = getDbClient();
     const org = await db.get<{
       name: string;
       logo_url: string | null;

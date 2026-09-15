@@ -3,7 +3,7 @@ import express, { Request, Response } from "express";
 import multer from "multer";
 import { z } from "zod";
 import { parse as parseCSVLib } from "csv-parse/sync";
-import { getDatabase } from "../config/database.js";
+import { getDbClient, isUniqueViolation, withTransaction, type DbClient } from "../db/index.js";
 import { hashPassword, generateToken, generateSecureToken } from "../utils/auth.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { formatError } from "../utils/errors.js";
@@ -15,7 +15,7 @@ import {
 } from "../services/email/index.js";
 
 const router = express.Router();
-const db = getDatabase();
+const db = getDbClient();
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -55,37 +55,48 @@ function isSubDomain(domain: string, parentDomain: string): boolean {
 
 /**
  * Auto-assign all approved users with a given domain to an election.
+ *
+ * `client` existe para poder llamar a este helper desde dentro de una
+ * transacción. Si usara el `db` del módulo, sus INSERT irían por otra conexión
+ * del pool en PostgreSQL y quedarían fuera del BEGIN: un ROLLBACK del bloque que
+ * lo invoca no los desharía.
  */
-async function autoAssignUsersByDomain(electionId: number, domain: string): Promise<void> {
-  const users = await db.run<{ id: number }>(
-    "SELECT id FROM users WHERE email LIKE '%@' || ? AND is_approved = 1 AND role IN ('student','voter')",
+async function autoAssignUsersByDomain(
+  electionId: number,
+  domain: string,
+  client: DbClient = db,
+): Promise<void> {
+  const users = await client.run<{ id: number }>(
+    "SELECT id FROM users WHERE email LIKE '%@' || ? AND is_approved = TRUE AND role IN ('student','voter')",
     [domain]
   );
   for (const user of users) {
-    try {
-      await db.exec(
-        "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
-        [electionId, user.id]
-      );
-    } catch { /* ignore */ }
+    await client.exec(
+      "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
+      [electionId, user.id]
+    );
   }
 }
 
 /**
  * Auto-assign a newly created/approved user to all elections whose domain matches.
+ *
+ * Mismo motivo que arriba para `client`.
  */
-async function autoAssignElectionsToUser(userId: number, emailDomain: string): Promise<void> {
-  const elections = await db.run<{ election_id: number }>(
-    'SELECT election_id FROM election_access WHERE email_domain = ? OR email_domain = \'*\'',
+async function autoAssignElectionsToUser(
+  userId: number,
+  emailDomain: string,
+  client: DbClient = db,
+): Promise<void> {
+  const elections = await client.run<{ election_id: number }>(
+    "SELECT election_id FROM election_access WHERE email_domain = ? OR email_domain = '*'",
     [emailDomain]
   );
   for (const row of elections) {
-    try {
-      await db.exec(
-        "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
-        [row.election_id, userId]
-      );
-    } catch { /* ignore */ }
+    await client.exec(
+      "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
+      [row.election_id, userId]
+    );
   }
 }
 
@@ -143,9 +154,14 @@ router.get("/dashboard", requireAdmin, async (req: Request, res: Response) => {
            WHERE (ea.email_domain = ? OR ea.email_domain LIKE '%.' || ?)`,
       isSuper ? [] : [adminDomain!, adminDomain!]
     );
+    // El epoch se calcula en JS y se pasa como parámetro: `strftime('%s','now')`
+    // no existe en PostgreSQL, y `EXTRACT(EPOCH FROM NOW())` no existe en SQLite.
+    // start_time y end_time son BIGINT (epoch en segundos) en los dos motores.
+    const nowEpoch = Math.floor(Date.now() / 1000);
     const activeElections = await db.get<{ count: number }>(
-      `SELECT COUNT(*) as count FROM elections WHERE is_active = 1
-       AND start_time <= strftime('%s','now') AND end_time >= strftime('%s','now')`
+      `SELECT COUNT(*) as count FROM elections WHERE is_active = TRUE
+       AND start_time <= ? AND end_time >= ?`,
+      [nowEpoch, nowEpoch]
     );
     const totalVotes = await db.get<{ count: number }>(
       `SELECT COUNT(*) as count FROM nullifier_audit na
@@ -172,15 +188,30 @@ router.get("/dashboard", requireAdmin, async (req: Request, res: Response) => {
        FROM elections e
        LEFT JOIN election_voters ev ON e.id = ev.election_id
        LEFT JOIN nullifier_audit na ON e.id = na.election_id
-       WHERE e.is_active = 1
+       WHERE e.is_active = TRUE
        GROUP BY e.id ORDER BY e.created_at DESC LIMIT 5`
     );
 
+    // El corte se calcula en JS: `date('now', '-7 days')` es la forma de dos
+    // argumentos de SQLite y no existe en PostgreSQL.
+    //
+    // El formato 'YYYY-MM-DD HH:MM:SS' es el que vale en los dos motores: en
+    // SQLite created_at es TEXT y la comparación es lexicográfica (correcta
+    // porque el formato está zero-padded y ordena bien), y PostgreSQL lo
+    // interpreta como timestamp. Un ISO-8601 con la 'T' rompería la comparación
+    // en SQLite sin dar ningún error.
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400 * 1000)
+      .toISOString()
+      .slice(0, 19)
+      .replace('T', ' ');
+
+    // `date(x)` sí existe en ambos motores, así que el truncado a día se queda en SQL.
     const requestsTrend = await db.run<any>(
       `SELECT date(created_at) as day, COUNT(*) as count
        FROM registration_requests
-       WHERE created_at >= date('now', '-7 days')
-       GROUP BY date(created_at) ORDER BY day ASC`
+       WHERE created_at >= ?
+       GROUP BY date(created_at) ORDER BY day ASC`,
+      [sevenDaysAgo]
     );
 
     res.json({
@@ -218,9 +249,9 @@ router.get("/users", requireAdmin, async (req: Request, res: Response) => {
     }
 
     if (approvedFilter === "true") {
-      conditions.push("is_approved = 1");
+      conditions.push("is_approved = TRUE");
     } else if (approvedFilter === "false") {
-      conditions.push("is_approved = 0");
+      conditions.push("is_approved = FALSE");
     }
 
     const where = "WHERE " + conditions.join(" AND ");
@@ -293,21 +324,28 @@ router.post("/users", requireAdmin, async (req: Request, res: Response) => {
     }
 
     const passwordHash = await hashPassword(password);
-    const result = await db.exec(
-      `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain,
-                         is_approved, approved_by, approved_at, is_eligible)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1)`,
-      [email, passwordHash, name, student_id, role, admin_domain, req.user!.userId]
-    );
 
-    const emailDomain = email.split('@')[1];
-    if (emailDomain) {
-      await autoAssignElectionsToUser(result.lastID, emailDomain);
-    }
+    // Crear la cuenta y meterla en los censos que le corresponden por dominio
+    // es una sola operación: un usuario creado pero fuera de sus elecciones no
+    // puede votar y nada en la interfaz lo delata.
+    const userId = await withTransaction(async (tx) => {
+      const inserted = await tx.exec(
+        `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain,
+                           is_approved, approved_by, approved_at, is_eligible)
+         VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, CURRENT_TIMESTAMP, TRUE)`,
+        [email, passwordHash, name, student_id, role, admin_domain, req.user!.userId]
+      );
+
+      const emailDomain = email.split('@')[1];
+      if (emailDomain) {
+        await autoAssignElectionsToUser(inserted.lastID, emailDomain, tx);
+      }
+      return inserted.lastID;
+    });
 
     res.json({
       success: true,
-      userId: result.lastID,
+      userId,
       message: `Usuario ${name} creado y aprobado exitosamente`,
     });
   } catch (error) {
@@ -328,63 +366,101 @@ router.post("/users/import", requireAdmin, upload.single('file'), async (req: Re
     }
 
     const rows = parseCSV(req.file.buffer);
-    const results = { created: 0, skipped: 0, errors: [] as string[] };
 
-    for (const row of rows) {
+    // ── FASE 1: validar el fichero entero sin escribir ──────────────────────
+    // Misma estructura que import-voters: o entra el CSV completo, o no entra
+    // nada. Antes el bucle validaba y escribía a la vez, así que un fallo a
+    // mitad dejaba media plantilla creada.
+    const adminDomain = getAdminDomain(req);
+    const errors: string[] = [];
+    const plan: Array<{
+      email: string; full_name: string; student_id: string; role: string; exists: boolean;
+    }> = [];
+    const seen = new Set<string>();
+
+    for (const [i, row] of rows.entries()) {
+      const linea = i + 2;
       const email = row.email?.trim();
       const full_name = row.full_name?.trim() || row.name?.trim();
       const student_id = row.student_id?.trim();
       const role = row.role?.trim() || 'student';
 
       if (!email || !full_name || !student_id) {
-        results.errors.push(`Fila omitida por datos incompletos: ${JSON.stringify(row)}`);
+        errors.push(`Línea ${linea}: faltan email, full_name o student_id`);
         continue;
       }
 
-      // Domain check for non-superadmin
-      if (!isSuperAdmin(req)) {
-        const adminDomain = getAdminDomain(req);
+      const normalized = email.toLowerCase();
+      if (seen.has(normalized)) {
+        errors.push(`Línea ${linea}: ${email} está repetido en el fichero`);
+        continue;
+      }
+      seen.add(normalized);
+
+      if (!isSuperAdmin(req) && adminDomain) {
         const emailDomain = email.split('@')[1];
-        if (adminDomain && !isSubDomain(emailDomain, adminDomain)) {
-          results.errors.push(`Dominio no permitido: ${email}`);
+        if (!emailDomain || !isSubDomain(emailDomain, adminDomain)) {
+          errors.push(`Línea ${linea}: ${email} no pertenece al dominio @${adminDomain}`);
           continue;
         }
       }
 
-      // Store in whitelist so future registration requests auto-approve
-      const wlDomain = getAdminDomain(req) || '*';
-      await db.exec(
-        `INSERT OR IGNORE INTO email_whitelist (email, full_name, student_id, admin_domain) VALUES (?, ?, ?, ?)`,
-        [email.toLowerCase(), full_name || '', student_id || '', wlDomain]
-      ).catch(() => {});
-
       const existing = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]);
-      if (existing) {
-        results.skipped++;
-        continue;
-      }
-
-      try {
-        const tempPassword = crypto.randomBytes(12).toString('base64url');
-        const passwordHash = await hashPassword(tempPassword);
-        const result = await db.exec(
-          `INSERT INTO users (email, password_hash, name, student_id, role,
-                             is_approved, approved_by, approved_at, is_eligible, must_change_password)
-           VALUES (?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1, 1)`,
-          [email, passwordHash, full_name, student_id, role, req.user!.userId]
-        );
-        const emailDomain = email.split('@')[1];
-        if (emailDomain) await autoAssignElectionsToUser(result.lastID, emailDomain);
-        results.created++;
-      } catch (e: any) {
-        results.errors.push(`Error creating ${email}: ${e.message}`);
-      }
+      plan.push({ email, full_name, student_id, role, exists: existing !== undefined });
     }
 
-    res.json({ success: true, results });
+    if (errors.length > 0) {
+      res.status(400).json({
+        success: false,
+        error: 'El fichero tiene errores. No se ha importado nada.',
+        errors,
+        totalRows: rows.length,
+      });
+      return;
+    }
+
+    // ── FASE 2: escribir todo en una transacción ────────────────────────────
+    const wlDomain = adminDomain || '*';
+    let created = 0;
+    let skipped = 0;
+
+    await withTransaction(async (tx) => {
+      for (const entry of plan) {
+        // El whitelist se rellena siempre, también para quien ya tiene cuenta:
+        // sirve para auto-aprobar futuras solicitudes de registro.
+        await tx.exec(
+          `INSERT OR IGNORE INTO email_whitelist (email, full_name, student_id, admin_domain) VALUES (?, ?, ?, ?)`,
+          [entry.email.toLowerCase(), entry.full_name, entry.student_id, wlDomain]
+        );
+
+        if (entry.exists) {
+          skipped++;
+          continue;
+        }
+
+        const tempPassword = crypto.randomBytes(12).toString('base64url');
+        const passwordHash = await hashPassword(tempPassword);
+        const inserted = await tx.exec(
+          `INSERT INTO users (email, password_hash, name, student_id, role,
+                             is_approved, approved_by, approved_at, is_eligible, must_change_password)
+           VALUES (?, ?, ?, ?, ?, TRUE, ?, CURRENT_TIMESTAMP, TRUE, TRUE)`,
+          [entry.email, passwordHash, entry.full_name, entry.student_id, entry.role, req.user!.userId]
+        );
+
+        const emailDomain = entry.email.split('@')[1];
+        if (emailDomain) await autoAssignElectionsToUser(inserted.lastID, emailDomain, tx);
+        created++;
+      }
+    });
+
+    // NOTA: esta ruta sigue sin enviar invitación por email, así que las cuentas
+    // que crea nacen con una contraseña temporal que no conoce nadie. Es el
+    // hallazgo B1 de ESTADO.md y se arregla aparte: no lo toco aquí para no
+    // mezclarlo con la atomicidad.
+    res.json({ success: true, results: { created, skipped, errors: [] } });
   } catch (error) {
-    console.error("Error importing users CSV:", error);
-    res.status(500).json({ error: "Error al importar usuarios" });
+    console.error("Error importing users CSV:", formatError(error));
+    res.status(500).json({ error: "Error al importar usuarios. No se ha importado nada." });
   }
 });
 
@@ -427,14 +503,14 @@ router.patch("/users/:id/approval", requireAdmin, async (req: Request, res: Resp
 
     if (approved) {
       await db.exec(
-        `UPDATE users SET is_approved = 1, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+        `UPDATE users SET is_approved = TRUE, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
          updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [req.user!.userId, id]
       );
       res.json({ success: true, message: "Cuenta aprobada correctamente" });
     } else {
       await db.exec(
-        `UPDATE users SET is_approved = 0, approved_by = NULL, approved_at = NULL,
+        `UPDATE users SET is_approved = FALSE, approved_by = NULL, approved_at = NULL,
          updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [id]
       );
@@ -567,14 +643,6 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
     const election_id_blockchain = (lastElection?.id || 0) + 1;
     let blockchainId = election_id_blockchain;
 
-    const result = await db.exec(
-      `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active,
-                              banner_color, target_type, target_description, voter_role)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
-      [election_id_blockchain, name, description, start_time, end_time,
-       banner_color || '#1E3A5F', target_type, target_description || null, voter_role]
-    );
-
     const adminDomain = getAdminDomain(req);
 
     // Build targets array
@@ -583,99 +651,130 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
         ? [{ type: 'all', value: adminDomain || '*' }]
         : (target_values as string[]).map((v: string) => ({ type: target_type, value: v }));
 
-    // Insert election_targets and maintain election_access for backward compat
-    for (const target of targets) {
-      await db.exec(
-        'INSERT INTO election_targets (election_id, target_type, target_value) VALUES (?, ?, ?)',
-        [result.lastID, target.type, target.value]
-      ).catch(() => {});
-      await db.exec(
-        'INSERT OR IGNORE INTO election_access (election_id, email_domain) VALUES (?, ?)',
-        [result.lastID, target.value]
-      ).catch(() => {});
-    }
+    // ── Toda la parte de base de datos, en una transacción ──────────────────
+    //
+    // Crear la elección, sus targets, su acceso por dominio y su censo es una
+    // sola cosa desde el punto de vista del administrador. Suelto, un fallo a
+    // mitad dejaba la elección creada y visible pero con el censo incompleto:
+    // gente que debería poder votar y no puede, sin ningún aviso.
+    //
+    // Los `.catch(() => {})` que llevaba cada INSERT se han quitado a propósito.
+    // Dentro de una transacción de PostgreSQL, tragarse un error no sirve de
+    // nada: tras el primer fallo la transacción queda abortada y toda consulta
+    // posterior devuelve "current transaction is aborted". Es mejor que el error
+    // suba y revierta el bloque entero.
+    const electionId = await withTransaction(async (tx) => {
+      const inserted = await tx.exec(
+        `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active,
+                                banner_color, target_type, target_description, voter_role)
+         VALUES (?, ?, ?, ?, ?, TRUE, ?, ?, ?, ?)`,
+        [election_id_blockchain, name, description, start_time, end_time,
+         banner_color || '#1E3A5F', target_type, target_description || null, voter_role]
+      );
+      const newId = inserted.lastID;
 
-    // Build student/voter census (skip when voter_role === 'admin')
-    if (voter_role === 'student' || voter_role === 'both') {
-      if (target_type === 'all' || targets.some(t => t.value === '*')) {
-        if (adminDomain) {
-          await autoAssignUsersByDomain(result.lastID, adminDomain);
-        }
-      } else {
-        for (const target of targets) {
-          const targetUsers = await db.run<{ id: number }>(
-            `SELECT DISTINCT u.id FROM users u
-             WHERE (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ? OR u.org_unit = ?)
-               AND u.is_approved = 1 AND u.role IN ('student','voter')`,
-            [target.value, target.value, target.value]
-          );
-          for (const user of targetUsers) {
-            await db.exec(
-              'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
-              [result.lastID, user.id]
-            ).catch(() => {});
+      // Insert election_targets and maintain election_access for backward compat
+      for (const target of targets) {
+        await tx.exec(
+          'INSERT OR IGNORE INTO election_targets (election_id, target_type, target_value) VALUES (?, ?, ?)',
+          [newId, target.type, target.value]
+        );
+        await tx.exec(
+          'INSERT OR IGNORE INTO election_access (election_id, email_domain) VALUES (?, ?)',
+          [newId, target.value]
+        );
+      }
+
+      // Build student/voter census (skip when voter_role === 'admin')
+      if (voter_role === 'student' || voter_role === 'both') {
+        if (target_type === 'all' || targets.some(t => t.value === '*')) {
+          if (adminDomain) {
+            await autoAssignUsersByDomain(newId, adminDomain, tx);
+          }
+        } else {
+          for (const target of targets) {
+            const targetUsers = await tx.run<{ id: number }>(
+              `SELECT DISTINCT u.id FROM users u
+               WHERE (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ? OR u.org_unit = ?)
+                 AND u.is_approved = TRUE AND u.role IN ('student','voter')`,
+              [target.value, target.value, target.value]
+            );
+            for (const user of targetUsers) {
+              await tx.exec(
+                'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+                [newId, user.id]
+              );
+            }
           }
         }
       }
-    }
 
-    // Build census by school/degree attributes
-    if ((target_schools as string[]).length > 0 || (target_degrees as string[]).length > 0) {
-      const conditions: string[] = [];
-      const params2: any[] = [];
-      if ((target_schools as string[]).length > 0) {
-        conditions.push(`school IN (${(target_schools as string[]).map(() => '?').join(',')})`);
-        params2.push(...(target_schools as string[]));
-      }
-      if ((target_degrees as string[]).length > 0) {
-        conditions.push(`degree IN (${(target_degrees as string[]).map(() => '?').join(',')})`);
-        params2.push(...(target_degrees as string[]));
-      }
-      const targetUsers = await db.run<{ id: number }>(
-        `SELECT id FROM users WHERE ${conditions.join(' OR ')} AND is_approved = 1`,
-        params2
-      );
-      for (const user of targetUsers) {
-        await db.exec(
-          'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
-          [result.lastID, user.id]
-        ).catch(() => {});
-      }
-    }
-
-    // Build admin census
-    if (voter_role === 'admin' || voter_role === 'both') {
-      if (adminDomain) {
-        const subAdmins = await db.run<{ id: number }>(
-          `SELECT id FROM users
-           WHERE role IN ('admin', 'superadmin')
-             AND (admin_domain = ? OR admin_domain LIKE ?)
-             AND is_approved = 1`,
-          [adminDomain, '%.' + adminDomain]
-        );
-        for (const user of subAdmins) {
-          await db.exec(
-            'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
-            [result.lastID, user.id]
-          ).catch(() => {});
+      // Build census by school/degree attributes
+      if ((target_schools as string[]).length > 0 || (target_degrees as string[]).length > 0) {
+        const conditions: string[] = [];
+        const params2: any[] = [];
+        if ((target_schools as string[]).length > 0) {
+          conditions.push(`school IN (${(target_schools as string[]).map(() => '?').join(',')})`);
+          params2.push(...(target_schools as string[]));
         }
-        // Also add the creating admin themselves
-        await db.exec(
-          'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
-          [result.lastID, req.user!.userId]
-        ).catch(() => {});
+        if ((target_degrees as string[]).length > 0) {
+          conditions.push(`degree IN (${(target_degrees as string[]).map(() => '?').join(',')})`);
+          params2.push(...(target_degrees as string[]));
+        }
+        const targetUsers = await tx.run<{ id: number }>(
+          `SELECT id FROM users WHERE ${conditions.join(' OR ')} AND is_approved = TRUE`,
+          params2
+        );
+        for (const user of targetUsers) {
+          await tx.exec(
+            'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+            [newId, user.id]
+          );
+        }
       }
-    }
 
-    // Legacy: ensure election_access entry for backward compat
-    if (adminDomain && (target_type === 'all' || voter_role === 'admin')) {
-      await db.exec(
-        'INSERT OR IGNORE INTO election_access (election_id, email_domain) VALUES (?, ?)',
-        [result.lastID, adminDomain]
-      ).catch(() => {});
-    }
+      // Build admin census
+      if (voter_role === 'admin' || voter_role === 'both') {
+        if (adminDomain) {
+          const subAdmins = await tx.run<{ id: number }>(
+            `SELECT id FROM users
+             WHERE role IN ('admin', 'superadmin')
+               AND (admin_domain = ? OR admin_domain LIKE ?)
+               AND is_approved = TRUE`,
+            [adminDomain, '%.' + adminDomain]
+          );
+          for (const user of subAdmins) {
+            await tx.exec(
+              'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+              [newId, user.id]
+            );
+          }
+          // Also add the creating admin themselves
+          await tx.exec(
+            'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+            [newId, req.user!.userId]
+          );
+        }
+      }
 
-    // Best-effort on-chain election registration
+      // Legacy: ensure election_access entry for backward compat
+      if (adminDomain && (target_type === 'all' || voter_role === 'admin')) {
+        await tx.exec(
+          'INSERT OR IGNORE INTO election_access (election_id, email_domain) VALUES (?, ?)',
+          [newId, adminDomain]
+        );
+      }
+
+      return newId;
+    });
+
+    // ── Registro on-chain, YA FUERA de la transacción ───────────────────────
+    //
+    // Deliberadamente fuera, por dos razones: la llamada tarda decenas de
+    // segundos y mantendría una conexión de PostgreSQL abierta todo ese rato; y
+    // una transacción de Ethereum no se puede revertir con un ROLLBACK, así que
+    // no gana nada estando dentro. Si falla, la elección queda creada y se
+    // sincroniza después — que es justo lo que hace `npm run sync-blockchain`.
     let onChainTx: string | null = null;
     const contractAddress = process.env.CONTRACT_ADDRESS || "";
     const privateKey = process.env.PRIVATE_KEY || "";
@@ -700,7 +799,7 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
           blockchainId = createdOnChainId;
           await db.exec(
             "UPDATE elections SET election_id_blockchain = ? WHERE id = ?",
-            [blockchainId, result.lastID]
+            [blockchainId, electionId]
           );
         }
 
@@ -712,7 +811,7 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      electionId: result.lastID,
+      electionId,
       blockchainId,
       onChainTx,
       message: `Elección "${name}" creada exitosamente`,
@@ -734,7 +833,7 @@ router.put("/elections/:id", requireAdmin, async (req: Request, res: Response) =
     const sets: string[] = ["updated_at = CURRENT_TIMESTAMP"];
     const params: any[] = [];
 
-    if (is_active !== undefined) { sets.push("is_active = ?"); params.push(is_active ? 1 : 0); }
+    if (is_active !== undefined) { sets.push("is_active = ?"); params.push(Boolean(is_active)); }
     if (banner_color !== undefined) { sets.push("banner_color = ?"); params.push(banner_color); }
     if (target_type !== undefined) { sets.push("target_type = ?"); params.push(target_type); }
     if (target_description !== undefined) { sets.push("target_description = ?"); params.push(target_description); }
@@ -828,95 +927,162 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
     }
 
     const rows = parseCSV(req.file.buffer);
-    const results = { created: 0, added: 0, skipped: 0, errors: [] as string[] };
 
-    for (const row of rows) {
+    // ── FASE 1: validar el CSV entero sin escribir nada ─────────────────────
+    //
+    // Antes esto era un solo bucle que validaba y escribía a la vez, fila a
+    // fila. Un CSV de 800 personas que fallara en la 300 dejaba 299 cuentas
+    // creadas y el censo a medias, sin forma de saber desde fuera por dónde se
+    // había quedado.
+    //
+    // Separar la validación permite rechazar el fichero entero antes de tocar la
+    // base de datos, y devolver TODOS los errores de una vez en vez del primero.
+    const adminDomain = getAdminDomain(req);
+    const errors: string[] = [];
+    const plan: Array<{
+      email: string;
+      full_name: string;
+      student_id: string;
+      existingUserId: number | null;
+    }> = [];
+    const seen = new Set<string>();
+
+    for (const [i, row] of rows.entries()) {
+      const linea = i + 2; // +1 por índice base 0, +1 por la cabecera del CSV
       const email = row.email?.trim();
       const full_name = row.full_name?.trim() || row.name?.trim();
       const student_id = row.student_id?.trim();
 
       if (!email) {
-        results.errors.push(`Fila sin email: ${JSON.stringify(row)}`);
+        errors.push(`Línea ${linea}: fila sin email`);
         continue;
       }
 
-      // Domain check for non-superadmin
-      if (!isSuperAdmin(req)) {
-        const adminDomain = getAdminDomain(req);
+      const normalized = email.toLowerCase();
+      if (seen.has(normalized)) {
+        errors.push(`Línea ${linea}: ${email} está repetido en el fichero`);
+        continue;
+      }
+      seen.add(normalized);
+
+      if (!isSuperAdmin(req) && adminDomain) {
         const emailDomain = email.split('@')[1];
-        if (adminDomain && !isSubDomain(emailDomain, adminDomain)) {
-          results.errors.push(`Domain not allowed: ${email}`);
+        if (!emailDomain || !isSubDomain(emailDomain, adminDomain)) {
+          errors.push(`Línea ${linea}: ${email} no pertenece al dominio @${adminDomain}`);
           continue;
         }
       }
 
-      let user = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]);
+      const existing = await db.get<{ id: number }>(
+        "SELECT id FROM users WHERE email = ?", [email]
+      );
 
-      if (!user) {
-        if (!full_name || !student_id) {
-          results.errors.push(`Falta full_name o student_id para el usuario nuevo ${email}`);
-          continue;
-        }
-        try {
-          const tempPassword = crypto.randomBytes(12).toString('base64url');
-          const passwordHash = await hashPassword(tempPassword);
-          const result = await db.exec(
-            `INSERT INTO users (email, password_hash, name, student_id, role,
-                               is_approved, approved_by, approved_at, is_eligible, must_change_password)
-             VALUES (?, ?, ?, ?, 'student', 1, ?, CURRENT_TIMESTAMP, 1, 1)`,
-            [email, passwordHash, full_name, student_id, req.user!.userId]
-          );
-          user = { id: result.lastID };
-          results.created++;
-
-          // Invitación por email: token de 7 días para que el usuario establezca su contraseña
-          try {
-            const INVITATION_TTL_DAYS = 7;
-            const { plaintext, hash } = generateSecureToken();
-            const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 86400 * 1000);
-            await db.exec(
-              `INSERT INTO password_reset_tokens (user_id, token_hash, type, expires_at)
-               VALUES (?, ?, 'invitation', ?)`,
-              [result.lastID, hash, expiresAt.toISOString()],
-            );
-            const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-            const institutionName = getAdminDomain(req) ?? 'tu institución';
-            sendCensusInvitation({
-              to:              email,
-              name:            full_name,
-              electionName:    election.name,
-              institutionName,
-              setPasswordUrl:  `${frontendUrl}/auth/set-password?token=${plaintext}`,
-              expiresAt,
-            });
-          } catch (inviteErr) {
-            console.warn(`No se pudo generar token de invitación para ${email}:`, inviteErr);
-          }
-        } catch (e: any) {
-          results.errors.push(`Error creating user ${email}: ${e.message}`);
-          continue;
-        }
+      if (!existing && (!full_name || !student_id)) {
+        errors.push(`Línea ${linea}: ${email} es una cuenta nueva y le falta full_name o student_id`);
+        continue;
       }
 
-      try {
-        await db.exec(
-          "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
-          [id, user.id]
-        );
-        results.added++;
-      } catch (e: any) {
-        if (e.message?.includes('UNIQUE')) {
-          results.skipped++;
-        } else {
-          results.errors.push(`Error adding ${email} to election: ${e.message}`);
-        }
-      }
+      plan.push({
+        email,
+        full_name: full_name ?? '',
+        student_id: student_id ?? '',
+        existingUserId: existing?.id ?? null,
+      });
     }
 
-    res.json({ success: true, results });
+    // Un solo error aborta el fichero entero. Es el precio de la atomicidad: no
+    // se puede prometer "o todo o nada" y a la vez importar 797 de 800.
+    if (errors.length > 0) {
+      res.status(400).json({
+        success: false,
+        error: 'El fichero tiene errores. No se ha importado nada.',
+        errors,
+        totalRows: rows.length,
+      });
+      return;
+    }
+
+    // ── FASE 2: escribir todo dentro de una transacción ─────────────────────
+    //
+    // Los tokens de invitación se acumulan en memoria en vez de enviarse aquí:
+    // un correo no se puede deshacer, así que enviarlo dentro de la transacción
+    // significaría que un ROLLBACK deja a 700 personas con un enlace a una
+    // cuenta que ya no existe.
+    const INVITATION_TTL_DAYS = 7;
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    const institutionName = adminDomain ?? 'tu institución';
+
+    const pendingInvites: Array<{
+      to: string; name: string; setPasswordUrl: string; expiresAt: Date;
+    }> = [];
+    let created = 0;
+    let added = 0;
+    let skipped = 0;
+
+    await withTransaction(async (tx) => {
+      for (const entry of plan) {
+        let userId = entry.existingUserId;
+
+        if (userId === null) {
+          const tempPassword = crypto.randomBytes(12).toString('base64url');
+          const passwordHash = await hashPassword(tempPassword);
+          const inserted = await tx.exec(
+            `INSERT INTO users (email, password_hash, name, student_id, role,
+                               is_approved, approved_by, approved_at, is_eligible, must_change_password)
+             VALUES (?, ?, ?, ?, 'student', TRUE, ?, CURRENT_TIMESTAMP, TRUE, TRUE)`,
+            [entry.email, passwordHash, entry.full_name, entry.student_id, req.user!.userId]
+          );
+          userId = inserted.lastID;
+          created++;
+
+          const { plaintext, hash } = generateSecureToken();
+          const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 86400 * 1000);
+          await tx.exec(
+            `INSERT INTO password_reset_tokens (user_id, token_hash, type, expires_at)
+             VALUES (?, ?, 'invitation', ?)`,
+            [userId, hash, expiresAt.toISOString()],
+          );
+
+          pendingInvites.push({
+            to: entry.email,
+            name: entry.full_name,
+            setPasswordUrl: `${frontendUrl}/auth/set-password?token=${plaintext}`,
+            expiresAt,
+          });
+        }
+
+        const assigned = await tx.exec(
+          "INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)",
+          [id, userId]
+        );
+        // changes = 0 significa que el ON CONFLICT no insertó: ya estaba en el censo.
+        if (assigned.changes > 0) added++;
+        else skipped++;
+      }
+    });
+
+    // ── FASE 3: enviar los correos, ya con la transacción confirmada ────────
+    //
+    // A partir de aquí los datos están commiteados: si falla un envío, el censo
+    // sigue bien y la invitación se puede reenviar. Al revés no tiene arreglo.
+    for (const invite of pendingInvites) {
+      sendCensusInvitation({
+        to:              invite.to,
+        name:            invite.name,
+        electionName:    election.name,
+        institutionName,
+        setPasswordUrl:  invite.setPasswordUrl,
+        expiresAt:       invite.expiresAt,
+      });
+    }
+
+    res.json({
+      success: true,
+      results: { created, added, skipped, invited: pendingInvites.length, errors: [] },
+    });
   } catch (error) {
-    console.error("Error importing voters CSV:", error);
-    res.status(500).json({ error: "Error al importar votantes" });
+    console.error("Error importing voters CSV:", formatError(error));
+    res.status(500).json({ error: "Error al importar votantes. No se ha importado nada." });
   }
 });
 
@@ -1106,58 +1272,58 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
       const orgUnit = request.org_unit || null;
       const { school, degree, year, study_group } = request;
 
-      const insertResult = await db.exec(
-        `INSERT INTO users (email, password_hash, name, student_id, role, org_unit,
-                           school, degree, year, study_group,
-                           is_approved, approved_by, approved_at, is_eligible, must_change_password, created_at)
-         VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 1, ?, CURRENT_TIMESTAMP)`,
-        [request.email, passwordHash, request.full_name, request.student_id, orgUnit,
-         school || null, degree || null, year || null, study_group || null, req.user!.userId,
-         tempPassword ? 1 : 0]
-      );
-
-      const newUserId = insertResult.lastID;
-
-      await db.exec(
-        "UPDATE registration_requests SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
-        [id]
-      );
-
+      // Aprobar es: crear la cuenta, marcar la solicitud como aprobada y meter a
+      // la persona en sus censos. Suelto, el estado intermedio más feo era la
+      // solicitud marcada 'approved' con el usuario sin crear: desaparece de la
+      // bandeja del administrador y la persona no tiene cuenta, sin rastro.
       const domain = request.email.split('@')[1];
-      if (domain) {
-        const elections = await db.run<{ election_id: number }>(
-          'SELECT election_id FROM election_access WHERE email_domain = ? OR email_domain = "*"',
-          [domain]
+
+      await withTransaction(async (tx) => {
+        const insertResult = await tx.exec(
+          `INSERT INTO users (email, password_hash, name, student_id, role, org_unit,
+                             school, degree, year, study_group,
+                             is_approved, approved_by, approved_at, is_eligible, must_change_password, created_at)
+           VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, TRUE, ?, CURRENT_TIMESTAMP, TRUE, ?, CURRENT_TIMESTAMP)`,
+          [request.email, passwordHash, request.full_name, request.student_id, orgUnit,
+           school || null, degree || null, year || null, study_group || null, req.user!.userId,
+           tempPassword !== null]
         );
 
-        for (const election of elections) {
-          try {
-            await db.exec(
+        const newUserId = insertResult.lastID;
+
+        await tx.exec(
+          "UPDATE registration_requests SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
+          [id]
+        );
+
+        if (domain) {
+          const elections = await tx.run<{ election_id: number }>(
+            "SELECT election_id FROM election_access WHERE email_domain = ? OR email_domain = '*'",
+            [domain]
+          );
+          for (const election of elections) {
+            await tx.exec(
               'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
               [election.election_id, newUserId]
             );
-          } catch (e: any) {
-            if (!e.message?.includes('UNIQUE')) {
-              console.error(`Error auto-assigning user ${newUserId} to election ${election.election_id}:`, e);
-            }
           }
         }
-      }
 
-      // Also auto-assign to elections targeting user's org_unit
-      if (orgUnit) {
-        const targetedElections = await db.run<{ election_id: number }>(
-          `SELECT DISTINCT election_id FROM election_targets
-           WHERE target_value = ? OR target_value = '*'`,
-          [orgUnit]
-        );
-        for (const election of targetedElections) {
-          await db.exec(
-            'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
-            [election.election_id, newUserId]
-          ).catch(() => {});
+        // Also auto-assign to elections targeting user's org_unit
+        if (orgUnit) {
+          const targetedElections = await tx.run<{ election_id: number }>(
+            `SELECT DISTINCT election_id FROM election_targets
+             WHERE target_value = ? OR target_value = '*'`,
+            [orgUnit]
+          );
+          for (const election of targetedElections) {
+            await tx.exec(
+              'INSERT OR IGNORE INTO election_voters (election_id, user_id) VALUES (?, ?)',
+              [election.election_id, newUserId]
+            );
+          }
         }
-      }
+      });
 
       res.json({
         message: tempPassword
@@ -1224,7 +1390,7 @@ router.post("/elections/:id/domains", requireAdmin, async (req: Request, res: Re
       }
       res.json({ success: true, message: `Dominio ${domain} añadido correctamente` });
     } catch (e: any) {
-      if (e.message?.includes("UNIQUE")) {
+      if (isUniqueViolation(e)) {
         res.status(409).json({ error: "Este dominio ya está permitido para esta elección" });
       } else {
         throw e;
@@ -1268,7 +1434,7 @@ router.post("/elections/:id/voters", requireAdmin, async (req: Request, res: Res
       );
       res.json({ success: true, message: `Usuario ${email} añadido a la elección` });
     } catch (e: any) {
-      if (e.message?.includes("UNIQUE")) {
+      if (isUniqueViolation(e)) {
         res.status(409).json({ error: "El usuario ya está asignado a esta elección" });
       } else {
         throw e;
@@ -1370,7 +1536,7 @@ router.post("/org-units", requireAdmin, async (req: Request, res: Response) => {
 
     res.json({ success: true, id: result.lastID, message: `Unidad organizativa "${name}" creada` });
   } catch (error: any) {
-    if (error.message?.includes('UNIQUE')) {
+    if (isUniqueViolation(error)) {
       res.status(409).json({ error: "Ese dominio ya existe entre las unidades organizativas" });
     } else {
       console.error("Error creating org unit:", error);
@@ -1420,7 +1586,7 @@ router.post("/domain-admins", requireAdmin, async (req: Request, res: Response) 
     const result = await db.exec(
       `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain,
                          is_approved, approved_by, approved_at, is_eligible)
-       VALUES (?, ?, ?, ?, 'admin', ?, 1, ?, CURRENT_TIMESTAMP, 1)`,
+       VALUES (?, ?, ?, ?, 'admin', ?, TRUE, ?, CURRENT_TIMESTAMP, TRUE)`,
       [email, passwordHash, name, student_id, admin_domain, req.user!.userId]
     );
 
@@ -1465,14 +1631,17 @@ router.get("/domains", requireAdmin, async (req: Request, res: Response) => {
     let domains: string[] = [];
 
     if (isSuperAdmin(req)) {
-      const userDomains = await db.run<{ domain: string }>(
-        "SELECT DISTINCT substr(email, instr(email, '@') + 1) as domain FROM users WHERE email LIKE '%@%' ORDER BY domain"
+      // El dominio se extrae en JS, no en SQL: `instr` no existe en PostgreSQL y
+      // `split_part` no existe en SQLite. El resultado ya se deduplicaba en un Set
+      // aquí abajo, así que traer los emails distintos no cambia el resultado.
+      const userEmails = await db.run<{ email: string }>(
+        "SELECT DISTINCT email FROM users WHERE email LIKE '%@%'"
       );
       const accessDomains = await db.run<{ domain: string }>(
         "SELECT DISTINCT email_domain as domain FROM election_access WHERE email_domain != '*' ORDER BY email_domain"
       );
       const allDomains = new Set<string>([
-        ...userDomains.map((d: any) => d.domain),
+        ...userEmails.map((u) => u.email.split('@')[1]).filter(Boolean),
         ...accessDomains.map((d: any) => d.domain),
       ]);
       domains = Array.from(allDomains).filter(Boolean).sort();

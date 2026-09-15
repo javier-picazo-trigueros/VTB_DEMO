@@ -63,3 +63,34 @@ export class VoteConflictError extends Error {
     this.name = 'VoteConflictError';
   }
 }
+
+/**
+ * ¿Es este error una violación de restricción UNIQUE?
+ *
+ * Existe porque los dos motores lo comunican de forma distinta y el código lo
+ * detectaba solo en la forma de SQLite:
+ *
+ *   SQLite      message = "SQLITE_CONSTRAINT: UNIQUE constraint failed: users.email"
+ *   PostgreSQL  code    = "23505", message = 'duplicate key value violates unique
+ *                         constraint "users_email_key"'
+ *
+ * Los seis sitios que hacían `err.message.includes('UNIQUE')` seguían funcionando
+ * en SQLite y, sobre PostgreSQL, habrían convertido en un 500 lo que debe ser un
+ * 409 ("ese email ya tiene cuenta", "ese usuario ya está en la elección").
+ *
+ * El código 23505 es el SQLSTATE estándar, así que se comprueba primero.
+ */
+export function isUniqueViolation(err: unknown): boolean {
+  if (err === null || typeof err !== 'object') return false;
+  const e = err as { code?: unknown; message?: unknown };
+
+  // PostgreSQL: unique_violation
+  if (e.code === '23505') return true;
+
+  // SQLite (node-sqlite3): el código llega como string en `code` o dentro del mensaje.
+  if (typeof e.code === 'string' && e.code.startsWith('SQLITE_CONSTRAINT')) {
+    return typeof e.message === 'string' ? /UNIQUE/i.test(e.message) : true;
+  }
+
+  return typeof e.message === 'string' && /UNIQUE constraint failed/i.test(e.message);
+}

@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import { z } from "zod";
-import { getDatabase } from "../config/database.js";
+import { getDbClient, withTransaction, type DbClient } from "../db/index.js";
 import {
   hashPassword,
   verifyPassword,
@@ -22,7 +22,7 @@ import { sendPasswordReset } from "../services/email/index.js";
 import { forgotIpLimiter, forgotEmailLimiter } from "../middleware/rateLimit.js";
 
 const router = express.Router();
-const db = getDatabase();
+const db = getDbClient();
 const DUMMY_HASH = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj2NpkrpZqAG';
 
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -50,20 +50,28 @@ function cookieOpts(maxAgeMs: number): object {
   };
 }
 
-/** Sets the three session cookies: access JWT, refresh token, CSRF. */
+/**
+ * Sets the three session cookies: access JWT, refresh token, CSRF.
+ *
+ * `client` permite pasar el cliente de una transacción en curso. Lo usa la
+ * rotación de /auth/refresh, donde revocar el token viejo y emitir el nuevo
+ * tienen que ser una sola operación. Por defecto usa el cliente general, que es
+ * lo correcto en el login (una sola escritura, sin nada que coordinar).
+ */
 async function setSessionCookies(
   res: Response,
   userId: number,
   email: string,
   role: string,
   adminDomain: string | null,
+  client: DbClient = db,
 ): Promise<void> {
   const accessToken = generateToken(userId, email, role, adminDomain);
   const csrfToken  = generateCsrfToken(userId, email);
   const { plaintext, hash } = generateRefreshToken();
 
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 86400 * 1000);
-  await db.exec(
+  await client.exec(
     `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
      VALUES (?, ?, ?)`,
     [userId, hash, expiresAt.toISOString()],
@@ -115,12 +123,12 @@ router.post("/register", async (req: Request, res: Response) => {
       return;
     }
 
-    // Crear usuario pendiente de aprobación (is_approved = 0)
+    // Crear usuario pendiente de aprobación (is_approved = FALSE)
     // Los usuarios registrados directamente deben ser aprobados por un admin
     const passwordHash = await hashPassword(password);
     const result = await db.exec(
       `INSERT INTO users (email, password_hash, name, student_id, is_approved, is_eligible)
-       VALUES (?, ?, ?, ?, 0, 1)`,
+       VALUES (?, ?, ?, ?, FALSE, TRUE)`,
       [email, passwordHash, name, student_id]
     );
 
@@ -163,10 +171,10 @@ router.post("/login", async (req: Request, res: Response) => {
       name: string;
       student_id: string;
       role: string;
-      is_approved: boolean;
-      is_eligible: boolean;
+      is_approved: boolean | number;
+      is_eligible: boolean | number;
       admin_domain: string | null;
-      must_change_password: number;
+      must_change_password: boolean | number;
     }>(
       "SELECT id, email, password_hash, name, student_id, role, is_approved, is_eligible, admin_domain, must_change_password FROM users WHERE email = ? AND deleted_at IS NULL",
       [normalizedEmail]
@@ -285,7 +293,7 @@ router.post("/admin/register", requireAdmin, async (req: Request, res: Response)
     const passwordHash = await hashPassword(password);
     const result = await db.exec(
       `INSERT INTO users (email, password_hash, name, student_id, role, is_approved, approved_by, approved_at, is_eligible)
-       VALUES (?, ?, ?, ?, 'student', 1, ?, CURRENT_TIMESTAMP, 1)`,
+       VALUES (?, ?, ?, ?, 'student', TRUE, ?, CURRENT_TIMESTAMP, TRUE)`,
       [email, passwordHash, name, student_id, adminUser.userId]
     );
 
@@ -367,7 +375,7 @@ router.patch("/change-password", requireAuth, async (req: Request, res: Response
 
     const newHash = await hashPassword(newPassword);
     await db.exec(
-      "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
+      "UPDATE users SET password_hash = ?, must_change_password = FALSE WHERE id = ?",
       [newHash, userId]
     );
     res.json({ success: true, message: "Contraseña actualizada correctamente" });
@@ -469,8 +477,13 @@ router.post('/refresh', async (req: Request, res: Response) => {
   }
 
   const hash = hashRefreshToken(plaintext);
+  // Los tipos admiten las dos representaciones porque el motor no es fijo:
+  // SQLite devuelve 0/1 y texto ISO; el driver de PostgreSQL devuelve boolean y
+  // Date. Las comparaciones de abajo funcionan igual con ambas — `new Date(d)`
+  // sobre un Date lo clona — pero el tipo tiene que reflejarlo o el typecheck
+  // miente sobre lo que llega en producción.
   const stored = await db.get<{
-    user_id: number; expires_at: string; revoked: number;
+    user_id: number; expires_at: string | Date; revoked: boolean | number;
   }>(
     `SELECT user_id, expires_at, revoked FROM refresh_tokens WHERE token_hash = ?`,
     [hash],
@@ -481,7 +494,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
   }
 
   const user = await db.get<{
-    id: number; email: string; role: string; admin_domain: string | null; is_approved: number;
+    id: number; email: string; role: string; admin_domain: string | null; is_approved: boolean | number;
   }>(
     'SELECT id, email, role, admin_domain, is_approved FROM users WHERE id = ? AND deleted_at IS NULL',
     [stored.user_id],
@@ -491,9 +504,16 @@ router.post('/refresh', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Usuario no encontrado o inactivo' });
   }
 
-  // Revoke old token and issue a new pair (rotation)
-  await db.exec('UPDATE refresh_tokens SET revoked = 1 WHERE token_hash = ?', [hash]);
-  await setSessionCookies(res, user.id, user.email, user.role, user.admin_domain);
+  // Rotación atómica: revocar el viejo y emitir el nuevo son una sola operación.
+  //
+  // Si se hicieran por separado y fallara el INSERT tras el UPDATE, el usuario
+  // perdería la sesión (molesto, pero seguro). El orden inverso es el peligroso:
+  // emitir el nuevo y que falle la revocación deja DOS tokens válidos, que es
+  // justo lo que la rotación existe para impedir.
+  await withTransaction(async (tx) => {
+    await tx.exec('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?', [hash]);
+    await setSessionCookies(res, user.id, user.email, user.role, user.admin_domain, tx);
+  });
 
   res.json({ success: true });
 });
@@ -510,7 +530,7 @@ router.post('/logout', async (req: Request, res: Response) => {
   const plaintext = (req as any).cookies?.[COOKIE_NAME_REFRESH];
   if (plaintext) {
     const hash = hashRefreshToken(plaintext);
-    await db.exec('UPDATE refresh_tokens SET revoked = 1 WHERE token_hash = ?', [hash]).catch(() => {});
+    await db.exec('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?', [hash]).catch(() => {});
   }
 
   const clearOpts = { httpOnly: true, secure: IS_PROD, sameSite: (IS_PROD ? 'none' : 'lax') as 'none' | 'lax' };
@@ -558,21 +578,28 @@ router.post('/forgot-password', forgotIpLimiter, forgotEmailLimiter, async (req:
     );
     if (!user) return;
 
-    // Invalidar tokens anteriores del mismo tipo
-    await db.exec(
-      `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP
-       WHERE user_id = ? AND type = 'reset' AND used_at IS NULL`,
-      [user.id],
-    );
-
     const { plaintext, hash } = generateSecureToken();
     const expiresAt = new Date(Date.now() + RESET_TTL_MINUTES * 60 * 1000);
 
-    await db.exec(
-      `INSERT INTO password_reset_tokens (user_id, token_hash, type, expires_at)
-       VALUES (?, ?, 'reset', ?)`,
-      [user.id, hash, expiresAt.toISOString()],
-    );
+    // Invalidar los anteriores y emitir el nuevo, en una sola operación.
+    //
+    // Si el INSERT fallase después del UPDATE quedarían cero enlaces válidos y
+    // el usuario tendría que volver a pedirlo: molesto, pero seguro. Lo que no
+    // puede pasar es lo contrario — que se emita el nuevo y sobrevivan los
+    // viejos — porque entonces "pedir otro enlace" dejaría de invalidar el
+    // anterior, que es la razón de que ese UPDATE exista.
+    await withTransaction(async (tx) => {
+      await tx.exec(
+        `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP
+         WHERE user_id = ? AND type = 'reset' AND used_at IS NULL`,
+        [user.id],
+      );
+      await tx.exec(
+        `INSERT INTO password_reset_tokens (user_id, token_hash, type, expires_at)
+         VALUES (?, ?, 'reset', ?)`,
+        [user.id, hash, expiresAt.toISOString()],
+      );
+    });
 
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     sendPasswordReset({
@@ -605,8 +632,8 @@ router.post('/reset-password', async (req: Request, res: Response) => {
     const row = await db.get<{
       id: number;
       user_id: number;
-      expires_at: string;
-      used_at: string | null;
+      expires_at: string | Date;
+      used_at: string | Date | null;
     }>(
       `SELECT id, user_id, expires_at, used_at
          FROM password_reset_tokens
@@ -624,16 +651,25 @@ router.post('/reset-password', async (req: Request, res: Response) => {
     }
 
     const passwordHash = await hashPassword(password);
-    await db.exec(
-      `UPDATE users
-          SET password_hash = ?, must_change_password = 0, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
-      [passwordHash, row.user_id],
-    );
-    await db.exec(
-      `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [row.id],
-    );
+
+    // Cambiar la contraseña y quemar el token son una sola operación.
+    //
+    // Es el caso más serio de los tres: si el UPDATE de users va bien y el de
+    // used_at falla, la contraseña queda cambiada y **el enlace sigue siendo
+    // válido**. Cualquiera que lo tuviera — reenvío del correo, historial del
+    // navegador, un proxy — podría volver a usarlo para cambiarla otra vez.
+    await withTransaction(async (tx) => {
+      await tx.exec(
+        `UPDATE users
+            SET password_hash = ?, must_change_password = FALSE, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        [passwordHash, row.user_id],
+      );
+      await tx.exec(
+        `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [row.id],
+      );
+    });
 
     res.json({ success: true, message: 'Contraseña actualizada correctamente.' });
   } catch (err) {

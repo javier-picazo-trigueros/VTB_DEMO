@@ -1,6 +1,5 @@
 import { app } from "./app.js";
-import { getDatabase } from "./config/database.js";
-import { getDbClient } from "./db/index.js";
+import { getDbClient, ensureSchema } from "./db/index.js";
 import { PgClient } from "./db/postgres.js";
 import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
 import { ethers } from "ethers";
@@ -46,9 +45,11 @@ function handleListenError(error: NodeJS.ErrnoException) {
 
 async function initializeDatabase() {
   try {
-    const db = getDatabase();
-    await db.initialize();
-    console.log('✅ Base de datos SQLite inicializada');
+    // ensureSchema decide según DB_CLIENT: crea las tablas en SQLite, y en
+    // PostgreSQL no hace nada porque el esquema lo gestionan las migraciones.
+    // Antes esto llamaba a getDatabase().initialize() siempre, así que en modo
+    // PostgreSQL creaba además un vtb.db vacío al lado.
+    await ensureSchema();
   } catch (error) {
     console.error('❌ Error al inicializar BD:', error);
     process.exit(1);
@@ -112,14 +113,14 @@ async function start() {
           id: number; name: string; start_time: number; end_time: number;
         }>(
           `SELECT id, name, start_time, end_time FROM elections
-           WHERE start_time <= ? AND is_active = 1
+           WHERE start_time <= ? AND is_active = TRUE
              AND notify_open_sent_at IS NULL`,
           [now],
         ).catch(() => []);
 
         for (const election of toOpen) {
           const voters = await db.run<{
-            id: number; email: string; name: string; must_change_password: number;
+            id: number; email: string; name: string; must_change_password: boolean | number;
           }>(
             `SELECT u.id, u.email, u.name, u.must_change_password
                FROM election_voters ev

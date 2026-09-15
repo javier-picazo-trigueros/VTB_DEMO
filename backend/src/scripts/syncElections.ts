@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import dotenv from "dotenv";
-import { getDatabase } from "../config/database.js";
+import { getDbClient, ensureSchema } from "../db/index.js";
 import { formatError } from "../utils/errors.js";
 
 dotenv.config({ quiet: true });
@@ -30,7 +30,7 @@ export async function syncElectionsToBlockchain(): Promise<void> {
     return;
   }
 
-  const db = getDatabase();
+  const db = getDbClient();
 
   try {
     console.log("Syncing elections to blockchain...");
@@ -107,8 +107,7 @@ export async function syncElectionsToBlockchain(): Promise<void> {
 
 const isMain = process.argv[1]?.includes("syncElections");
 if (isMain) {
-  getDatabase()
-    .initialize()
+  ensureSchema()
     .then(() => syncElectionsToBlockchain())
     .catch((err) => {
       console.error("Election sync failed:", formatError(err));

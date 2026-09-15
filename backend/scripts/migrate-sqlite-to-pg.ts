@@ -164,16 +164,23 @@ async function main() {
 
       // ── 4. elections ────────────────────────────────────────────────────
       const elections = await sqlite.run<any>('SELECT * FROM elections');
+      // image_url va en la propia fila de la elección porque es de donde la lee
+      // la aplicación (admin.ts la escribe, elections.ts la devuelve). La copia
+      // en election_images de más abajo se mantiene para el día que se mueva de
+      // sitio, pero hoy no la lee nadie: si solo se rellenase esa tabla, todas
+      // las imágenes desaparecerían de la interfaz tras migrar.
       await insertBatch(pool, 'elections', [
         'id', 'election_id_blockchain', 'name', 'description',
         'start_time', 'end_time', 'is_active',
         'banner_color', 'target_type', 'target_description', 'voter_role',
+        'image_url',
         'created_at', 'updated_at',
       ], elections.map(r => [
         r.id, r.election_id_blockchain, r.name, r.description,
         r.start_time, r.end_time, toBool(r.is_active),
         r.banner_color ?? '#1E3A5F', r.target_type ?? 'domain',
         r.target_description, r.voter_role ?? 'student',
+        r.image_url ?? null,
         toTimestamp(r.created_at), toTimestamp(r.updated_at) ?? toTimestamp(r.created_at),
       ]));
       console.log(`  ✓ elections          (${elections.length} filas)`);

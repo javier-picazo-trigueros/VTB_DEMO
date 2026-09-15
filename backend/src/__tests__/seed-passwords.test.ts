@@ -12,6 +12,10 @@ import { getDatabase } from '../config/database.js';
 const OLD_DEFAULTS = ['superadmin123', 'admin123', 'password', 'admin'];
 
 describe('A4 — contraseñas del seed', () => {
+  // Timeout explícito: este test hace 3 cuentas × 4 contraseñas = 12 verificaciones
+  // bcrypt de coste 12, ~250 ms cada una en un solo hilo. Con el límite por defecto
+  // de 5 s pasaba por poco, y cualquier fichero de tests extra compitiendo por CPU
+  // lo tumbaba por tiempo, no por la aserción.
   it('ninguna cuenta privilegiada usa una contraseña histórica por defecto', async () => {
     const db = getDatabase();
     const rows = await db.run<{ email: string; role: string; password_hash: string }>(
@@ -29,7 +33,7 @@ describe('A4 — contraseñas del seed', () => {
         ).toBe(false);
       }
     }
-  });
+  }, 30_000);
 
   it('el superadmin de plataforma usa la contraseña de SEED_SUPERADMIN_PASSWORD', async () => {
     const db = getDatabase();

@@ -4,7 +4,7 @@ import express, { Express, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import { getDatabase } from "./config/database.js";
+import { getDbClient } from "./db/index.js";
 import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
 import { verifyToken, validateCsrfToken, COOKIE_NAME_ACCESS, COOKIE_NAME_CSRF } from "./utils/auth.js";
 import { requireAdmin, requireAuth } from "./middleware/auth.js";
@@ -112,7 +112,7 @@ app.use((req, res, next) => {
 // ============================================================
 // MUST-CHANGE-PASSWORD GUARD
 // Blocks all requests (except login/me/change-password) for
-// users whose must_change_password = 1.
+// users whose must_change_password is true.
 // Reads JWT from Authorization header OR from the vtb_auth httpOnly cookie.
 // ============================================================
 
@@ -143,8 +143,10 @@ app.use(async (req: any, res: any, next: any) => {
   if (!decoded?.userId) return next();
 
   try {
-    const db = getDatabase();
-    const user = await db.get<{ must_change_password: number }>(
+    const db = getDbClient();
+    // boolean en PostgreSQL, 0/1 en SQLite. La comprobación de abajo es por
+    // veracidad, así que sirve para ambos.
+    const user = await db.get<{ must_change_password: boolean | number }>(
       'SELECT must_change_password FROM users WHERE id = ?',
       [decoded.userId]
     );
@@ -217,7 +219,7 @@ app.get(["/health", "/api/health"], (_req, res) => {
 
 app.get("/api/org-units", async (req: any, res: Response) => {
   try {
-    const db = getDatabase();
+    const db = getDbClient();
     const domain = req.query.domain as string | undefined;
     let units;
     if (domain) {
@@ -240,17 +242,23 @@ app.get("/api/org-units", async (req: any, res: Response) => {
 
 app.get('/api/stats', async (req: any, res: Response) => {
   try {
-    const db = getDatabase();
+    const db = getDbClient();
     const totalElections = await db.get<{ count: number }>(
       'SELECT COUNT(*) as count FROM elections'
     );
     const totalVotes = await db.get<{ count: number }>(
       'SELECT COUNT(*) as count FROM nullifier_audit'
     );
-    const activeInstitutions = await db.get<{ count: number }>(
-      `SELECT COUNT(DISTINCT substr(email, instr(email,'@')+1)) as count
-       FROM users WHERE role = 'student' AND is_approved = 1`
+    // Instituciones activas = dominios distintos entre los estudiantes aprobados.
+    // El dominio se extrae en JS porque `instr` no existe en PostgreSQL y
+    // `split_part` no existe en SQLite. Se traen emails distintos, no todas las
+    // filas, así que el coste sigue acotado por el número de cuentas.
+    const studentEmails = await db.run<{ email: string }>(
+      `SELECT DISTINCT email FROM users WHERE role = 'student' AND is_approved = TRUE`
     );
+    const activeInstitutionCount = new Set(
+      studentEmails.map((u) => u.email.split('@')[1]).filter(Boolean)
+    ).size;
     const blockchainTransactions = await db.get<{ count: number }>(
       `SELECT COUNT(*) as count FROM nullifier_audit
        JOIN users u ON nullifier_audit.user_id = u.id
@@ -261,7 +269,7 @@ app.get('/api/stats', async (req: any, res: Response) => {
     res.json({
       totalElections: totalElections?.count || 0,
       totalVotes: totalVotes?.count || 0,
-      activeInstitutions: activeInstitutions?.count || 0,
+      activeInstitutions: activeInstitutionCount,
       blockchainTransactions: blockchainTransactions?.count || 0,
     });
   } catch (err: any) {
@@ -279,10 +287,19 @@ app.post('/api/admin/sync-blockchain', requireAdmin, async (req: any, res: Respo
 
 app.get('/api/audit/public', async (req: any, res: Response) => {
   try {
-    const db = getDatabase();
-    const records = await db.run<any>(
+    const db = getDbClient();
+    // El recorte del nullifier se hace en JS. En SQL no es portable: SQLite acepta
+    // `substr(x, -4)` para contar desde el final, pero en PostgreSQL un offset
+    // negativo significa otra cosa y el resultado saldría mal en silencio — que es
+    // peor que un error, porque es una pantalla pública de auditoría.
+    const records = await db.run<{
+      nullifier_hash: string;
+      tx_hash: string | null;
+      generated_at: string | Date;
+      election_name: string;
+    }>(
       `SELECT
-         substr(na.nullifier_hash, 1, 10) || '...' || substr(na.nullifier_hash, -4) as nullifier_display,
+         na.nullifier_hash,
          na.tx_hash,
          na.generated_at,
          e.name as election_name
@@ -294,7 +311,15 @@ app.get('/api/audit/public', async (req: any, res: Response) => {
        ORDER BY na.generated_at DESC
        LIMIT 20`
     );
-    res.json({ transactions: records || [] });
+
+    const transactions = records.map((r) => ({
+      nullifier_display: `${r.nullifier_hash.slice(0, 10)}...${r.nullifier_hash.slice(-4)}`,
+      tx_hash: r.tx_hash,
+      generated_at: r.generated_at,
+      election_name: r.election_name,
+    }));
+
+    res.json({ transactions });
   } catch (err: any) {
     console.error('Error getting audit records:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -322,7 +347,7 @@ app.use("/registration", registrationRoutes);
 
 app.get("/api/schools-degrees", async (req: any, res: Response) => {
   try {
-    const db = getDatabase();
+    const db = getDbClient();
     const domain = req.query.domain as string | undefined;
     const items = await db.run<any>(
       domain

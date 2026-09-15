@@ -4,31 +4,89 @@ import { VoteConflictError } from './client.js';
 
 const { Pool } = pg;
 
+// ── Marshalling de tipos numéricos ──────────────────────────────────────────
+//
+// node-postgres devuelve BIGINT (int8) y NUMERIC como **cadenas**, no como
+// números. Lo hace a propósito: un int8 puede superar Number.MAX_SAFE_INTEGER
+// (2^53) y convertirlo perdería precisión sin avisar.
+//
+// Para este proyecto esa decisión es la equivocada, y rompía cosas de verdad.
+// Todas las claves primarias del esquema son `BIGINT GENERATED ALWAYS AS
+// IDENTITY`, y `COUNT(*)`, `MAX()` y `SUM()` también devuelven int8. Con SQLite
+// todo eso llegaba como number, así que el código lo trata como number:
+//
+//   const election_id_blockchain = (lastElection?.id || 0) + 1;
+//
+// Sobre PostgreSQL sin esto, `lastElection.id` es "19" y la expresión da "191"
+// — concatenación de cadenas, no suma. Verificado en vivo: la elección creada
+// se quedaba con election_id_blockchain 191. Y lo mismo afecta a los `id` que
+// salen en las respuestas JSON de la API, a los recuentos del panel y a
+// start_time / end_time / block_number.
+//
+// Los valores que maneja VTB están varios órdenes de magnitud por debajo del
+// límite: ids de fila, recuentos de censo, epoch en segundos (~1,8e9) y números
+// de bloque de Ethereum (~2e7). El techo de 2^53 son 9e15. No hay riesgo real
+// de perder precisión, y a cambio el comportamiento vuelve a ser idéntico al de
+// SQLite, que es lo que toda la capa DbClient promete.
+//
+// Se registra a nivel de módulo: afecta a cualquier consulta hecha con `pg`
+// desde este proceso, incluidas las del pool y las de las transacciones.
+pg.types.setTypeParser(pg.types.builtins.INT8, (v: string) => Number(v));
+pg.types.setTypeParser(pg.types.builtins.NUMERIC, (v: string) => Number(v));
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /** Convierte placeholders SQLite ? a PostgreSQL $1, $2, … */
-function toPositional(sql: string): string {
+export function toPositional(sql: string): string {
   let i = 0;
   return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+/**
+ * Tablas cuya clave primaria es compuesta y que, por tanto, NO tienen columna `id`.
+ *
+ * Importa porque `normalizeSql` añade `RETURNING id` a todo INSERT para poder
+ * rellenar `lastID`. Sobre una de estas tablas, ese RETURNING hace fallar la
+ * consulta entera con `column "id" does not exist`. En SQLite no se notaba: la
+ * tabla tiene rowid implícito y `lastID` salía igual.
+ *
+ * `election_voters` es la que rompía: PRIMARY KEY (election_id, user_id), y es la
+ * tabla sobre la que se asigna a cada persona a un censo — 13 llamadas en admin,
+ * registration y el seed.
+ *
+ * Si se añade otra tabla con clave compuesta, va aquí.
+ */
+const TABLES_WITHOUT_ID = new Set(['election_voters']);
+
+/** Extrae el nombre de la tabla de un INSERT, o null si no se reconoce. */
+function insertTarget(sql: string): string | null {
+  const m = /^\s*INSERT\s+(?:OR\s+\w+\s+)?INTO\s+([a-z_][a-z0-9_]*)/i.exec(sql);
+  return m ? m[1].toLowerCase() : null;
 }
 
 /**
  * Normaliza SQL SQLite→PG:
  *   INSERT OR IGNORE INTO …  →  INSERT INTO … ON CONFLICT DO NOTHING
  *
- * Para INSERTs añade RETURNING id para obtener lastID.
+ * Para INSERTs añade RETURNING id para obtener lastID, salvo en las tablas sin
+ * columna `id` (ver TABLES_WITHOUT_ID). En esas, `exec` devuelve lastID = 0, que
+ * es lo que ya devolvía el adaptador de SQLite para estas mismas llamadas: ningún
+ * sitio del código usa el lastID de un INSERT en election_voters.
+ *
  * El RETURNING viene DESPUÉS del ON CONFLICT, que es el orden correcto en PG.
  */
-function normalizeSql(raw: string): string {
+export function normalizeSql(raw: string): string {
   const trimmed = raw.trim();
+  const target = insertTarget(trimmed);
+  const returning = target && TABLES_WITHOUT_ID.has(target) ? '' : ' RETURNING id';
 
   if (/^INSERT\s+OR\s+IGNORE\s+/i.test(trimmed)) {
     const base = trimmed.replace(/^INSERT\s+OR\s+IGNORE\s+/i, 'INSERT ');
-    return toPositional(base).replace(/;?\s*$/, ' ON CONFLICT DO NOTHING RETURNING id');
+    return toPositional(base).replace(/;?\s*$/, ` ON CONFLICT DO NOTHING${returning}`);
   }
 
   if (/^\s*INSERT\s/i.test(trimmed)) {
-    return toPositional(trimmed).replace(/;?\s*$/, ' RETURNING id');
+    return toPositional(trimmed).replace(/;?\s*$/, returning);
   }
 
   return toPositional(trimmed);

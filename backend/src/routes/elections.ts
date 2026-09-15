@@ -608,7 +608,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
 
     // Verificar que eleccin existe en BD local
     const election = await db.get<{ id: number; election_id_blockchain: number; name: string }>(
-      "SELECT id, election_id_blockchain, name FROM elections WHERE id = ? AND is_active = 1",
+      "SELECT id, election_id_blockchain, name FROM elections WHERE id = ? AND is_active = TRUE",
       [electionId]
     );
 

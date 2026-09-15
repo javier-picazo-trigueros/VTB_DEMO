@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { getDatabase } from '../config/database.js';
+import { getDbClient } from '../db/index.js';
 import {
   verifyToken,
   COOKIE_NAME_ACCESS,
@@ -76,7 +76,7 @@ export const requireAdmin = async (
   }
 
   try {
-    const db = getDatabase();
+    const db = getDbClient();
     const row = await db.get<{ role: string; admin_domain: string | null }>(
       'SELECT role, admin_domain FROM users WHERE id = ? AND deleted_at IS NULL',
       [decoded.userId],
