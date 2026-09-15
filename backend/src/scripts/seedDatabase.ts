@@ -1,18 +1,24 @@
 import { getDbClient, ensureSchema, withTransaction } from "../db/index.js";
+import { PgClient } from "../db/postgres.js";
 import { hashPassword, generateNullifier } from "../utils/auth.js";
 
 /**
  * Seed de datos demo para VTB.
- * - Idempotente: no duplica datos si ya existen.
- * - Se llama automáticamente al arrancar la app si la BD está vacía.
- * - También ejecutable manualmente: npm run seed
+ * - No se ejecuta nunca al arrancar la app: solo a mano o desde los tests.
+ * - `npm run seed` aborta si la base ya tiene usuarios. Solo `npm run seed:reset`
+ *   (o `--reset`) borra usuarios, elecciones, candidatos, censo y votos antes de
+ *   sembrar. Ver runSeed() al final del fichero.
+ * - seedDemoData() no duplica datos, pero NO es de solo inserción: reescribe las
+ *   contraseñas de las cuentas demo, borra sus votos y borra los votos sin bloque
+ *   de usuarios que no son demo.
  *
  * Solo genera datos para la universidad ficticia "Meridian University"
  * (dominio vtb.demo) y el superadmin de plataforma (vtb.system). No crea
  * ni mantiene ninguna otra institución — si una base de datos ya tiene
- * cuentas reales bajo otros dominios (p. ej. de un piloto real), este
- * script nunca las toca ni las borra: solo usa INSERT OR IGNORE / UPDATE
- * sobre las cuentas de vtb.demo y vtb.system.
+ * cuentas reales bajo otros dominios (p. ej. de un piloto real), no borra
+ * esas cuentas, pero sí sus votos que no tengan número de bloque (ver el
+ * DELETE sobre nullifier_audit al principio de seedDemoData). Por eso el
+ * script aborta si ya hay datos.
  */
 /**
  * Contraseña de una cuenta privilegiada del seed (A4).
@@ -419,31 +425,103 @@ export async function seedDemoData(): Promise<void> {
 }
 
 // ─── Ejecución directa (npm run seed) ───────────────────────────────────────
-async function runSeedScript() {
-  try {
-    await ensureSchema();
-    const db = getDbClient();
-    // En modo script forzamos el seed aunque haya datos
-    const row = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM users");
-    if (row && Number(row.count) > 0) {
-      console.log("⚠️  La BD ya tiene datos. Borrando para re-sembrar...");
-      await db.exec("DELETE FROM nullifier_audit");
-      await db.exec("DELETE FROM election_voters");
-      await db.exec("DELETE FROM election_access");
-      await db.exec("DELETE FROM candidates");
-      await db.exec("DELETE FROM elections");
-      await db.exec("DELETE FROM users");
-    }
-    await seedDemoData();
-    process.exit(0);
-  } catch (err) {
-    console.error("❌ Error en seed:", err);
-    process.exit(1);
+//
+// Por defecto el script NO borra nada: si la base ya tiene algún usuario, aborta
+// con código de salida 1 y explica cómo seguir. Solo con `--reset` vacía las
+// tablas de datos antes de sembrar.
+//
+// Antes borraba siempre que hubiera usuarios, sin avisar, mientras la cabecera de
+// este fichero decía que era idempotente. Así se vació la base de Supabase del
+// proyecto el 15-sep-2026, y la guía de despliegue llegó a proponer
+// `npm run seed && node dist/index.js` como arranque de Render: habría borrado el
+// censo y los votos en cada despliegue. Con este cambio ese mismo arranque falla
+// con código 1 y el servidor no llega a levantarse: un fallo visible en vez de un
+// borrado silencioso.
+//
+// No hay un modo "insertar solo lo que falte" a propósito: seedDemoData() no se
+// limita a insertar (reescribe contraseñas demo, borra votos demo y borra votos
+// sin bloque de usuarios reales). Sin flag, la única opción segura es no tocar nada.
+
+/** Tablas que vacía `--reset`, de hijas a padres para no chocar con las FK. */
+const RESET_TABLES = [
+  'nullifier_audit',
+  'election_voters',
+  'election_targets',
+  'election_access',
+  'candidates',
+  'refresh_tokens',
+  'password_reset_tokens',
+  'elections',
+  'users',
+];
+
+/**
+ * Solo existen en PostgreSQL y van primero: vote_attempts tiene ON DELETE
+ * RESTRICT hacia users y elections, así que con filas dentro el DELETE de users
+ * fallaría. (election_images cae en cascada con elections.)
+ */
+const RESET_TABLES_PG_ONLY = ['vote_attempts'];
+
+export type SeedOutcome = 'seeded' | 'aborted' | 'reset-and-seeded';
+
+export async function runSeed(opts: { reset: boolean }): Promise<SeedOutcome> {
+  await ensureSchema();
+  const db = getDbClient();
+
+  const count = async (table: string): Promise<number> =>
+    Number((await db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`))?.n ?? 0);
+
+  const users = await count('users');
+
+  if (users > 0 && !opts.reset) {
+    const elections = await count('elections');
+    const votes = await count('nullifier_audit');
+    console.error('');
+    console.error('⛔ La base de datos ya tiene datos: no se ha tocado nada.');
+    console.error(`   ${users} usuario(s), ${elections} elección(es), ${votes} voto(s).`);
+    console.error('');
+    console.error('   El seed solo se ejecuta sobre una base vacía. Si de verdad quieres BORRAR');
+    console.error('   usuarios, elecciones, candidatos, censo y votos y volver a sembrar la demo:');
+    console.error('');
+    console.error('     npm run seed:reset        (equivale a: npm run seed -- --reset)');
+    console.error('');
+    return 'aborted';
   }
+
+  if (users > 0 && opts.reset) {
+    const elections = await count('elections');
+    const votes = await count('nullifier_audit');
+    console.warn(`⚠️  --reset: borrando ${users} usuario(s), ${elections} elección(es) y ${votes} voto(s)...`);
+    const tables = db instanceof PgClient ? [...RESET_TABLES_PG_ONLY, ...RESET_TABLES] : RESET_TABLES;
+
+    // Transacción propia, confirmada ANTES de sembrar. No se anida con la de
+    // seedDemoData: en PostgreSQL irían por conexiones distintas y los INSERT de
+    // las cuentas demo esperarían a los cerrojos de estos DELETE sin confirmar.
+    // Si el seed falla después, la base queda vacía y basta con relanzarlo.
+    await withTransaction(async (tx) => {
+      for (const table of tables) {
+        await tx.exec(`DELETE FROM ${table}`);
+      }
+    });
+  }
+
+  await seedDemoData();
+  return users > 0 ? 'reset-and-seeded' : 'seeded';
 }
+
+// Códigos de salida con nombre. Además de ser más legibles, evitan el patrón
+// `? 1 : 0`, que el guard de pg-sql.test.ts busca porque en el SQL de este
+// proyecto significa un booleano pasado como número (roto en PostgreSQL).
+const EXIT_OK = 0;
+const EXIT_ABORTED = 1;
 
 // Detectar si se ejecuta directamente (no importado como módulo)
 const isMain = process.argv[1]?.includes("seedDatabase");
 if (isMain) {
-  runSeedScript();
+  runSeed({ reset: process.argv.includes('--reset') })
+    .then((outcome) => process.exit(outcome === 'aborted' ? EXIT_ABORTED : EXIT_OK))
+    .catch((err) => {
+      console.error("❌ Error en seed:", err);
+      process.exit(1);
+    });
 }

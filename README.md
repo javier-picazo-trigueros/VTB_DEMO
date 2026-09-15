@@ -349,6 +349,12 @@ cd backend
 npm run seed
 ```
 
+> `npm run seed` only runs on an **empty** database: if there is any user, it
+> aborts with exit code 1 and changes nothing. To **delete** users, elections,
+> candidates, census and votes and re-seed the demo data, run
+> `npm run seed:reset` (same as `npm run seed -- --reset`). Never put either
+> command in a deploy start command.
+
 To trigger blockchain sync manually:
 
 ```bash
@@ -522,7 +528,8 @@ Backend:
 | `npm run lint:fix` | Auto-fix ESLint issues |
 | `npm run format` | Format with Prettier |
 | `npm test` | Run Vitest backend tests |
-| `npm run seed` | Seed demo data into the current database |
+| `npm run seed` | Seed demo data into an **empty** database; aborts (exit 1) if there are users |
+| `npm run seed:reset` | **Deletes** users, elections, candidates, census and votes, then re-seeds demo data |
 | `npm run sync-blockchain` | Sync elections to configured chain |
 | `npm run migrate` | Apply pending PG migrations (requires `DB_CLIENT=postgres`) |
 | `npm run migrate:down` | Roll back the last PG migration |
@@ -647,7 +654,8 @@ To run with PostgreSQL instead of SQLite:
    cd backend
    npm run migrate
    ```
-4. (Optional) Seed demo data:
+4. (Optional) Seed demo data — only on the freshly migrated, empty database
+   (it aborts if there are users):
    ```bash
    npm run seed
    ```
@@ -661,6 +669,8 @@ To run with PostgreSQL instead of SQLite:
 
 - SQLite lives at `backend/vtb.db` by default (`DATABASE_PATH` env var).
 - Demo data is **not** seeded automatically; run `npm run seed` on a fresh install.
+  It refuses to run on a database that already has users; `npm run seed:reset`
+  wipes users, elections, candidates, census and votes and re-seeds.
 - Results are computed from the audit data in the active database.
 - The relayer private key signs blockchain transactions; use a dedicated wallet.
 
