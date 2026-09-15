@@ -7,6 +7,7 @@ import { generateNullifier, verifyToken, COOKIE_NAME_ACCESS } from "../utils/aut
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { sendVoteConfirmation } from "../services/email/index.js";
 import { formatError } from "../utils/errors.js";
+import { isChainConfigured } from "../scripts/syncElections.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -118,7 +119,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 
 /**
  * @route GET /elections/blockchain-sync-status
- * @desc Compares local election blockchain ids with the live on-chain range.
+ * @desc Estado de sincronización con blockchain de cada elección (elections.chain_status).
  */
 router.get("/blockchain-sync-status", async (_req: Request, res: Response) => {
   try {
@@ -126,50 +127,29 @@ router.get("/blockchain-sync-status", async (_req: Request, res: Response) => {
       id: number;
       name: string;
       election_id_blockchain: number;
+      chain_status: string;
+      chain_tx_hash: string | null;
+      chain_attempts: number;
     }>(
-      "SELECT id, name, election_id_blockchain FROM elections ORDER BY id ASC"
+      "SELECT id, name, election_id_blockchain, chain_status, chain_tx_hash, chain_attempts FROM elections ORDER BY id ASC"
     );
 
-    let onChainCount = 0;
-    let blockchainAvailable = false;
-
-    const contractAddress = process.env.CONTRACT_ADDRESS || "";
-
-    if (contractAddress) {
-      try {
-        const provider = getProvider();
-        const abi = ["function electionCount() view returns (uint256)"];
-        const contract = new ethers.Contract(contractAddress, abi, provider);
-        onChainCount = Number(await contract.electionCount());
-        blockchainAvailable = true;
-      } catch (e) {
-        console.warn("Could not check on-chain election count:", formatError(e));
-      }
-    }
-
-    const sync = elections.map((e, index) => {
-      const expectedBlockchainId = index + 1;
-      const existsOnChain = blockchainAvailable && e.election_id_blockchain <= onChainCount;
-      const sequentialMismatch = e.election_id_blockchain !== expectedBlockchainId;
-      const missingOnChain = !existsOnChain;
-
-      return {
-        sqliteId: e.id,
-        name: e.name,
-        blockchainId: e.election_id_blockchain,
-        expectedBlockchainId,
-        existsOnChain,
-        sequentialMismatch,
-        missingOnChain,
-        mismatch: sequentialMismatch || missingOnChain,
-      };
-    });
+    // Antes comparaba election_id_blockchain con el recuento del contrato,
+    // suponiendo que la elección i de la base era la i del contrato. El estado
+    // real lo lleva ahora cada elección. Ruta pública: no incluye chain_error.
+    const sync = elections.map((e) => ({
+      id: e.id,
+      name: e.name,
+      chainStatus: e.chain_status,
+      blockchainId: e.chain_status === 'synced' ? Number(e.election_id_blockchain) : null,
+      txHash: e.chain_tx_hash,
+      attempts: Number(e.chain_attempts),
+    }));
 
     res.json({
-      onChainCount,
-      blockchainAvailable,
+      chainConfigured: isChainConfigured(),
       elections: sync,
-      mismatches: sync.filter(e => e.mismatch),
+      pending: sync.filter((e) => e.chainStatus !== 'synced'),
     });
   } catch (err) {
     console.error("Failed to check blockchain sync status:", formatError(err));
@@ -179,32 +159,18 @@ router.get("/blockchain-sync-status", async (_req: Request, res: Response) => {
 
 /**
  * @route PATCH /elections/fix-blockchain-ids
- * @desc Resets local blockchain ids to sequential on-chain ids in SQLite order.
+ * @desc Desactivada (410): los ids de blockchain los asigna la sincronización.
  */
-router.patch("/fix-blockchain-ids", requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const elections = await db.run<{ id: number }>(
-      "SELECT id FROM elections ORDER BY id ASC"
-    );
-
-    for (let i = 0; i < elections.length; i++) {
-      await db.exec(
-        "UPDATE elections SET election_id_blockchain = ? WHERE id = ?",
-        [i + 1, elections[i].id]
-      );
-    }
-
-    res.json({
-      message: `Corregidas ${elections.length} elecciones`,
-      mapping: elections.map((e, i) => ({
-        sqliteId: e.id,
-        newBlockchainId: i + 1,
-      })),
-    });
-  } catch (err) {
-    console.error("Failed to fix blockchain ids:", err);
-    res.status(500).json({ error: "No se han podido corregir los IDs de blockchain" });
-  }
+router.patch("/fix-blockchain-ids", requireAdmin, async (_req: Request, res: Response) => {
+  // Renumeraba election_id_blockchain como 1..N suponiendo que la elección i de
+  // la base era la i del contrato. No lo era (en Supabase, las #1-#5 del contrato
+  // son otras elecciones), así que los votos reales habrían ido a otra elección.
+  // El id lo escribe ahora la sincronización con el evento ElectionCreated. La
+  // ruta sigue detrás de requireAdmin para que un cliente antiguo reciba el motivo.
+  res.status(410).json({
+    error: "Obsoleto: los ids de blockchain los asigna la sincronización automática",
+    code: "GONE",
+  });
 });
 
 /**
@@ -239,6 +205,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       image_url: string | null;
       banner_color: string | null;
       voter_role: string | null;
+      chain_status: string;
     }>("SELECT * FROM elections WHERE id = ?", [id]);
 
     if (!election) {
@@ -260,7 +227,9 @@ router.get("/:id", async (req: Request, res: Response) => {
     // Obtener informacin del blockchain si est disponible
     let blockchainInfo = null;
     const contractAddress = process.env.CONTRACT_ADDRESS || "";
-    if (contractAddress) {
+    // Solo si la elección está en el contrato: con otro estado,
+    // election_id_blockchain no apunta a su elección.
+    if (contractAddress && election.chain_status === 'synced') {
       try {
         // ABI minimal del contrato ElectionRegistry
         const abi = [
@@ -298,7 +267,8 @@ router.get("/:id", async (req: Request, res: Response) => {
     res.json({
       election: {
         id: election.id,
-        blockchainId: election.election_id_blockchain,
+        blockchainId: election.chain_status === 'synced' ? election.election_id_blockchain : null,
+        chainStatus: election.chain_status,
         name: election.name,
         description: election.description,
         startTime: election.start_time,
@@ -619,8 +589,8 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
     const decoded = req.user!;
 
     // Verificar que eleccin existe en BD local
-    const election = await db.get<{ id: number; election_id_blockchain: number; name: string }>(
-      "SELECT id, election_id_blockchain, name FROM elections WHERE id = ? AND is_active = TRUE",
+    const election = await db.get<{ id: number; election_id_blockchain: number; name: string; chain_status: string }>(
+      "SELECT id, election_id_blockchain, name, chain_status FROM elections WHERE id = ? AND is_active = TRUE",
       [electionId]
     );
 
@@ -695,6 +665,20 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         blockNumber: null,
         isDemo: true,
         message: 'Voto de demostración registrado (sintético — no está en la blockchain real)',
+      });
+    }
+
+    // La elección tiene que estar registrada en el contrato. Mientras no lo esté,
+    // election_id_blockchain no es fiable (antes de la migración 008 salía de una
+    // renumeración que apuntaba a OTRAS elecciones del contrato) y el voto se
+    // registraría en la elección equivocada. La sincronización corre sola en
+    // segundo plano: basta con reintentar en unos minutos.
+    if (election.chain_status !== 'synced') {
+      return res.status(503).json({
+        error: "Esta elección aún no está registrada en blockchain",
+        details: "Se está registrando en segundo plano. Inténtalo de nuevo en unos minutos.",
+        code: "ELECTION_NOT_ON_CHAIN",
+        chainStatus: election.chain_status,
       });
     }
 

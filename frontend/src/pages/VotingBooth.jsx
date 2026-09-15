@@ -565,8 +565,8 @@ export const VotingBoothContent = () => {
       ) {
         setVoteError({
           type: "sync_needed",
-          message: "Esta elección no está registrada en Sepolia todavía.",
-          detail: "Un administrador debe sincronizar las elecciones con el blockchain. Inténtalo de nuevo en unos minutos.",
+          message: "Esta elección aún no está registrada en Sepolia.",
+          detail: "Se está registrando automáticamente en segundo plano. Inténtalo de nuevo en unos minutos.",
         });
         setVoteStatus("error");
         return;

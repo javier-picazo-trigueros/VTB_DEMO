@@ -343,6 +343,21 @@ export class Database {
     await this.exec(
       'ALTER TABLE elections ADD COLUMN notify_close_sent_at DATETIME DEFAULT NULL'
     ).catch(() => {});
+
+    // Estado de sincronización con blockchain (migración 008 en PostgreSQL). Las
+    // filas existentes quedan 'pending' por el DEFAULT: su election_id_blockchain
+    // salió de la antigua renumeración 1..N y no hay forma de saber si es correcto.
+    for (const ddl of [
+      "ALTER TABLE elections ADD COLUMN chain_status TEXT NOT NULL DEFAULT 'pending'",
+      'ALTER TABLE elections ADD COLUMN chain_tx_hash TEXT DEFAULT NULL',
+      'ALTER TABLE elections ADD COLUMN chain_error TEXT DEFAULT NULL',
+      'ALTER TABLE elections ADD COLUMN chain_attempts INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE elections ADD COLUMN chain_next_retry_at DATETIME DEFAULT NULL',
+      'ALTER TABLE elections ADD COLUMN chain_claimed_at DATETIME DEFAULT NULL',
+      'ALTER TABLE elections ADD COLUMN chain_synced_at DATETIME DEFAULT NULL',
+    ]) {
+      await this.exec(ddl).catch(() => {});
+    }
   }
 
   /**

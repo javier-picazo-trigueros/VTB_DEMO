@@ -7,6 +7,7 @@ import { getDbClient, isUniqueViolation, withTransaction, type DbClient } from "
 import { hashPassword, generateToken } from "../utils/auth.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { formatError } from "../utils/errors.js";
+import { syncElectionsToBlockchain, isChainConfigured } from "../scripts/syncElections.js";
 import { ethers } from "ethers";
 import {
   sendCensusInvitation,
@@ -34,6 +35,11 @@ const createElectionSchema = z.object({
   target_degrees:     z.array(z.string().min(1).max(200)).max(100).optional(),
   target_description: z.string().max(500).optional(),
   voter_role:         z.enum(['student', 'voter', 'teacher', 'staff', 'admin', 'both']).optional(),
+  // Los candidatos llegan con la elección y se guardan en la misma transacción.
+  candidates:         z.array(z.object({
+    name:        z.string().trim().min(1, 'Cada candidato necesita un nombre').max(200),
+    description: z.string().trim().max(2000).optional(),
+  })).max(100).optional(),
 }).refine(d => d.end_time > d.start_time, {
   message: 'end_time debe ser posterior a start_time',
   path: ['end_time'],
@@ -635,13 +641,8 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
       target_degrees     = [] as string[],
       target_description,
       voter_role         = 'student',
+      candidates         = [],
     } = parsed.data;
-
-    const lastElection = await db.get<{ id: number }>(
-      "SELECT MAX(election_id_blockchain) as id FROM elections"
-    );
-    const election_id_blockchain = (lastElection?.id || 0) + 1;
-    let blockchainId = election_id_blockchain;
 
     const adminDomain = getAdminDomain(req);
 
@@ -664,14 +665,27 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
     // posterior devuelve "current transaction is aborted". Es mejor que el error
     // suba y revierta el bloque entero.
     const electionId = await withTransaction(async (tx) => {
+      // election_id_blockchain = 0 mientras está 'pending': los ids del contrato
+      // empiezan en 1, así que 0 nunca apunta a una elección real. El definitivo
+      // lo escribe la sincronización con el id del evento ElectionCreated.
       const inserted = await tx.exec(
         `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active,
-                                banner_color, target_type, target_description, voter_role)
-         VALUES (?, ?, ?, ?, ?, TRUE, ?, ?, ?, ?)`,
-        [election_id_blockchain, name, description, start_time, end_time,
+                                banner_color, target_type, target_description, voter_role, chain_status)
+         VALUES (0, ?, ?, ?, ?, TRUE, ?, ?, ?, ?, 'pending')`,
+        [name, description, start_time, end_time,
          banner_color || '#1E3A5F', target_type, target_description || null, voter_role]
       );
       const newId = inserted.lastID;
+
+      // Los candidatos, en la misma transacción. Antes el frontend los añadía uno
+      // a uno DESPUÉS de la respuesta: si esta no llegaba (el navegador corta a los
+      // 15 s y la espera a Sepolia tardaba más), la elección quedaba sin ellos.
+      for (const [position, candidate] of candidates.entries()) {
+        await tx.exec(
+          'INSERT INTO candidates (election_id, name, description, position) VALUES (?, ?, ?, ?)',
+          [newId, candidate.name, candidate.description ?? '', position]
+        );
+      }
 
       // Insert election_targets and maintain election_access for backward compat
       for (const target of targets) {
@@ -768,52 +782,27 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
       return newId;
     });
 
-    // ── Registro on-chain, YA FUERA de la transacción ───────────────────────
+    // ── Registro en la cadena: en segundo plano, sin esperarlo ──────────────
     //
-    // Deliberadamente fuera, por dos razones: la llamada tarda decenas de
-    // segundos y mantendría una conexión de PostgreSQL abierta todo ese rato; y
-    // una transacción de Ethereum no se puede revertir con un ROLLBACK, así que
-    // no gana nada estando dentro. Si falla, la elección queda creada y se
-    // sincroniza después — que es justo lo que hace `npm run sync-blockchain`.
-    let onChainTx: string | null = null;
-    const contractAddress = process.env.CONTRACT_ADDRESS || "";
-    const privateKey = process.env.PRIVATE_KEY || "";
-    const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
-    if (contractAddress && privateKey) {
-      try {
-        const provider = new ethers.JsonRpcProvider(rpcUrl);
-        const wallet = new ethers.Wallet(privateKey, provider);
-        const abi = [
-          "function createElection(string memory _name, uint256 _startTime, uint256 _endTime) external",
-          "function electionCount() view returns (uint256)",
-        ];
-        const contract = new ethers.Contract(contractAddress, abi, wallet);
-
-        const onChainStart = Math.max(Number(start_time), Math.floor(Date.now() / 1000) + 120);
-        const tx = await contract.createElection(name, onChainStart, Number(end_time));
-        const receipt = await tx.wait();
-        onChainTx = tx.hash;
-
-        const createdOnChainId = Number(await contract.electionCount());
-        if (createdOnChainId > 0) {
-          blockchainId = createdOnChainId;
-          await db.exec(
-            "UPDATE elections SET election_id_blockchain = ? WHERE id = ?",
-            [blockchainId, electionId]
-          );
-        }
-
-        console.log(`Election "${name}" registered on-chain: ${tx.hash} (block ${receipt?.blockNumber})`);
-      } catch (bcErr) {
-        console.warn(`Could not register election on-chain (best-effort): ${formatError(bcErr)}`);
-      }
+    // Antes se enviaba createElection aquí y se esperaba el recibo (12-40 s en
+    // Sepolia) antes de responder. El navegador corta a los 15 s, así que a menudo
+    // el administrador veía "No se ha podido crear la elección" con la elección ya
+    // creada. Ahora la elección queda 'pending' y la registra la sincronización
+    // (scripts/syncElections.ts): se lanza ya, sin esperarla, y el job periódico de
+    // index.ts la reintenta si falla. El panel muestra el estado.
+    const chainConfigured = isChainConfigured();
+    if (chainConfigured) {
+      void syncElectionsToBlockchain().catch((err) =>
+        console.error("[chain-sync] error tras crear la elección:", formatError(err)),
+      );
     }
 
     res.json({
       success: true,
       electionId,
-      blockchainId,
-      onChainTx,
+      chainStatus: 'pending',
+      chainConfigured,
+      candidates: candidates.length,
       message: `Elección "${name}" creada exitosamente`,
     });
   } catch (error) {

@@ -24,7 +24,11 @@ para tener la app funcionando con las cuentas de demo.
 - **`frontend/.env.production` ya no está en git.** Al hacer el merge desaparece de
   tu carpeta. En local no se usa; en Vercel, las `VITE_*` tienen que estar en el
   panel del proyecto (ver [Antes de mergear a `main`](#antes-de-mergear-a-main)).
-- Hay **7 migraciones** de PostgreSQL. Solo te afectan si usas PostgreSQL.
+- Hay **8 migraciones** de PostgreSQL. Solo te afectan si usas PostgreSQL.
+- **Crear una elección ya no espera a la blockchain.** Se guarda con sus candidatos
+  y se registra en el contrato en segundo plano. Sin blockchain configurada (lo
+  normal en local), el panel la muestra como «⏳ Pendiente de blockchain»: es lo
+  esperado, y las cuentas `@vtb.demo` votan igual.
 
 ---
 
@@ -42,8 +46,8 @@ Reglas si alguna vez usas la base compartida:
 
 - La `DATABASE_URL` se pasa por un canal privado. Nunca en git, en un issue ni en un chat público.
 - **Nunca** `npm run seed:reset` ni `npm run migrate:down` contra ella.
-- Las migraciones las aplica una sola persona, avisando. Las 7 actuales ya están
-  aplicadas (15-sep-2026).
+- Las migraciones las aplica una sola persona, avisando. Las 8 actuales ya están
+  aplicadas (16-sep-2026).
 - `npm test` es seguro: los tests usan siempre SQLite en memoria, aunque tu `.env`
   apunte a PostgreSQL.
 
@@ -173,7 +177,7 @@ Abre **http://localhost:3000** (Vite está fijado a ese puerto en `frontend/vite
    npm test
    ```
 
-   Resultado esperado: 17 ficheros, 132 tests en verde.
+   Resultado esperado: 18 ficheros, 142 tests en verde.
 
 ---
 
@@ -263,7 +267,7 @@ proyecto (ver arriba).
    ```sql
    SELECT id, name FROM pgmigrations ORDER BY id;
    ```
-   Deben salir 7 filas, la última `20260915000007_email_log_without_tokens`.
+   Deben salir 8 filas, la última `20260916000008_election_chain_sync`.
 4. Siembra (solo sobre la base recién migrada, vacía): `npm run seed`.
 5. `npm run dev` debe mostrar `✅ Usando PostgreSQL como motor de BD`.
 

@@ -87,14 +87,14 @@ cd backend
 DATABASE_URL="postgresql://…@…render.com/vtb?sslmode=require" npm run migrate
 ```
 
-Debe terminar con `Migrations complete!` y aplicar **7** migraciones. Compruébalo
+Debe terminar con `Migrations complete!` y aplicar **8** migraciones. Compruébalo
 con una consulta en la base (node-pg-migrate 7 no tiene comando `status`):
 
 ```sql
 SELECT id, name FROM pgmigrations ORDER BY id;
 ```
 
-Las 7 son:
+Las 8 son:
 
 ```
 20260808000001_initial_schema
@@ -104,6 +104,7 @@ Las 7 son:
 20260914000005_refresh_tokens_and_election_image   ← nueva
 20260914000006_enable_rls_deny_by_default          ← nueva
 20260915000007_email_log_without_tokens            ← nueva
+20260916000008_election_chain_sync                 ← nueva
 ```
 
 **La quinta no es opcional.** Crea `refresh_tokens`, que no existía en el esquema
@@ -122,6 +123,14 @@ llevaban y vacía los cuerpos ya enviados. Sin la columna, el backend no puede
 encolar invitaciones ni correos de recuperación. Efecto visible: un enlace de
 invitación o de recuperación enviado **antes** de aplicarla deja de funcionar, y
 hay que pedir otro o volver a invitar.
+
+**La octava** añade el estado de sincronización de cada elección con el contrato
+(`chain_status`: pendiente, sincronizando, en cadena, fallida). Crear una elección
+responde al momento y el backend la registra en segundo plano, también en el job
+de cada 5 minutos. Las elecciones que ya existían quedan **pendientes** y se
+registran de nuevo la primera vez que arranca un backend con blockchain
+configurada, una transacción por elección: sus ids anteriores salían de una
+renumeración que apuntaba a otras elecciones del contrato.
 
 ### Paso 3 — (Solo si conservas datos) migrar el contenido
 

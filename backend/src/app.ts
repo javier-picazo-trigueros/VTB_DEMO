@@ -321,7 +321,8 @@ app.get('/api/stats', async (req: any, res: Response) => {
 
 app.post('/api/admin/sync-blockchain', requireAdmin, async (req: any, res: Response) => {
   res.json({ message: 'Sincronización iniciada', status: 'running' });
-  syncElectionsToBlockchain().catch(err => {
+  // retryFailed: el botón también reintenta las elecciones que agotaron sus intentos.
+  syncElectionsToBlockchain({ retryFailed: true }).catch(err => {
     console.error('Manual sync error:', formatError(err));
   });
 });

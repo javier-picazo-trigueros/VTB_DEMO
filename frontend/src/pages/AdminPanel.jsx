@@ -170,6 +170,17 @@ export const AdminPanel = () => {
     loadTabData();
   }, [activeTab]);
 
+  // Mientras haya elecciones pendientes de registrar en blockchain, refresca la
+  // lista cada 15 s para que su estado cambie sin recargar la página.
+  const chainPending = elections.some(e => e.chain_status === 'pending' || e.chain_status === 'syncing');
+  useEffect(() => {
+    if (activeTab !== 'elections' || !chainPending) return undefined;
+    const timer = setInterval(() => {
+      api.get('/admin/elections').then(r => setElections(r.data.elections)).catch(() => {});
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [activeTab, chainPending]);
+
   // Load pending badge count on mount
   useEffect(() => {
     api.get('/admin/registration-requests?status=pending')
@@ -356,20 +367,15 @@ export const AdminPanel = () => {
             ? (newElection.domains || '').split(',').map(d => d.trim()).filter(Boolean)
             : newElection.target_values || [],
         target_schools: newElection.target_schools || [],
+        // Los candidatos viajan con la elección: el backend los guarda en la misma
+        // transacción, así que no puede quedar una elección sin ellos.
+        candidates: newElection.candidates
+          .filter(c => c.name.trim() !== "")
+          .map(c => ({ name: c.name.trim(), description: c.description?.trim() || undefined })),
       };
 
       const res = await api.post(`/admin/elections`, electionPayload);
       const newElectionId = res.data.electionId;
-
-      // Add candidates
-      const validCandidates = newElection.candidates.filter(c => c.name.trim() !== "");
-      for (const candidate of validCandidates) {
-        try {
-          await api.post(`/admin/elections/${newElectionId}/candidates`, candidate);
-        } catch (e) {
-          console.error("Error adding candidate:", e);
-        }
-      }
 
       // Upload image if selected
       if (newElection.image) {
@@ -382,7 +388,11 @@ export const AdminPanel = () => {
         }
       }
 
-      toast.success("Elección creada correctamente");
+      // La respuesta ya no espera a Sepolia: la elección queda pendiente y la
+      // lista muestra cuándo pasa a estar en blockchain.
+      toast.success(res.data.chainConfigured
+        ? "Elección creada. Se está registrando en blockchain en segundo plano."
+        : "Elección creada. Blockchain no configurada: queda pendiente de registrar.");
       setNewElection({
         name: "",
         description: "",
@@ -1591,6 +1601,21 @@ export const AdminPanel = () => {
                                   <span className="px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 font-medium">
                                     {election.candidates?.length || "N/D"} candidatos
                                   </span>
+                                  {(() => {
+                                    const chainStatus = election.chain_status || 'pending';
+                                    const badge = {
+                                      synced:  { cls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200', label: `⛓️ En blockchain #${election.election_id_blockchain}` },
+                                      syncing: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: '⏳ Registrando en blockchain…' },
+                                      pending: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: '⏳ Pendiente de blockchain' },
+                                      failed:  { cls: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200', label: '⚠️ Error al registrar en blockchain' },
+                                    }[chainStatus] || { cls: 'bg-slate-100 text-slate-700', label: chainStatus };
+                                    const title = chainStatus === 'failed' ? (election.chain_error || '') : (election.chain_tx_hash || '');
+                                    return (
+                                      <span title={title} className={`px-2 py-1 rounded font-medium ${badge.cls}`}>
+                                        {badge.label}
+                                      </span>
+                                    );
+                                  })()}
                                   {election.voter_role === 'admin' && (
                                     <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium">
                                       ⚙️ Solo admins

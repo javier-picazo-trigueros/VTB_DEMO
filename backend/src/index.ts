@@ -211,9 +211,14 @@ async function start() {
         checkElectionNotifications().catch(err =>
           console.error('[notify-job] error:', err),
         );
+        // Red de seguridad de POST /admin/elections, que lanza la sincronización
+        // sin esperarla: aquí se reintentan las que fallaron o se quedaron a medias.
+        syncElectionsToBlockchain().catch(err =>
+          console.error('[chain-sync-job] error:', formatError(err)),
+        );
       }, FIVE_MIN);
 
-      console.log('✅ Job de email (retry + notificaciones electorales) activo (cada 5 min)');
+      console.log('✅ Job de email, notificaciones y sincronización con blockchain activo (cada 5 min)');
 
       // ── Job de limpieza de votos huérfanos — solo cuando el motor es PostgreSQL
       const dbClient = getDbClient();

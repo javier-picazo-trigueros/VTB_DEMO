@@ -17,6 +17,12 @@ process.env.NODE_ENV = 'test';
 process.env.DB_CLIENT = 'sqlite';
 process.env.DATABASE_URL = '';
 process.env.RESEND_API_KEY = '';
+// Lo mismo con la blockchain. Sin estas tres, dotenv rellenaría CONTRACT_ADDRESS,
+// PRIVATE_KEY y RPC_URL desde el .env local, y crear una elección en un test
+// lanzaría la sincronización con transacciones REALES en Sepolia.
+process.env.CONTRACT_ADDRESS = '';
+process.env.PRIVATE_KEY = '';
+process.env.RPC_URL = '';
 process.env.JWT_SECRET = 'test_jwt_secret_for_vitest';
 process.env.HMAC_SECRET = 'test_hmac_secret';
 process.env.NULLIFIER_SECRET = 'test_nullifier_secret';
