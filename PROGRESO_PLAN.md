@@ -120,6 +120,10 @@ constancia de que existen, para que no se confundan con progreso del plan:
 - **`6ecf2c40`** (yo) — un usuario con contraseña temporal quedaba encerrado
   sin poder cerrar sesión ni recibir el código de error. Bug de acceso
   encontrado en auditoría propia (`ESTADO.md`), no mencionado en el plan.
+- **`f8447c58`** (yo) — 3 rutas de `auth.ts` devolvían `err.message` crudo al
+  cliente, y `config/env.ts` (validación de entorno al arrancar) era código
+  muerto sin ningún import. Ambos, hallazgos de `ESTADO.md` (puntos 7 y 8),
+  no líneas del PDF.
 - Javier: página de censo/CSV con filas fallidas visibles, sincronización de
   elecciones sin esperar a Sepolia, `/health` con comprobación real de BD —
   todo mejoras operativas fuera del alcance literal del PDF.
