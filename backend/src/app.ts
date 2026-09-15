@@ -118,6 +118,7 @@ app.use((req, res, next) => {
 
 const ALLOWED_WHILE_MUST_CHANGE = new Set([
   'POST /auth/login',
+  'POST /auth/logout',
   'GET /auth/me',
   'PATCH /auth/change-password',
   'GET /health',

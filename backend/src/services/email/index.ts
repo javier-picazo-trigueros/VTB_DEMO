@@ -21,7 +21,12 @@ export interface InvitationRequest {
   to: string;
   userId: number;
   name: string;
-  electionName: string;
+  /**
+   * Omitir cuando la invitación no cuelga de una elección concreta (censo
+   * general). El correo cambia de "te ha habilitado para votar en X" a "te ha
+   * dado acceso a la plataforma".
+   */
+  electionName?: string;
   institutionName: string;
 }
 

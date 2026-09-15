@@ -1,3 +1,9 @@
+// Debe ser el primer import: valida las variables de entorno obligatorias
+// (JWT_SECRET, NULLIFIER_SECRET, CORS_ORIGINS, DATABASE_URL si aplica) y
+// aborta con el nombre exacto de la que falte, antes de que arranque nada
+// más. Antes de este cable, config/env.ts existía pero no lo importaba
+// nadie (SCRUM-14).
+import "./config/env.js";
 import { app } from "./app.js";
 import { getDbClient, ensureSchema } from "./db/index.js";
 import { PgClient } from "./db/postgres.js";
@@ -151,7 +157,7 @@ async function start() {
                 electionName: election.name,
                 startTime:    new Date(election.start_time * 1000),
                 endTime:      new Date(election.end_time   * 1000),
-                voteUrl:      `${frontendUrl}/elections/${election.id}`,
+                voteUrl:      `${frontendUrl}/voting/${election.id}`,
               });
             }
           }
@@ -191,7 +197,7 @@ async function start() {
               name:         v.name,
               electionName: election.name,
               closedAt:     new Date(election.end_time * 1000),
-              resultsUrl:   `${frontendUrl}/elections/${election.id}/results`,
+              resultsUrl:   `${frontendUrl}/results/${election.id}`,
             });
           }
 

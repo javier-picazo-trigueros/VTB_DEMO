@@ -687,15 +687,6 @@ is bypassed in the test environment by setting `max` to 1 000 000 when
 automated suite. A future integration test should spin up the app with the real
 limit and verify that the 4th vote attempt within a minute returns 429.
 
-### 2 high-severity vulnerabilities in `glob` (via `node-pg-migrate@7.x`)
-
-`npm audit` reports two high-severity `glob` CVEs introduced transitively through
-`node-pg-migrate@7.9.x`. The fix is to upgrade to `node-pg-migrate@9`, but v9
-introduces breaking API changes to the migration file format that would require
-migrating all existing migration files. This is tracked as a separate task.
-Until then, the vulnerability is a known accepted risk — `glob` is only called
-by the migration CLI tool, not by any request-handling code path.
-
 ### Cryptographic voter anonymity pending Semaphore
 
 The current implementation provides **operational** anonymity — the blockchain

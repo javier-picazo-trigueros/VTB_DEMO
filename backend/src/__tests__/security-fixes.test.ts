@@ -197,5 +197,46 @@ describe('Security fixes regression', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('allows POST /auth/logout — a locked-out user must still be able to leave', async () => {
+      const email = `mustchange4-${Date.now()}@test.vtb`;
+      await createUser({ email, studentId: `TEST-S8D-${Date.now()}`, mustChangePassword: 1 });
+      const { agent, csrf } = await loginAs(email, 'TestPass123!');
+
+      const res = await agent.post('/auth/logout').set('X-CSRF-Token', csrf);
+
+      expect(res.status).toBe(200);
+    });
+
+    it('full round trip: blocked → change password → guard lifts', async () => {
+      const email = `mustchange5-${Date.now()}@test.vtb`;
+      await createUser({ email, studentId: `TEST-S8E-${Date.now()}`, mustChangePassword: 1 });
+      const { agent, csrf } = await loginAs(email, 'TestPass123!');
+
+      // 1. Blocked everywhere except the allowlist, with the code the frontend keys on.
+      const blocked = await agent.get('/api/elections');
+      expect(blocked.status).toBe(403);
+      expect(blocked.body.code).toBe('MUST_CHANGE_PASSWORD');
+
+      // 2. /auth/me reports the flag, so a page reload doesn't lose it.
+      const me = await agent.get('/auth/me');
+      expect(me.status).toBe(200);
+      expect(me.body.user.mustChangePassword).toBe(true);
+
+      // 3. Change the password — allowed while the guard is active.
+      const change = await agent
+        .patch('/auth/change-password')
+        .set('X-CSRF-Token', csrf)
+        .send({ currentPassword: 'TestPass123!', newPassword: 'NewPass456!' });
+      expect(change.status).toBe(200);
+
+      // 4. The guard lifts immediately: the same session can now reach a normal route.
+      const after = await agent.get('/api/elections');
+      expect(after.status).not.toBe(403);
+
+      // 5. /auth/me confirms the flag cleared.
+      const meAfter = await agent.get('/auth/me');
+      expect(meAfter.body.user.mustChangePassword).toBe(false);
+    });
   });
 });

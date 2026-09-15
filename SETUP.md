@@ -262,8 +262,8 @@ proyecto (ver arriba).
    npm run migrate
    ```
    Debe terminar con `Migrations complete!`. Para comprobar cuáles están aplicadas,
-   ejecuta en el SQL Editor de Supabase o con `psql` (node-pg-migrate 7 no tiene
-   comando `status`):
+   ejecuta en el SQL Editor de Supabase o con `psql` (`node-pg-migrate` tampoco
+   tiene comando `status` en v9 — solo `up`, `down`, `create` y `redo`):
    ```sql
    SELECT id, name FROM pgmigrations ORDER BY id;
    ```
@@ -284,6 +284,35 @@ proyecto (ver arriba).
 | «La cuenta de demostración no está disponible. Ejecuta el seed.» | La contraseña del `.env` no es la que se sembró (la cambiaste después). En local: `npm run seed:reset` |
 | `Port 3001 is already in use` | Ya hay un backend corriendo. Ciérralo o cambia `PORT` y `VITE_API_URL` |
 | Los enlaces de los correos apuntan a `localhost:5173` | Falta `FRONTEND_URL=http://localhost:3000` |
+
+---
+
+## Rotación de credenciales (VTB-101)
+
+Barrido completo del historial de Git el 2026-09-15 (`git log --all -S` sobre
+`PRIVATE_KEY=0x`, `JWT_SECRET=`, `RESEND_API_KEY=re_`, `DATABASE_URL=postgres`,
+`supabase.co` y el patrón de URL de Alchemy). Resultado:
+
+| Credencial | Estado | Nota |
+|---|---|---|
+| Clave de Alchemy (`SqiqmYnoP6S…`) en `frontend/.env.production` | 🔴 **Pendiente de rotar** | Real, filtrada desde `dfc78c5a`. Untrackeada del repo en `1d0d041b`, pero sigue viva en el historial público y hay que darla por comprometida |
+| `PRIVATE_KEY=0xac0974be…` en varios commits | 🟢 Sin acción | Es la clave pública de test #0 de Hardhat (misma que sigue en el README, sección *Local Hardhat chain*). No es un secreto: es conocida por cualquiera que use Hardhat |
+| `JWT_SECRET`, `NULLIFIER_SECRET`, `HMAC_SECRET` en `.env.example` / commits antiguos | 🟢 Sin acción | Todos son placeholders (`cambia_esto_en_produccion...`, `super-secret-...-change-in-production`), nunca valores reales |
+| `RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxx` | 🟢 Sin acción | Placeholder literal, no una clave real |
+| `DATABASE_URL` / hosts de Supabase en `SETUP.md`, `MIGRACION_POSTGRES.md` | 🟢 Sin acción | Solo aparecen `<ref>`, `USUARIO:CONTRASEÑA` o el usuario `vtb:vtb` de Docker local |
+
+**Pendiente — requiere acceso a los paneles, no se puede hacer desde el repo:**
+
+1. Alchemy → Dashboard → Apps → regenerar la API key del proyecto VTB.
+2. Vercel → Settings → Environment Variables → actualizar `VITE_RPC_URL` con la
+   clave nueva.
+3. Render → Environment → actualizar `RPC_URL` con la clave nueva.
+4. Volver a esta tabla y marcar la fila de Alchemy como rotada, con fecha.
+
+**Job de vigilancia:** [`.github/workflows/secret-scan-history.yml`](.github/workflows/secret-scan-history.yml)
+escanea el historial completo cada lunes (y bajo demanda, `workflow_dispatch`),
+a diferencia del `secret-scan` de `ci.yml`, que solo mira el diff de cada PR —
+así fue como esta clave pasó desapercibida varios commits.
 
 ---
 

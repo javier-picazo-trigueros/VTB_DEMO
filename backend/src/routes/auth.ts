@@ -418,8 +418,9 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
     const user = await db.get<{
       id: number; email: string; name: string;
       role: string; admin_domain: string | null;
+      must_change_password: boolean | number;
     }>(
-      "SELECT id, email, name, role, admin_domain FROM users WHERE id = ? AND deleted_at IS NULL",
+      "SELECT id, email, name, role, admin_domain, must_change_password FROM users WHERE id = ? AND deleted_at IS NULL",
       [req.user!.userId]
     );
     if (!user) {
@@ -433,6 +434,7 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
         name: user.name,
         role: user.role,
         adminDomain: user.admin_domain || null,
+        mustChangePassword: !!user.must_change_password,
       },
     });
   } catch (err) {
@@ -480,7 +482,8 @@ router.patch("/change-password", requireAuth, async (req: Request, res: Response
     );
     res.json({ success: true, message: "Contraseña actualizada correctamente" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Error en change-password:', formatError(err));
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -508,7 +511,8 @@ router.get("/me/profile", requireAuth, async (req: Request, res: Response) => {
     }
     res.json({ user });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Error en GET /me/profile:', formatError(err));
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -557,7 +561,8 @@ router.patch("/me/profile", requireAuth, async (req: Request, res: Response) => 
     );
     res.json({ success: true, user: updated });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Error en PATCH /me/profile:', formatError(err));
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 

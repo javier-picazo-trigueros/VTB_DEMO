@@ -118,17 +118,23 @@ export const Login = () => {
   if (portal === null) {
     return (
       <div
-        className={`relative flex min-h-screen flex-col items-center justify-center p-6 transition-colors duration-500 ${
-          theme === "dark"
-            ? "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
-            : "bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50"
-        }`}
+        className="relative flex min-h-screen flex-col items-center justify-center p-6 transition-colors duration-500"
         style={{
+          // Un `style` inline gana siempre sobre cualquier clase, así que el
+          // degradado de fondo no puede ir por Tailwind (bg-gradient-to-br) y la
+          // textura de puntos por aquí a la vez: la segunda declaración de
+          // backgroundImage sustituye a la primera entera, no las combina. El
+          // resultado era una textura casi transparente sobre el body blanco de
+          // index.css, con el texto ya en sus colores de modo oscuro (claros) —
+          // de ahí que las letras "también estuvieran en blanco": sobre fondo
+          // blanco, no sobre el degradado oscuro que debía haber.
+          // Las dos capas van juntas en una sola declaración: los puntos encima,
+          // el degradado debajo.
           backgroundImage:
             theme === "dark"
-              ? "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)"
-              : "radial-gradient(circle at 1px 1px, rgba(51,65,85,0.08) 1px, transparent 0)",
-          backgroundSize: "32px 32px",
+              ? "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0), linear-gradient(to bottom right, #0f172a, #1e293b, #0f172a)"
+              : "radial-gradient(circle at 1px 1px, rgba(51,65,85,0.08) 1px, transparent 0), linear-gradient(to bottom right, #f8fafc, #eff6ff, #eef2ff)",
+          backgroundSize: "32px 32px, auto",
         }}
       >
         <div className="absolute left-6 top-6">

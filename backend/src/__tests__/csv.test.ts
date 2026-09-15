@@ -202,4 +202,125 @@ describe('POST /admin/users/import — CSV import', () => {
 
     expect(res.status).toBe(401);
   });
+
+  // ── Invitaciones (SCRUM-11) ───────────────────────────────────────────────
+  //
+  // Esta ruta creaba las cuentas con `must_change_password` y una contraseña
+  // temporal aleatoria, y no enviaba nada: 800 altas sin una sola forma de
+  // entrar. La hermana /elections/:id/import-voters sí invitaba desde el
+  // principio, y ese hueco es lo que estos tests fijan.
+
+  it('encola una invitación por alta nueva, y ninguna para quien ya existía', async () => {
+    const { agent, csrf } = await loginAsAdmin(adminEmail, adminPassword);
+    const db = getDbClient();
+    const s = Date.now();
+
+    // La primera importación crea a A. La segunda repite A y añade B: A ya
+    // existe, así que solo B debe recibir invitación.
+    const primera = [
+      'email,full_name,student_id',
+      `inv-a-${s}@test.vtb,Inv A,INV-A-${s}`,
+    ].join('\n');
+
+    const res1 = await agent
+      .post('/admin/users/import')
+      .set('X-CSRF-Token', csrf)
+      .attach('file', csvBuffer(primera), { filename: 'inv1.csv', contentType: 'text/csv' });
+
+    expect(res1.status).toBe(200);
+    expect(res1.body.results.created).toBe(1);
+    expect(res1.body.results.invited).toBe(1);
+
+    const segunda = [
+      'email,full_name,student_id',
+      `inv-a-${s}@test.vtb,Inv A,INV-A-${s}`,
+      `inv-b-${s}@test.vtb,Inv B,INV-B-${s}`,
+    ].join('\n');
+
+    const res2 = await agent
+      .post('/admin/users/import')
+      .set('X-CSRF-Token', csrf)
+      .attach('file', csvBuffer(segunda), { filename: 'inv2.csv', contentType: 'text/csv' });
+
+    expect(res2.status).toBe(200);
+    expect(res2.body.results.created).toBe(1);
+    expect(res2.body.results.skipped).toBe(1);
+    expect(res2.body.results.invited, 'a quien ya tenía cuenta no se le reinvita').toBe(1);
+
+    // Una invitación por persona, ni más ni menos.
+    for (const email of [`inv-a-${s}@test.vtb`, `inv-b-${s}@test.vtb`]) {
+      const row = await db.get<{ n: number }>(
+        "SELECT COUNT(*) as n FROM email_log WHERE recipient = ? AND template_name = 'invitation'",
+        [email],
+      );
+      expect(Number(row?.n ?? 0), `${email} debería tener exactamente 1 invitación`).toBe(1);
+    }
+  });
+
+  it('la invitación del censo general va sin elección y sin el enlace en email_log', async () => {
+    // P1-7: en la cola solo van los datos para renderizar; el token lo emite el
+    // worker al enviar. Y sin electionName, porque esta ruta importa el censo de
+    // la institución entera, no una elección concreta.
+    const { agent, csrf } = await loginAsAdmin(adminEmail, adminPassword);
+    const db = getDbClient();
+    const s = Date.now();
+
+    const csv = [
+      'email,full_name,student_id',
+      `noelec-${s}@test.vtb,Sin Eleccion,NOELEC-${s}`,
+    ].join('\n');
+
+    await agent
+      .post('/admin/users/import')
+      .set('X-CSRF-Token', csrf)
+      .attach('file', csvBuffer(csv), { filename: 'noelec.csv', contentType: 'text/csv' });
+
+    const user = await db.get<{ id: number }>(
+      'SELECT id FROM users WHERE email = ?', [`noelec-${s}@test.vtb`],
+    );
+
+    const row = await db.get<{
+      html_body: string | null; text_body: string | null; template_data: string | null; subject: string;
+    }>(
+      "SELECT html_body, text_body, template_data, subject FROM email_log WHERE recipient = ? AND template_name = 'invitation'",
+      [`noelec-${s}@test.vtb`],
+    );
+
+    expect(row, 'debería haber una invitación encolada').toBeTruthy();
+    expect(row!.html_body).toBeNull();
+    expect(row!.text_body).toBeNull();
+    expect(row!.template_data).not.toMatch(/token/i);
+
+    const data = JSON.parse(row!.template_data!);
+    expect(data.userId).toBe(user!.id);
+    expect(data.electionName, 'el censo general no nombra ninguna elección').toBeUndefined();
+
+    // El asunto se guarda al encolar, así que ya refleja la variante sin elección.
+    expect(row!.subject).not.toMatch(/votar en ""/);
+    expect(row!.subject).toMatch(/acceso a VoteTrustBlock/i);
+  });
+
+  it('un CSV rechazado en validación no encola ninguna invitación', async () => {
+    const { agent, csrf } = await loginAsAdmin(adminEmail, adminPassword);
+    const db = getDbClient();
+    const s = Date.now();
+
+    const csv = [
+      'email,full_name,student_id',
+      `rej-a-${s}@test.vtb,Rej A,REJ-A-${s}`,   // válida, pero el fichero cae entero
+      `,Sin Email,REJ-B-${s}`,                  // → error de validación
+    ].join('\n');
+
+    const res = await agent
+      .post('/admin/users/import')
+      .set('X-CSRF-Token', csrf)
+      .attach('file', csvBuffer(csv), { filename: 'rej.csv', contentType: 'text/csv' });
+
+    expect(res.status).toBe(400);
+
+    const row = await db.get<{ n: number }>(
+      'SELECT COUNT(*) as n FROM email_log WHERE recipient LIKE ?', [`rej-%-${s}@test.vtb`],
+    );
+    expect(Number(row?.n ?? 0), 'no se importó nada, así que no debe salir ningún correo').toBe(0);
+  });
 });

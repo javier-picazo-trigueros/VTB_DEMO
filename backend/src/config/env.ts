@@ -1,11 +1,17 @@
 /**
  * Env validation — punto 4.
  *
- * Llamado una sola vez al arrancar (index.ts lo importa antes de app.ts).
- * Si falta una variable requerida en producción, lanza Error con el nombre
- * exacto de la variable y aborta el proceso. En desarrollo usa defaults
- * inseguros pero explícitos para poder levantar sin .env completo.
+ * Llamado una sola vez al arrancar (index.ts lo importa antes que nada, para
+ * que un despliegue mal configurado aborte aquí y no a mitad de la primera
+ * petición). Si falta una variable requerida en producción, lanza Error con
+ * el nombre exacto de la variable y aborta el proceso. En desarrollo usa
+ * defaults inseguros pero explícitos para poder levantar sin .env completo.
  */
+import dotenv from 'dotenv';
+// Idempotente: si index.ts (u otro módulo) ya llamó a dotenv.config(), esto
+// no sobreescribe nada. Se repite aquí para que este fichero sea seguro de
+// importar el primero, sin depender de qué otro módulo cargue el .env antes.
+dotenv.config({ quiet: true });
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 const IS_TEST = process.env.NODE_ENV === 'test';
@@ -69,6 +75,16 @@ if (env.DB_CLIENT === 'postgres' && !env.DATABASE_URL) {
   throw new Error(
     'FATAL: DB_CLIENT=postgres requiere que DATABASE_URL esté definida.\n' +
     '  Ejemplo: DATABASE_URL=postgresql://user:pass@host:5432/dbname',
+  );
+}
+
+// Sin esto, CORS_ORIGINS queda como [] en producción y el navegador bloquea
+// toda petición del frontend — un fallo silencioso que solo se nota probando
+// la app, no al arrancar.
+if (IS_PROD && env.CORS_ORIGINS.length === 0) {
+  throw new Error(
+    'FATAL: la variable de entorno "CORS_ORIGINS" es obligatoria en producción y no está definida.\n' +
+    '  → Lista de orígenes del frontend separados por comas, p. ej. https://tu-frontend.vercel.app',
   );
 }
 

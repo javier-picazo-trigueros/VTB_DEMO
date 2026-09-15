@@ -89,6 +89,36 @@ async function autoAssignUsersByDomain(
  *
  * Mismo motivo que arriba para `client`.
  */
+/**
+ * Alta de una persona del censo, con la contraseña temporal que nadie conoce.
+ *
+ * Existe porque las dos rutas de importación (`/users/import` y
+ * `/elections/:id/import-voters`) creaban la cuenta con el mismo bloque copiado,
+ * y solo una de las dos enviaba después la invitación — así que durante meses
+ * `/users/import` creó cuentas a las que era imposible entrar (SCRUM-11).
+ *
+ * Devuelve los datos de la invitación en vez de encolarla: quien llama la
+ * acumula y la envía DESPUÉS del commit. Encolar aquí dentro significaría que un
+ * ROLLBACK deja correos con enlaces a cuentas que ya no existen, y un correo no
+ * se puede deshacer.
+ */
+async function createCensusUser(
+  tx: DbClient,
+  entry: { email: string; full_name: string; student_id: string; role?: string },
+  approvedBy: number,
+): Promise<{ userId: number; invite: { to: string; userId: number; name: string } }> {
+  const tempPassword = crypto.randomBytes(12).toString('base64url');
+  const passwordHash = await hashPassword(tempPassword);
+  const inserted = await tx.exec(
+    `INSERT INTO users (email, password_hash, name, student_id, role,
+                       is_approved, approved_by, approved_at, is_eligible, must_change_password)
+     VALUES (?, ?, ?, ?, ?, TRUE, ?, CURRENT_TIMESTAMP, TRUE, TRUE)`,
+    [entry.email, passwordHash, entry.full_name, entry.student_id, entry.role ?? 'student', approvedBy],
+  );
+  const userId = inserted.lastID;
+  return { userId, invite: { to: entry.email, userId, name: entry.full_name } };
+}
+
 async function autoAssignElectionsToUser(
   userId: number,
   emailDomain: string,
@@ -426,7 +456,12 @@ router.post("/users/import", requireAdmin, upload.single('file'), async (req: Re
     }
 
     // ── FASE 2: escribir todo en una transacción ────────────────────────────
+    //
+    // Las invitaciones se acumulan en memoria y se envían en la fase 3, ya con
+    // el commit hecho: mismo criterio que import-voters. Ver createCensusUser().
     const wlDomain = adminDomain || '*';
+    const institutionName = adminDomain ?? 'tu institución';
+    const pendingInvites: Array<{ to: string; userId: number; name: string }> = [];
     let created = 0;
     let skipped = 0;
 
@@ -444,26 +479,31 @@ router.post("/users/import", requireAdmin, upload.single('file'), async (req: Re
           continue;
         }
 
-        const tempPassword = crypto.randomBytes(12).toString('base64url');
-        const passwordHash = await hashPassword(tempPassword);
-        const inserted = await tx.exec(
-          `INSERT INTO users (email, password_hash, name, student_id, role,
-                             is_approved, approved_by, approved_at, is_eligible, must_change_password)
-           VALUES (?, ?, ?, ?, ?, TRUE, ?, CURRENT_TIMESTAMP, TRUE, TRUE)`,
-          [entry.email, passwordHash, entry.full_name, entry.student_id, entry.role, req.user!.userId]
-        );
+        const { userId, invite } = await createCensusUser(tx, entry, req.user!.userId);
+        pendingInvites.push(invite);
 
         const emailDomain = entry.email.split('@')[1];
-        if (emailDomain) await autoAssignElectionsToUser(inserted.lastID, emailDomain, tx);
+        if (emailDomain) await autoAssignElectionsToUser(userId, emailDomain, tx);
         created++;
       }
     });
 
-    // NOTA: esta ruta sigue sin enviar invitación por email, así que las cuentas
-    // que crea nacen con una contraseña temporal que no conoce nadie. Es el
-    // hallazgo B1 de ESTADO.md y se arregla aparte: no lo toco aquí para no
-    // mezclarlo con la atomicidad.
-    res.json({ success: true, results: { created, skipped, errors: [] } });
+    // ── FASE 3: invitar, ya con la transacción confirmada ───────────────────
+    //
+    // Sin esto, las cuentas nacían con una contraseña temporal aleatoria que no
+    // conocía nadie y sin forma de activarlas: 800 altas y ni un correo.
+    //
+    // No se nombra ninguna elección: esta ruta importa el censo de la
+    // institución, y autoAssignElectionsToUser puede haber dejado a la persona
+    // en ninguna elección o en quince. La plantilla tiene una variante para eso.
+    for (const invite of pendingInvites) {
+      sendCensusInvitation({ ...invite, institutionName });
+    }
+
+    res.json({
+      success: true,
+      results: { created, skipped, invited: pendingInvites.length, errors: [] },
+    });
   } catch (error) {
     console.error("Error importing users CSV:", formatError(error));
     res.status(500).json({ error: "Error al importar usuarios. No se ha importado nada." });
@@ -1013,18 +1053,11 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
         let userId = entry.existingUserId;
 
         if (userId === null) {
-          const tempPassword = crypto.randomBytes(12).toString('base64url');
-          const passwordHash = await hashPassword(tempPassword);
-          const inserted = await tx.exec(
-            `INSERT INTO users (email, password_hash, name, student_id, role,
-                               is_approved, approved_by, approved_at, is_eligible, must_change_password)
-             VALUES (?, ?, ?, ?, 'student', TRUE, ?, CURRENT_TIMESTAMP, TRUE, TRUE)`,
-            [entry.email, passwordHash, entry.full_name, entry.student_id, req.user!.userId]
-          );
-          userId = inserted.lastID;
+          const alta = await createCensusUser(tx, entry, req.user!.userId);
+          userId = alta.userId;
           created++;
 
-          pendingInvites.push({ to: entry.email, userId, name: entry.full_name });
+          pendingInvites.push(alta.invite);
         }
 
         const assigned = await tx.exec(
@@ -1811,7 +1844,7 @@ router.post("/elections/:id/notify-open", requireAdmin, async (req: Request, res
         electionName: election.name,
         startTime:    new Date(election.start_time * 1000),
         endTime:      new Date(election.end_time   * 1000),
-        voteUrl:      `${frontendUrl}/elections/${electionId}`,
+        voteUrl:      `${frontendUrl}/voting/${electionId}`,
       });
     }
 
@@ -1864,7 +1897,7 @@ router.post("/elections/:id/notify-close", requireAdmin, async (req: Request, re
         name:         v.name,
         electionName: election.name,
         closedAt,
-        resultsUrl:   `${frontendUrl}/elections/${electionId}/results`,
+        resultsUrl:   `${frontendUrl}/results/${electionId}`,
       });
     }
 

@@ -64,6 +64,19 @@ api.interceptors.response.use(
   async error => {
     const original = error.config;
 
+    // The backend guard blocks every route except login/me/change-password/logout
+    // while must_change_password is set, and answers each of those with this
+    // 403. Bounce to /change-password before any other handling below runs —
+    // there is nothing useful the caller can do with a blocked request.
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === 'MUST_CHANGE_PASSWORD' &&
+      window.location.pathname !== '/change-password'
+    ) {
+      window.location.href = '/change-password';
+      return Promise.reject(error);
+    }
+
     // Let the caller handle 401s on paths that don't represent expired sessions
     const requestPath = original?.url ?? '';
     if (SKIP_REFRESH_PATHS.has(requestPath)) {
