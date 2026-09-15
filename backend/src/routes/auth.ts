@@ -418,8 +418,9 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
     const user = await db.get<{
       id: number; email: string; name: string;
       role: string; admin_domain: string | null;
+      must_change_password: boolean | number;
     }>(
-      "SELECT id, email, name, role, admin_domain FROM users WHERE id = ? AND deleted_at IS NULL",
+      "SELECT id, email, name, role, admin_domain, must_change_password FROM users WHERE id = ? AND deleted_at IS NULL",
       [req.user!.userId]
     );
     if (!user) {
@@ -433,6 +434,7 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
         name: user.name,
         role: user.role,
         adminDomain: user.admin_domain || null,
+        mustChangePassword: !!user.must_change_password,
       },
     });
   } catch (err) {
