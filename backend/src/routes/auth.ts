@@ -482,7 +482,8 @@ router.patch("/change-password", requireAuth, async (req: Request, res: Response
     );
     res.json({ success: true, message: "Contraseña actualizada correctamente" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Error en change-password:', formatError(err));
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -510,7 +511,8 @@ router.get("/me/profile", requireAuth, async (req: Request, res: Response) => {
     }
     res.json({ user });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Error en GET /me/profile:', formatError(err));
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -559,7 +561,8 @@ router.patch("/me/profile", requireAuth, async (req: Request, res: Response) => 
     );
     res.json({ success: true, user: updated });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Error en PATCH /me/profile:', formatError(err));
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 

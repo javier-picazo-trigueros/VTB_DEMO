@@ -1,3 +1,9 @@
+// Debe ser el primer import: valida las variables de entorno obligatorias
+// (JWT_SECRET, NULLIFIER_SECRET, CORS_ORIGINS, DATABASE_URL si aplica) y
+// aborta con el nombre exacto de la que falte, antes de que arranque nada
+// más. Antes de este cable, config/env.ts existía pero no lo importaba
+// nadie (SCRUM-14).
+import "./config/env.js";
 import { app } from "./app.js";
 import { getDbClient, ensureSchema } from "./db/index.js";
 import { PgClient } from "./db/postgres.js";
