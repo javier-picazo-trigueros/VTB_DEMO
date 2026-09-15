@@ -369,6 +369,14 @@ const resources = {
         processing: "Processing...",
         alreadyVoted: "You have already voted in this election",
         alreadyVotedDesc: "Your vote has been recorded on the blockchain.",
+        // Variantes segun el estado real del voto (GET /:id/eligibility devuelve
+        // onChain e isDemo). Antes se mostraba siempre la frase de arriba, tambien
+        // a cuentas demo cuyo voto nunca llega a Sepolia.
+        alreadyVotedDescDemo: "This is a demo account: your vote produced a synthetic hash and is not recorded on Ethereum Sepolia.",
+        alreadyVotedDescOffChain: "Your vote is recorded in the system but has not been confirmed on Ethereum Sepolia.",
+        alreadyVotedDescUnknown: "Your vote is already recorded.",
+        receiptDemoBadge: "Demo hash (not on Sepolia)",
+        receiptDemoNote: "This vote was recorded in the demo database. No Sepolia transaction was created.",
         viewResults: "View Results",
         retryVote: "Retry Vote",
         calculateProof: "Generating proof",
@@ -953,6 +961,11 @@ const resources = {
         processing: "Procesando...",
         alreadyVoted: "Ya has votado en esta elección",
         alreadyVotedDesc: "Tu voto ha sido registrado en la blockchain.",
+        alreadyVotedDescDemo: "Esta es una cuenta de demostración: tu voto generó un hash sintético y no está registrado en Ethereum Sepolia.",
+        alreadyVotedDescOffChain: "Tu voto está registrado en el sistema, pero no se ha confirmado en Ethereum Sepolia.",
+        alreadyVotedDescUnknown: "Tu voto ya está registrado.",
+        receiptDemoBadge: "Hash de demostración (no está en Sepolia)",
+        receiptDemoNote: "Este voto se ha registrado en la base de datos de demostración. No se ha creado ninguna transacción en Sepolia.",
         viewResults: "Ver Resultados",
         retryVote: "Reintentar Voto",
         calculateProof: "Calculando prueba...",

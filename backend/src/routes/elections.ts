@@ -378,13 +378,25 @@ router.get("/:id/eligibility", requireAuth, async (req: Request, res: Response) 
     }
 
     // 4. Verificar que NO ha votado ya (en nullifier_audit)
-    const alreadyVoted = await db.get<{ id: number }>(
-      "SELECT id FROM nullifier_audit WHERE user_id = ? AND election_id = ?",
+    const alreadyVoted = await db.get<{ id: number; tx_hash: string | null; block_number: number | null }>(
+      "SELECT id, tx_hash, block_number FROM nullifier_audit WHERE user_id = ? AND election_id = ?",
       [userId, election.id]
     );
 
     if (alreadyVoted) {
-      res.json({ eligible: false, reason: 'already_voted' });
+      // Estado real del voto en la cadena, para que la pantalla de "ya has votado"
+      // no afirme lo que no es. Antes solo se devolvía el motivo, y el frontend
+      // pintaba siempre "Tu voto ha sido registrado en la blockchain" — también a
+      // las cuentas @vtb.demo, que toman un atajo sintético y nunca llegan a
+      // Sepolia, mientras el comprobante de ese mismo voto decía lo contrario.
+      //
+      // block_number es el único criterio: solo existe si hubo recibo de una
+      // transacción real. Cubre a la vez el atajo demo y el fallback fuera de
+      // cadena, que también guardan un tx_hash sintético sin bloque. Es el mismo
+      // criterio que ya usa GET /:id/audit.
+      const isDemo = req.user!.email?.endsWith('@vtb.demo') ?? false;
+      const onChain = alreadyVoted.block_number !== null && !isDemo;
+      res.json({ eligible: false, reason: 'already_voted', onChain, isDemo });
       return;
     }
 

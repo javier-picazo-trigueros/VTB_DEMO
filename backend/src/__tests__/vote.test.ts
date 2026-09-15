@@ -132,6 +132,25 @@ describe('Vote flow (vtb.demo accounts — no blockchain needed)', () => {
     expect(second.status).toBe(409);
   });
 
+  it('tras votar con cuenta demo, la elegibilidad NO dice que el voto esté en la cadena (C1)', async () => {
+    // La pantalla de "ya has votado" afirmaba "Tu voto ha sido registrado en la
+    // blockchain" también a las cuentas @vtb.demo, que toman un atajo sintético
+    // y nunca llegan a Sepolia. El frontend elige ahora el texto con estos campos.
+    const { agent, csrf } = await loginAs('student@vtb.demo', 'demo123');
+    const voto = await agent.post('/api/elections/register-vote')
+      .set('X-CSRF-Token', csrf)
+      .send({ electionId: testElectionId, voteHash: '0x' + '3'.repeat(64), candidateId: testCandidateId });
+    expect(voto.status).toBe(200);
+    expect(voto.body.isDemo).toBe(true);
+
+    const elig = await agent.get(`/api/elections/${testElectionId}/eligibility`);
+    expect(elig.status).toBe(200);
+    expect(elig.body.eligible).toBe(false);
+    expect(elig.body.reason).toBe('already_voted');
+    expect(elig.body.onChain).toBe(false);
+    expect(elig.body.isDemo).toBe(true);
+  });
+
   it('no se puede votar sin estar en el censo — S1 cerrado (403)', async () => {
     // student2@vtb.demo NO está añadido al censo de esta elección
     const { agent, csrf } = await loginAs('student2@vtb.demo', 'demo123');

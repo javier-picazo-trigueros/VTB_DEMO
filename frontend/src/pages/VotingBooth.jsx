@@ -153,7 +153,7 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
 
       {txData.isDemo && (
         <div className="mb-3 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
-          🔵 Demo Hash (not on Sepolia)
+          🔵 {t("votingBooth.receiptDemoBadge")}
         </div>
       )}
 
@@ -184,7 +184,7 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         </p>
       ) : txData.isDemo ? (
         <p className="text-center text-xs text-blue-600 dark:text-blue-400 mb-3 px-2">
-          This vote was recorded in the demo database. No Sepolia transaction was created.
+          {t("votingBooth.receiptDemoNote")}
         </p>
       ) : null}
 
@@ -341,6 +341,10 @@ export const VotingBoothContent = () => {
   const [txData, setTxData] = useState(null);
   const [voteError, setVoteError] = useState(null);
   const [alreadyVoted, setAlreadyVoted] = useState(false);
+  // Estado real del voto ya emitido: "onchain" | "demo" | "offchain" | null.
+  // null = desconocido (p. ej. se llega aqui por un 409 al emitir), y en ese
+  // caso no se afirma nada sobre la cadena.
+  const [alreadyVotedChain, setAlreadyVotedChain] = useState(null);
   const [copied, setCopied] = useState(false);
   const [participation, setParticipation] = useState(null);
   const [reconnecting, setReconnecting] = useState(false);
@@ -358,6 +362,7 @@ export const VotingBoothContent = () => {
     setError("");
     setEligibilityError("");
     setAlreadyVoted(false);
+    setAlreadyVotedChain(null);
 
     try {
       // 1. Verificar elegibilidad
@@ -367,6 +372,8 @@ export const VotingBoothContent = () => {
           const reason = eligRes.data.reason;
           if (reason === "already_voted") {
             setAlreadyVoted(true);
+            const d = eligRes.data;
+            setAlreadyVotedChain(d.onChain ? "onchain" : d.isDemo ? "demo" : "offchain");
           } else {
             setEligibilityError(getEligibilityMessage(reason, t));
           }
@@ -545,6 +552,7 @@ export const VotingBoothContent = () => {
       console.error("Vote error:", err);
       if (err.response?.status === 409) {
         setAlreadyVoted(true);
+        setAlreadyVotedChain(null);
         setVoteError(null);
         setVoteStatus(null);
         setShowConfirm(false);
@@ -694,7 +702,14 @@ export const VotingBoothContent = () => {
           >
             <div className="flex justify-center mb-3"><CheckCircleIcon /></div>
             <h3 className="text-xl font-bold text-emerald-800 dark:text-emerald-300 mb-1">{t("votingBooth.alreadyVoted")}</h3>
-            <p className="text-emerald-600 dark:text-emerald-400 text-sm mb-5">{t("votingBooth.alreadyVotedDesc")}</p>
+            <p className="text-emerald-600 dark:text-emerald-400 text-sm mb-5">
+              {t(
+                alreadyVotedChain === "onchain"  ? "votingBooth.alreadyVotedDesc"
+                : alreadyVotedChain === "demo"     ? "votingBooth.alreadyVotedDescDemo"
+                : alreadyVotedChain === "offchain" ? "votingBooth.alreadyVotedDescOffChain"
+                : "votingBooth.alreadyVotedDescUnknown"
+              )}
+            </p>
             <button
               onClick={() => navigate(`/results/${electionId}`)}
               className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition text-sm"
