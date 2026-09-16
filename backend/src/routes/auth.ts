@@ -228,7 +228,22 @@ router.post("/login", async (req: Request, res: Response) => {
  * La alternativa era publicar esas contraseñas en el bundle del navegador. Esto
  * las deja donde ya estaban: en el entorno del servidor.
  *
+ * ── Por qué hace falta DEMO_LOGIN_ENABLED ───────────────────────────────────
+ *
+ * Quien llama NO aporta ninguna credencial: manda `{ profile }` y el servidor
+ * saca la contraseña de su propio entorno. Eso es cómodo para un botón de un
+ * clic y es un bypass de autenticación en cuanto la ruta es alcanzable desde
+ * internet: `POST /auth/demo-login {"profile":"admin"}` devolvía 200 y una
+ * sesión de administrador a cualquiera. Comprobado contra el despliegue.
+ *
+ * La entitlement la aporta el operador del despliegue, no el navegador: sin
+ * DEMO_LOGIN_ENABLED=true la ruta no existe (404). No se exige la contraseña
+ * al cliente a propósito — cualquier secreto que llevara un botón público
+ * acabaría en el bundle de JavaScript, que es justo de donde se sacó (ver la
+ * cabecera de DemoLoginModal.jsx).
+ *
  * Restricciones deliberadas:
+ *   - Deshabilitada salvo DEMO_LOGIN_ENABLED=true. En Render va desactivada.
  *   - Solo las dos cuentas del dominio ficticio vtb.demo. La lista es cerrada y
  *     está escrita aquí: no se acepta ningún email del cliente.
  *   - Cada perfil requiere que su variable SEED_* esté definida. Si no lo está,
@@ -238,13 +253,10 @@ router.post("/login", async (req: Request, res: Response) => {
  *     login normal, así que una cuenta borrada o no aprobada no entra.
  *   - Va detrás del mismo rate limit que /auth/login (montado en app.ts).
  */
-const DEMO_ACCOUNTS: Record<string, { email: string; envVar: string; fallback?: string }> = {
+const DEMO_ACCOUNTS: Record<string, { email: string; envVar: string }> = {
   student: {
     email: 'student@vtb.demo',
     envVar: 'SEED_DEMO_STUDENT_PASSWORD',
-    // Única cuenta con valor por defecto: sin privilegios y en dominio ficticio.
-    // Coincide con demoStudentPassword() en seedDatabase.ts.
-    fallback: 'demo123',
   },
   admin: {
     email: 'admin@vtb.demo',
@@ -254,6 +266,16 @@ const DEMO_ACCOUNTS: Record<string, { email: string; envVar: string; fallback?: 
 
 router.post('/demo-login', async (req: Request, res: Response) => {
   try {
+    // Se lee en cada petición, no al cargar el módulo: los tests alternan el
+    // valor por caso, igual que hacen con las SEED_*.
+    if (process.env.DEMO_LOGIN_ENABLED !== 'true') {
+      res.status(404).json({
+        error: 'El acceso de demostración no está habilitado en este despliegue',
+        code: 'DEMO_DISABLED',
+      });
+      return;
+    }
+
     const profile = String(req.body?.profile ?? '');
     const account = DEMO_ACCOUNTS[profile];
     if (!account) {
@@ -261,10 +283,10 @@ router.post('/demo-login', async (req: Request, res: Response) => {
       return;
     }
 
-    // `||` y no `??`, para coincidir con demoStudentPassword() del seed: con la
-    // variable definida pero vacía, el seed siembra el valor por defecto, y aquí
-    // `??` habría probado la cadena vacía y devuelto 404 sin motivo.
-    const password = process.env[account.envVar] || account.fallback;
+    // Sin valor por defecto: 'demo123' estaba escrito aquí y por tanto en un
+    // repositorio público, así que no era una contraseña. La cadena vacía cuenta
+    // como no definida y cae en el 404 de abajo.
+    const password = process.env[account.envVar];
     if (!password) {
       res.status(404).json({
         error: 'El acceso de demostración no está disponible en este despliegue',

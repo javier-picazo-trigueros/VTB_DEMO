@@ -17,6 +17,10 @@ para tener la app funcionando con las cuentas de demo.
   código 1 sin tocar nada. Para borrar y volver a sembrar: `npm run seed:reset`.
 - El botón **«Demo»** ya no lleva contraseñas en el frontend: entra por
   `POST /auth/demo-login`, que usa las contraseñas del seed de tu `backend/.env`.
+- Ese endpoint **está deshabilitado salvo que pongas `DEMO_LOGIN_ENABLED=true`**
+  en `backend/.env`. Concede una sesión sin que el cliente aporte credencial
+  alguna, así que en cualquier despliegue público va apagado. En local lo
+  quieres encendido.
 - Hay páginas nuevas de **recuperación de contraseña** y **activación de cuenta**
   (`/forgot-password`, `/auth/reset-password`, `/auth/set-password`).
 - Los correos de invitación y recuperación **ya no guardan el enlace** en
@@ -203,7 +207,8 @@ marcadas con 🔒 son secretas y no se comparten ni se suben a git.
 | `SEED_SUPERADMIN_PASSWORD` 🔒 | **Sí** | Contraseña de `superadmin@vtb.system`. Sin ella el seed aborta |
 | `SEED_DEMO_ADMIN_PASSWORD` 🔒 | **Sí** | Contraseña de `admin@vtb.demo`. La usan el seed y el botón «Entrar como Administrador» |
 | `SEED_DEMO_SUPERADMIN_PASSWORD` 🔒 | **Sí** | Contraseña de `superadmin@vtb.demo` |
-| `SEED_DEMO_STUDENT_PASSWORD` 🔒 | No (por defecto `demo123`) | Contraseña de `student@vtb.demo` y `student2@vtb.demo` |
+| `SEED_DEMO_STUDENT_PASSWORD` 🔒 | **Sí** para el botón «Entrar como Votante» | Contraseña de `student@vtb.demo` y `student2@vtb.demo`. El seed aún siembra `demo123` si la dejas vacía, pero `demo-login` ya no tiene ese valor por defecto |
+| `DEMO_LOGIN_ENABLED` | Solo en local: `true` | Habilita `POST /auth/demo-login`. **Sin ella la ruta devuelve 404.** Concede sesión sin credenciales del cliente: nunca la definas en un despliegue público |
 | `RPC_URL` | No para cuentas demo | Nodo Ethereum (Sepolia vía Alchemy/Infura, o Hardhat local) |
 | `CONTRACT_ADDRESS` | No para cuentas demo | Dirección del contrato `ElectionRegistry` |
 | `PRIVATE_KEY` 🔒 | No para cuentas demo | Clave del wallet *relayer* que firma los votos reales. Necesita Sepolia ETH |
@@ -280,7 +285,8 @@ proyecto (ver arriba).
 | `npm run seed` dice «⛔ La base de datos ya tiene datos» | Ya había usuarios. En local con SQLite: `npm run seed:reset`. Nunca contra una base compartida |
 | El login parece funcionar pero todo da 401 | `NODE_ENV=production` en tu `.env` local. Pon `development` |
 | Error de CORS en la consola del navegador | Falta `http://localhost:3000` en `CORS_ORIGINS` |
-| «El acceso de demostración no está disponible en este despliegue» | Falta `SEED_DEMO_ADMIN_PASSWORD` en `backend/.env` |
+| «El acceso de demostración no está habilitado en este despliegue» | Falta `DEMO_LOGIN_ENABLED=true` en `backend/.env`. Es lo esperado en producción |
+| «El acceso de demostración no está disponible en este despliegue» | Falta `SEED_DEMO_ADMIN_PASSWORD` (o `SEED_DEMO_STUDENT_PASSWORD`) en `backend/.env` |
 | «La cuenta de demostración no está disponible. Ejecuta el seed.» | La contraseña del `.env` no es la que se sembró (la cambiaste después). En local: `npm run seed:reset` |
 | `Port 3001 is already in use` | Ya hay un backend corriendo. Ciérralo o cambia `PORT` y `VITE_API_URL` |
 | Los enlaces de los correos apuntan a `localhost:5173` | Falta `FRONTEND_URL=http://localhost:3000` |

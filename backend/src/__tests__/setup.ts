@@ -40,6 +40,10 @@ process.env.SEED_DEMO_SUPERADMIN_PASSWORD = 'test-only-demosuper-password';
 // mismo valor por defecto del seed — porque vote.test.ts y csrf.test.ts entran
 // como student@vtb.demo con esa contraseña.
 process.env.SEED_DEMO_STUDENT_PASSWORD = 'demo123';
+// demo-login está deshabilitada salvo que se pida explícitamente. Los tests que
+// ejercitan el camino feliz la necesitan activa; el que comprueba la puerta
+// cerrada la quita y la restaura.
+process.env.DEMO_LOGIN_ENABLED = 'true';
 
 import { beforeAll } from 'vitest';
 

@@ -48,6 +48,42 @@ describe('POST /auth/demo-login — camino feliz', () => {
   });
 });
 
+describe('POST /auth/demo-login — la puerta está cerrada por defecto', () => {
+  // El endpoint no pide credencial alguna al cliente: manda {profile} y el
+  // servidor autentica con su propio entorno. Alcanzable desde internet, eso era
+  // un bypass de autenticación — {"profile":"admin"} devolvía una sesión de
+  // administrador a cualquiera. La llave la tiene ahora el despliegue.
+  const saved = process.env.DEMO_LOGIN_ENABLED;
+  afterEach(() => { process.env.DEMO_LOGIN_ENABLED = saved; });
+
+  it('devuelve 404 y ninguna cookie si DEMO_LOGIN_ENABLED no está definida', async () => {
+    delete process.env.DEMO_LOGIN_ENABLED;
+    const res = await request(app).post('/auth/demo-login').send({ profile: 'admin' });
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe('DEMO_DISABLED');
+    expect(cookieNames(res)).not.toContain('vtb_auth');
+  });
+
+  it('solo el valor exacto "true" abre la ruta', async () => {
+    process.env.DEMO_LOGIN_ENABLED = 'false';
+    expect((await request(app).post('/auth/demo-login').send({ profile: 'student' })).status).toBe(404);
+
+    process.env.DEMO_LOGIN_ENABLED = '1';
+    expect((await request(app).post('/auth/demo-login').send({ profile: 'student' })).status).toBe(404);
+  });
+
+  it('el perfil de administrador tampoco pasa con la ruta cerrada', async () => {
+    // El caso que de verdad importa: sin esto, cualquiera obtenía rol admin.
+    delete process.env.DEMO_LOGIN_ENABLED;
+    const agent = request.agent(app);
+    await agent.post('/auth/demo-login').send({ profile: 'admin' }).expect(404);
+
+    const me = await agent.get('/auth/me');
+    expect(me.status).toBe(401);
+  });
+});
+
 describe('POST /auth/demo-login — lo que NO debe permitir', () => {
   const savedAdmin = process.env.SEED_DEMO_ADMIN_PASSWORD;
   afterEach(() => { process.env.SEED_DEMO_ADMIN_PASSWORD = savedAdmin; });
