@@ -8,6 +8,7 @@ import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { sendVoteConfirmation } from "../services/email/index.js";
 import { formatError } from "../utils/errors.js";
 import { isChainConfigured } from "../scripts/syncElections.js";
+import { getVotePort } from "../services/voteChain.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -35,13 +36,9 @@ function getProvider() {
   return new ethers.JsonRpcProvider(rpcUrl);
 }
 
-function getWallet() {
-  const rpcUrl = process.env.RPC_URL || 'http://localhost:8545';
-  const privateKey = process.env.PRIVATE_KEY || '';
-  if (!privateKey) return null;
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  return new ethers.Wallet(privateKey, provider);
-}
+// getWallet() vivía aquí y construía Wallet + Contract dentro del manejador del
+// voto, que es lo que hacía imposible probar ese camino sin una cadena real.
+// Ahora lo encapsula services/voteChain.ts, que los tests sustituyen.
 
 /**
  * @route GET /elections
@@ -694,32 +691,19 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       throw err;
     }
 
-    // Si no est configurada la conexin blockchain, retornar error
-    const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "";
-    const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
-    if (!CONTRACT_ADDRESS || !PRIVATE_KEY) {
-      return res.status(500).json({ error: "Blockchain no configurado. Asegurate de que Hardhat esta corriendo." });
-    }
+    // La comprobación de "¿hay cadena configurada?" la hace ahora el puerto:
+    // getVotePort() devuelve null con los mismos criterios que la
+    // sincronización (dirección o clave vacías, o a ceros como en .env.example).
 
 
 
 
     // PREPARAR TRANSACCIN EN BLOCKCHAIN
     try {
-      const wallet = getWallet();
-      if (!wallet) {
+      const port = getVotePort();
+      if (!port) {
         return res.status(500).json({ error: "Blockchain no configurado. Asegurate de que PRIVATE_KEY este definida." });
       }
-      // ABI del contrato ElectionRegistry
-      const contractAbi = [
-        "function castVote(uint256 _electionId, bytes32 _nullifier, bytes32 _voteHash) public",
-      ];
-
-      const contract = new ethers.Contract(
-        CONTRACT_ADDRESS,
-        contractAbi,
-        wallet
-      );
 
       // Enviar transaccin
       console.log(`Sending vote to blockchain...`);
@@ -727,16 +711,19 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       console.log(`   - Nullifier: ${nullifier.substring(0, 20)}...`);
       console.log(`   - Vote Hash: ${voteHash.substring(0, 20)}...`);
 
-      const tx = await contract.castVote(
+      // OJO: va el id de la elección EN EL CONTRATO, no el id de la base. Son
+      // distintos, y confundirlos registra el voto en otra elección. Hay un
+      // test que lo comprueba (vote-chain.test.ts).
+      //
+      // El puerto envía y espera el recibo. Los errores de ethers suben sin
+      // envolver: el catch de abajo los clasifica por subcadena y por `code`.
+      const { txHash, blockNumber } = await port.castVote(
         election.election_id_blockchain,
         nullifier,
-        voteHash
+        voteHash,
       );
 
-      // Esperar confirmacin
-      const receipt = await tx.wait();
-
-      console.log(`Vote registered in transaction: ${tx.hash}`);
+      console.log(`Vote registered in transaction: ${txHash}`);
 
       // Record audit entry. Only mark vote_attempts as 'confirmed' if this INSERT
       // succeeds. If it fails, the row stays 'pending' so cleanupStaleVoteAttempts
@@ -750,14 +737,14 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
             electionId,
             nullifier,
             candidateId ? String(candidateId) : null,
-            tx.hash,
-            receipt?.blockNumber ?? null,
+            txHash,
+            blockNumber,
             candidateId ?? null,
           ]
         );
         auditInserted = true;
       } catch (auditError) {
-        console.error('AUDIT INSERT FAILED after successful blockchain tx:', tx.hash, 'userId:', decoded.userId);
+        console.error('AUDIT INSERT FAILED after successful blockchain tx:', txHash, 'userId:', decoded.userId);
         console.error(auditError);
       }
 
@@ -772,9 +759,9 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
             to:           decoded.email,
             name:         voter!.name ?? decoded.email,
             electionName: election.name,
-            txHash:       tx.hash,
+            txHash:       txHash,
             votedAt:      new Date(),
-            explorerUrl:  explorerBase ? `${explorerBase}/tx/${tx.hash}` : undefined,
+            explorerUrl:  explorerBase ? `${explorerBase}/tx/${txHash}` : undefined,
           });
         }
       }
@@ -783,8 +770,8 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
 
       res.json({
         success: true,
-        txHash: tx.hash,
-        blockNumber: receipt?.blockNumber,
+        txHash,
+        blockNumber,
         message: "Voto registrado exitosamente en blockchain",
         voting: {
           nullifier: nullifier,

@@ -100,13 +100,19 @@ class TransactionDroppedError extends Error {}
 const ZERO_ADDRESS = /^0x0{40}$/i;
 const ZERO_KEY = /^(0x)?0{64}$/i;
 
-interface ChainConfig {
+export interface ChainConfig {
   rpcUrl: string;
   contractAddress: string;
   privateKey: string;
 }
 
-function chainConfig(): ChainConfig | null {
+/**
+ * Exportada para que el camino del voto (services/voteChain.ts) lea la
+ * configuración de la cadena exactamente igual que la sincronización: los
+ * mismos guardas de dirección y clave a ceros, y el mismo criterio de "no
+ * configurada". Dos lectores distintos acabarían divergiendo.
+ */
+export function chainConfig(): ChainConfig | null {
   const rpcUrl = (process.env.RPC_URL || "").trim();
   const contractAddress = (process.env.CONTRACT_ADDRESS || "").trim();
   const privateKey = (process.env.PRIVATE_KEY || "").trim();

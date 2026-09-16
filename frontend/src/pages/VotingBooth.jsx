@@ -449,7 +449,12 @@ export const VotingBoothContent = () => {
           ? new ethers.WebSocketProvider(RPC_URL)
           : new ethers.JsonRpcProvider(RPC_URL);
         await provider.getBlockNumber();
-        const contractAbi = ["event VoteCast(uint256 indexed electionId, bytes32 nullifier, bytes32 voteHash)"];
+        // Esta firma tiene que ser la del contrato, literalmente: keccak256 de
+        // la firma es el topic0 por el que filtra el nodo. Faltaban `indexed`
+        // en nullifier y el parámetro timestamp, así que el topic0 calculado no
+        // coincidía con ningún log real y este feed no se disparó nunca
+        // (BC-29). Hay un test que compara esta cadena con el ABI compilado.
+        const contractAbi = ["event VoteCast(uint256 indexed electionId, bytes32 indexed nullifier, bytes32 voteHash, uint256 timestamp)"];
         contract = new ethers.Contract(CONTRACT_ADDRESS, contractAbi, provider);
         setIsListening(true);
         setReconnecting(false);

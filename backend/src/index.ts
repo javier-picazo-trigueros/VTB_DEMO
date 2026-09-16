@@ -8,7 +8,7 @@ import { app } from "./app.js";
 import { getDbClient, ensureSchema } from "./db/index.js";
 import { PgClient } from "./db/postgres.js";
 import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
-import { ethers } from "ethers";
+import { getVotePort } from "./services/voteChain.js";
 import net from "node:net";
 import { processEmailQueue } from "./services/email/queue.js";
 import { sendCensusInvitation, sendElectionOpen, sendElectionClose } from "./services/email/index.js";
@@ -233,25 +233,13 @@ async function start() {
 
         // Busca el evento VoteCast indexado por nullifier para confirmar la tx.
         // nullifier es bytes32 indexed en el contrato → se puede filtrar sin electionId.
-        const checkOnChain = async (nullifierHash: string): Promise<{ txHash: string; blockNumber: number | null } | null> => {
-          const addr = process.env.CONTRACT_ADDRESS;
-          if (!addr) return null;
-          try {
-            const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || 'http://localhost:8545');
-            const abi = ['event VoteCast(uint256 indexed electionId, bytes32 indexed nullifier, bytes32 voteHash, uint256 timestamp)'];
-            const contract = new ethers.Contract(addr, abi, provider);
-            const events = await contract.queryFilter(contract.filters.VoteCast(null, nullifierHash));
-            if (events.length === 0) return null;
-            const ev = events[0] as ethers.EventLog;
-            return { txHash: ev.transactionHash, blockNumber: ev.blockNumber };
-          } catch (err) {
-            // A1: solo mensaje + código, saneados. Antes se tragaba el error
-            // entero sin dejar rastro, lo que hacía indistinguible "el voto no
-            // está en la cadena" de "el RPC falló" (ver P1-14, sin tocar aquí).
-            console.warn('[cleanup] checkOnChain falló:', formatError(err));
-            return null;
-          }
-        };
+        // La consulta vive en services/voteChain.ts, que es lo que los tests
+        // pueden sustituir. El comportamiento no cambia en este paso: sigue
+        // devolviendo null tanto si el voto no está en la cadena como si el RPC
+        // falló, y cleanupStaleVoteAttempts marca 'failed' en ambos casos
+        // (BC-24 / P1-14). Eso se arregla en el paso 4, no aquí.
+        const checkOnChain = async (nullifierHash: string) =>
+          (await getVotePort()?.findVote(nullifierHash)) ?? null;
 
         setInterval(() => {
           dbClient.cleanupStaleVoteAttempts(checkOnChain).catch(err => {
