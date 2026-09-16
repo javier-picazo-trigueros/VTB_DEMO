@@ -8,10 +8,10 @@
  */
 import crypto from "crypto";
 import multer from "multer";
-import { Request } from "express";
+import { Request, Response } from "express";
 import { parse as parseCSVLib } from "csv-parse/sync";
 import { hashPassword } from "../../utils/auth.js";
-import type { DbClient } from "../../db/index.js";
+import { getDbClient, type DbClient } from "../../db/index.js";
 
 export const upload = multer({
   storage: multer.memoryStorage(),
@@ -25,6 +25,54 @@ export const getAdminDomain = (req: Request): string | null => req.user?.adminDo
 
 export function isSubDomain(domain: string, parentDomain: string): boolean {
   return domain === parentDomain || domain.endsWith('.' + parentDomain);
+}
+
+/**
+ * ¿Está esta elección dentro del alcance del administrador que pregunta?
+ *
+ * Los listados ya filtraban por dominio, pero las rutas que operan sobre
+ * `:id` no comprobaban nada: bastaba acertar el id — un entero correlativo, y
+ * además visible sin autenticar en `/elections/blockchain-sync-status` — para
+ * editar, abrir, cerrar o repoblar el censo de la elección de otra institución.
+ *
+ * La condición es EXACTAMENTE la del listado de `admin/elections.ts`, para que
+ * lo que un administrador puede modificar coincida con lo que puede ver. Un
+ * `email_domain` de '*' no entra, igual que tampoco aparece en su listado.
+ *
+ * Un admin sin `admin_domain` no alcanza ninguna elección, que es lo que ya le
+ * devolvía el listado: una lista vacía.
+ */
+export async function isElectionInScope(req: Request, electionId: unknown): Promise<boolean> {
+  if (isSuperAdmin(req)) return true;
+  const adminDomain = getAdminDomain(req);
+  if (!adminDomain) return false;
+
+  const row = await getDbClient().get<{ election_id: number }>(
+    `SELECT election_id FROM election_access
+      WHERE election_id = ? AND (email_domain = ? OR email_domain LIKE '%.' || ?)
+      LIMIT 1`,
+    [electionId, adminDomain, adminDomain],
+  );
+  return Boolean(row);
+}
+
+/**
+ * Corta la petición si la elección no es suya. Devuelve true si ya ha respondido.
+ *
+ * Se responde 404 y no 403 a propósito: un 403 confirmaría que esa elección
+ * existe, y con ids correlativos eso es un inventario de las elecciones de las
+ * demás instituciones. Desde fuera de tu dominio, no existe.
+ *
+ * Uso:  if (await denyIfElectionOutOfScope(req, res, id)) return;
+ */
+export async function denyIfElectionOutOfScope(
+  req: Request,
+  res: Response,
+  electionId: unknown,
+): Promise<boolean> {
+  if (await isElectionInScope(req, electionId)) return false;
+  res.status(404).json({ error: "Elección no encontrada" });
+  return true;
 }
 
 /**

@@ -9,7 +9,7 @@ import { getDbClient, isUniqueViolation, withTransaction, type DbClient } from "
 import { requireAdmin } from "../../middleware/auth.js";
 import { formatError } from "../../utils/errors.js";
 import { syncElectionsToBlockchain, isChainConfigured } from "../../scripts/syncElections.js";
-import { upload, isSuperAdmin, getAdminDomain } from "./shared.js";
+import { upload, isSuperAdmin, getAdminDomain, denyIfElectionOutOfScope } from "./shared.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -302,6 +302,8 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
 router.put("/elections/:id", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (await denyIfElectionOutOfScope(req, res, id)) return;
+
     const { is_active, banner_color, target_type, target_description } = req.body;
 
     const sets: string[] = ["updated_at = CURRENT_TIMESTAMP"];
@@ -330,6 +332,8 @@ router.patch("/elections/:id", requireAdmin, async (req: Request, res: Response)
   const { id } = req.params;
   const { name, description, end_time } = req.body;
   try {
+    if (await denyIfElectionOutOfScope(req, res, id)) return;
+
     const election = await db.get("SELECT * FROM elections WHERE id = ?", [id]);
     if (!election) {
       res.status(404).json({ error: "Elección no encontrada" });
@@ -359,6 +363,8 @@ router.patch("/elections/:id", requireAdmin, async (req: Request, res: Response)
 router.post("/elections/:id/image", requireAdmin, upload.single('file'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (await denyIfElectionOutOfScope(req, res, id)) return;
+
     if (!req.file) {
       res.status(400).json({ error: "No se ha adjuntado ninguna imagen" });
       return;
@@ -383,6 +389,8 @@ router.post("/elections/:id/image", requireAdmin, upload.single('file'), async (
 router.post("/elections/:id/domains", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (await denyIfElectionOutOfScope(req, res, id)) return;
+
     const { domain } = req.body;
 
     if (!domain?.trim()) {
@@ -424,6 +432,8 @@ router.post("/elections/:id/domains", requireAdmin, async (req: Request, res: Re
 router.post("/elections/:id/voters", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (await denyIfElectionOutOfScope(req, res, id)) return;
+
     const { email } = req.body;
 
     if (!email?.trim()) {
@@ -467,6 +477,8 @@ router.post("/elections/:id/voters", requireAdmin, async (req: Request, res: Res
 router.post("/elections/:id/candidates", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (await denyIfElectionOutOfScope(req, res, id)) return;
+
     const { name, description } = req.body;
 
     if (!name?.trim()) {

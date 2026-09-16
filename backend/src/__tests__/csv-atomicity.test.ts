@@ -52,6 +52,14 @@ describe('import-voters — fallo a mitad de la transacción', () => {
     adminEmail = admin.email;
     adminPassword = admin.password;
     electionId = await createFixtureElection({ name: 'Elección atomicidad' });
+
+    // La elección tiene que pertenecer al dominio del admin: desde H-1, las
+    // rutas que reciben el id por la URL comprueban el alcance y responden 404
+    // si la elección no es suya. createFixtureElection no crea esta fila.
+    await db.exec(
+      'INSERT OR IGNORE INTO election_access (election_id, email_domain) VALUES (?, ?)',
+      [electionId, 'test.vtb'],
+    );
   });
 
   it('un student_id repetido revienta en fase 2 y NO deja nada escrito', async () => {

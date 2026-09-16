@@ -14,7 +14,7 @@ import { getDbClient, withTransaction } from "../../db/index.js";
 import { requireAdmin } from "../../middleware/auth.js";
 import { formatError } from "../../utils/errors.js";
 import { sendCensusInvitation, sendElectionOpen, sendElectionClose } from "../../services/email/index.js";
-import { upload, isSuperAdmin, getAdminDomain, isSubDomain, createCensusUser, parseCSV } from "./shared.js";
+import { upload, isSuperAdmin, getAdminDomain, isSubDomain, createCensusUser, parseCSV, denyIfElectionOutOfScope } from "./shared.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -37,6 +37,12 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
       return;
     }
     const { id } = paramParsed.data;
+
+    // Antes del fichero: esta ruta validaba el dominio de cada fila del CSV,
+    // pero no el de la elección, así que un administrador podía meter a su
+    // propia gente en el censo de otra institución. Se comprueba aquí para no
+    // llegar siquiera a parsear el CSV de quien no es el dueño.
+    if (await denyIfElectionOutOfScope(req, res, id)) return;
 
     if (!req.file) {
       res.status(400).json({ error: "No se ha adjuntado ningún archivo" });
@@ -314,6 +320,7 @@ router.get("/blockchain-status", requireAdmin, async (req: Request, res: Respons
 router.get("/elections/:id/stats", requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (await denyIfElectionOutOfScope(req, res, id)) return;
 
     const election = await db.get<any>(
       "SELECT id, name, description, start_time, end_time, is_active FROM elections WHERE id = ?",
@@ -402,6 +409,8 @@ router.post("/elections/:id/notify-open", requireAdmin, async (req: Request, res
       return;
     }
 
+    if (await denyIfElectionOutOfScope(req, res, electionId)) return;
+
     const election = await db.get<{
       id: number; name: string; start_time: number; end_time: number;
     }>("SELECT id, name, start_time, end_time FROM elections WHERE id = ?", [electionId]);
@@ -452,6 +461,8 @@ router.post("/elections/:id/notify-close", requireAdmin, async (req: Request, re
       res.status(400).json({ error: 'id inválido' });
       return;
     }
+
+    if (await denyIfElectionOutOfScope(req, res, electionId)) return;
 
     const election = await db.get<{ id: number; name: string; end_time: number }>(
       "SELECT id, name, end_time FROM elections WHERE id = ?", [electionId]
