@@ -371,7 +371,7 @@ router.delete("/users/:id", requireAdmin, async (req: Request, res: Response) =>
       }
     }
 
-    if (parseInt(id) === req.user!.userId) {
+    if (parseInt(id as string) === req.user!.userId) {
       res.status(400).json({ error: "No puedes eliminar tu propia cuenta" });
       return;
     }

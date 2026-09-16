@@ -13,7 +13,7 @@ import { getDbClient } from "../db/index.js";
 const router = Router();
 
 router.get("/:domain", async (req: Request, res: Response): Promise<void> => {
-  const { domain } = req.params;
+  const domain = req.params.domain as string;
 
   if (!domain || domain.trim() === "") {
     res.status(400).json({ error: "Falta el parámetro de dominio" });

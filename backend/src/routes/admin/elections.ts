@@ -402,7 +402,7 @@ router.post("/elections/:id/domains", requireAdmin, async (req: Request, res: Re
         [id, domain.trim()]
       );
       if (domain.trim() !== '*') {
-        await autoAssignUsersByDomain(parseInt(id), domain.trim());
+        await autoAssignUsersByDomain(parseInt(id as string), domain.trim());
       }
       res.json({ success: true, message: `Dominio ${domain} añadido correctamente` });
     } catch (e: any) {

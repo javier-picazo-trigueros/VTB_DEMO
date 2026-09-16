@@ -396,7 +396,7 @@ router.get("/elections/:id/stats", requireAdmin, async (req: Request, res: Respo
  */
 router.post("/elections/:id/notify-open", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const electionId = parseInt(req.params.id, 10);
+    const electionId = parseInt(req.params.id as string, 10);
     if (isNaN(electionId)) {
       res.status(400).json({ error: 'id inválido' });
       return;
@@ -447,7 +447,7 @@ router.post("/elections/:id/notify-open", requireAdmin, async (req: Request, res
  */
 router.post("/elections/:id/notify-close", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const electionId = parseInt(req.params.id, 10);
+    const electionId = parseInt(req.params.id as string, 10);
     if (isNaN(electionId)) {
       res.status(400).json({ error: 'id inválido' });
       return;
