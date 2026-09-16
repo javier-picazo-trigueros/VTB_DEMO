@@ -1,0 +1,16 @@
+# Registros de despliegue.
+#
+# deployments/sepolia.json SÍ se versiona: es la referencia de qué contrato
+# está en producción, en qué bloque empieza su historial y quién es su owner.
+# Sin ese fichero, nadie de fuera puede recontar (no sabe desde dónde escanear).
+#
+# Los de red local no: se regeneran en cada `npx hardhat node` y su dirección
+# y su bloque no significan nada fuera de esa máquina. Lo que pasaba antes con
+# deployment-info.json, que un despliegue local sobrescribía el registro de
+# Sepolia y lo dejaba apuntando a 127.0.0.1.
+deployments/hardhat.json
+deployments/localhost.json
+
+# Directorios de trabajo de Hardhat en Windows.
+.hardhat-appdata/
+.hardhat-localappdata/
