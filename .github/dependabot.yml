@@ -1,5 +1,40 @@
 version: 2
 
+# ── Cómo llegan los saltos de versión mayor ───────────────────────────────────
+#
+# Dependabot NO sabe abrir pull requests en borrador: no existe ninguna opción
+# `draft` en este fichero. Lo comprobado contra la referencia oficial de
+# opciones; lo más parecido que sí soporta es agruparlos, y es lo que se hace
+# aquí.
+#
+# Cada ecosistema tiene dos grupos:
+#
+#   <area>-minor-patch → lo rutinario. Un PR semanal que se puede mergear
+#                        mirando el CI.
+#   <area>-major       → TODOS los mayores de la semana en UN solo PR.
+#
+# El motivo es concreto y está documentado en CIERRE_SPRINT_1.md: en septiembre
+# de 2026 entraron 19 PRs de Dependabot de uno en uno y, entre ellos, Express
+# 4→5 y React 18→19 se fusionaron sin que nadie evaluara la migración. El build
+# de producción quedó roto un rato, y el backend dejó de compilar sin que nadie
+# lo notara porque tsx y vitest transpilan sin comprobar tipos.
+#
+# Agrupados, un salto de mayor deja de parecer un bump rutinario más en una
+# lista de veinte y no se puede fusionar "de paso".
+#
+# Dos cosas que este fichero NO puede hacer y hay que hacer en GitHub:
+#
+#   1. Crear la etiqueta `major` en el repositorio. Dependabot aplica solo las
+#      etiquetas semver cuando existen, y así el PR agrupado se distingue de un
+#      vistazo. `labels` de abajo vale para TODOS los PRs del ecosistema, no
+#      por grupo, así que desde aquí no se puede diferenciar.
+#   2. Exigir revisión en `main`. Agrupar hace el salto visible; lo que impide
+#      fusionarlo sin que nadie lo mire es la protección de rama.
+#
+# Si algún día se prefiere que un ecosistema no proponga mayores en absoluto,
+# la opción es `ignore` con update-types "version-update:semver-major" y
+# subirlos a mano. No se usa: se prefiere enterarse de que existen.
+
 updates:
   # ── Backend (Express + TypeScript) ──────────────────────────────────────
   - package-ecosystem: npm
@@ -10,9 +45,14 @@ updates:
     open-pull-requests-limit: 10
     groups:
       backend-minor-patch:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      backend-major:
+        applies-to: version-updates
+        update-types:
+          - major
     labels:
       - dependencies
       - backend
@@ -26,33 +66,61 @@ updates:
     open-pull-requests-limit: 10
     groups:
       frontend-minor-patch:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      frontend-major:
+        applies-to: version-updates
+        update-types:
+          - major
     labels:
       - dependencies
       - frontend
 
   # ── Blockchain (Hardhat + Solidity) ───────────────────────────────────────
-  # Sin agrupar: hardhat, hardhat-toolbox y hardhat-ethers deben subir juntos
-  # y a mano — un bump automático de mayor aquí es justo lo que dejó
-  # `npm run compile` roto en septiembre (SCRUM-15).
+  # hardhat, hardhat-toolbox y hardhat-ethers tienen que subir juntos: un bump
+  # automático de mayor suelto aquí es justo lo que dejó `npm run compile` roto
+  # en septiembre (SCRUM-15). Antes esto se resolvía no agrupando nada; ahora
+  # el grupo de mayores los junta en un PR, que es lo que se quería.
   - package-ecosystem: npm
     directory: /blockchain
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    groups:
+      blockchain-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      blockchain-major:
+        applies-to: version-updates
+        update-types:
+          - major
     labels:
       - dependencies
       - blockchain
 
   # ── GitHub Actions ────────────────────────────────────────────────────────
+  # Aquí también: actions/checkout y setup-node saltaron a una v7 que no existe
+  # en ninguna de las dos, y se fusionaron sin que nadie lo mirara.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      actions-major:
+        applies-to: version-updates
+        update-types:
+          - major
     labels:
       - dependencies
       - ci
