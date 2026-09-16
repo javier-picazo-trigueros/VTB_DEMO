@@ -343,9 +343,17 @@ export async function seedDemoData(): Promise<void> {
           [row.id, candidate.name]
         );
         if (!candidateExists) {
+          // La posición es el identificador del candidato en la cadena y tiene
+          // que ser única dentro de la elección (migración 009). Antes se
+          // omitía y todos caían en el 0 por defecto, que es como las cinco
+          // elecciones de la base acabaron con todos sus candidatos en 0.
+          const siguiente = await tx.get<{ p: number }>(
+            "SELECT COALESCE(MAX(position) + 1, 0) AS p FROM candidates WHERE election_id = ?",
+            [row.id]
+          );
           await tx.exec(
-            "INSERT INTO candidates (election_id, name, description) VALUES (?, ?, ?)",
-            [row.id, candidate.name, candidate.description]
+            "INSERT INTO candidates (election_id, name, description, position) VALUES (?, ?, ?, ?)",
+            [row.id, candidate.name, candidate.description, Number(siguiente?.p ?? 0)]
           ).catch(() => {});
         }
       }

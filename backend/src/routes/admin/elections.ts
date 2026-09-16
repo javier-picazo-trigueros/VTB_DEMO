@@ -492,9 +492,18 @@ router.post("/elections/:id/candidates", requireAdmin, async (req: Request, res:
       return;
     }
 
+    // La posición es el identificador del candidato en la cadena y es única por
+    // elección (migración 009). Omitirla dejaba a todos en 0 y ahora chocaría
+    // con la restricción; además, añadir un candidato a una elección ya
+    // registrada descuadra el recuento on-chain (ver paso 4).
+    const siguiente = await db.get<{ p: number }>(
+      "SELECT COALESCE(MAX(position) + 1, 0) AS p FROM candidates WHERE election_id = ?",
+      [id]
+    );
+
     const result = await db.exec(
-      "INSERT INTO candidates (election_id, name, description) VALUES (?, ?, ?)",
-      [id, name.trim(), description?.trim() || ""]
+      "INSERT INTO candidates (election_id, name, description, position) VALUES (?, ?, ?, ?)",
+      [id, name.trim(), description?.trim() || "", Number(siguiente?.p ?? 0)]
     );
     res.json({ success: true, candidateId: result.lastID, message: `Candidato ${name} añadido` });
   } catch (error) {

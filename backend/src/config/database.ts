@@ -94,8 +94,13 @@ export class Database {
             election_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             description TEXT,
-            position INTEGER DEFAULT 0,
+            -- position es el identificador del candidato en la cadena: única
+            -- por elección, igual que en PostgreSQL (migración 009). Aquí no
+            -- hay disparador de inmutabilidad; el motor real es PostgreSQL y
+            -- esto solo mantiene la paridad para los tests.
+            position INTEGER NOT NULL DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(election_id, position),
             FOREIGN KEY (election_id) REFERENCES elections (id)
           )
         `);
