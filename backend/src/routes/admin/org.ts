@@ -304,6 +304,27 @@ router.get("/domains", requireAdmin, async (req: Request, res: Response) => {
 });
 
 /**
+ * Columnas de `registration_requests` que pueden salir al cliente.
+ *
+ * Antes era `SELECT *`. El genérico de `db.run<T>()` NO filtra: es una
+ * anotación de TypeScript, se borra al compilar, y el cliente de base de datos
+ * devuelve la fila entera (`return res.rows as T[]`). Así que la respuesta
+ * llevaba `password_hash` — el hash bcrypt de la contraseña que la persona
+ * eligió al registrarse — a cualquier administrador autenticado. Un hash fuera
+ * del servidor se ataca sin límite de intentos y sin rate limiting.
+ *
+ * Fuera quedan también `approved_password`, que solo existe en el esquema de
+ * SQLite, y `updated_at`, que solo existe en el de PostgreSQL: la lista es la
+ * intersección de ambos, o el mismo código fallaría en uno de los dos motores.
+ *
+ * Es interpolación en SQL, pero de una constante de código, nunca de entrada
+ * del usuario — el mismo patrón que `CLEAR_BODIES` en services/email/queue.ts.
+ */
+const REQUEST_PUBLIC_COLUMNS = `id, full_name, email, student_id, status,
+         rejection_reason, org_unit, school, degree, year, study_group,
+         created_at, reviewed_at`;
+
+/**
  * @route GET /admin/registration-requests
  */
 router.get("/registration-requests", requireAdmin, async (req: Request, res: Response) => {
@@ -312,7 +333,7 @@ router.get("/registration-requests", requireAdmin, async (req: Request, res: Res
     const adminDomain = getAdminDomain(req);
     const isSuper = isSuperAdmin(req);
 
-    let query = "SELECT * FROM registration_requests";
+    let query = `SELECT ${REQUEST_PUBLIC_COLUMNS} FROM registration_requests`;
     const params: any[] = [];
     const conditions: string[] = [];
 
@@ -348,11 +369,16 @@ router.get("/registration-requests", requireAdmin, async (req: Request, res: Res
 
     // Datos paginados (query ya tiene el WHERE; solo añadimos ORDER BY + LIMIT)
     const paginatedQuery = query + ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    // El tipo describe lo que devuelve la consulta, no lo recorta: quien decide
+    // qué sale es REQUEST_PUBLIC_COLUMNS. El que había aquí ni siquiera
+    // coincidía con la tabla — declaraba `name` e `institution`, que no son
+    // columnas de registration_requests (son full_name y org_unit).
     const paginatedRequests = await db.run<{
-      id: number; email: string; name: string; student_id: string;
-      institution: string | null; status: string;
+      id: number; full_name: string; email: string; student_id: string;
+      status: string; rejection_reason: string | null;
+      org_unit: string | null; school: string | null; degree: string | null;
+      year: number | null; study_group: string | null;
       created_at: string; reviewed_at: string | null;
-      rejection_reason: string | null;
     }>(paginatedQuery, [...params, pageSize, offset]);
 
     res.json({
