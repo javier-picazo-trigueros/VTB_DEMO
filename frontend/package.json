@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@vitejs/plugin-react": "^4.7.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.6.0",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
