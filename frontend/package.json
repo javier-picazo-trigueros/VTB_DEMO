@@ -25,7 +25,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-hot-toast": "^2.6.0",
-    "react-i18next": "^17.0.13",
+    "react-i18next": "^17.0.14",
     "react-is": "^19.3.0",
     "react-joyride": "^3.2.0",
     "react-qr-code": "^2.2.0",
