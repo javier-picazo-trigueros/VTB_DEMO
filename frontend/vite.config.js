@@ -7,12 +7,14 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
+        // Vite 8's bundler (Rolldown) dropped the object-map shorthand for
+        // manualChunks — solo admite función. Mismo resultado que antes.
+        manualChunks(id) {
           // Recharts (~350 KB) and framer-motion (~150 KB) are heavy animation/chart
           // libraries used only in results and voting pages — keep them out of the
           // main bundle so the initial voter load is faster.
-          recharts: ['recharts'],
-          'framer-motion': ['framer-motion'],
+          if (id.includes('node_modules/recharts')) return 'recharts'
+          if (id.includes('node_modules/framer-motion')) return 'framer-motion'
         },
       },
     },
