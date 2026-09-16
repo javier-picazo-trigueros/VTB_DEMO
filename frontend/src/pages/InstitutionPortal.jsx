@@ -29,16 +29,25 @@ const LoadingSpinner = ({ color = "#3b82f6" }) => (
 );
 
 // ─── Demo accounts list (all known demos, filtered by domain) ─────────────────
-const ALL_VOTER_DEMOS = [
+//
+// Tras `import.meta.env.DEV`, igual que en Login.jsx: sin la guarda, Vite se
+// lleva estas cadenas al bundle de producción, que es público. Ahí estaban las
+// tres contraseñas y —peor— la dirección del superadmin de plataforma, que
+// tiene admin_domain nulo y por tanto alcance global.
+//
+// Las contraseñas de aquí ya no valen (el seed las sustituyó por las de
+// SEED_*), pero volverían a valer en cuanto alguien sembrara un despliegue con
+// los valores heredados, y mientras tanto regalan la lista de correos válidos.
+const ALL_VOTER_DEMOS = import.meta.env.DEV ? [
   { label: "Alex Ferrer",  email: "student@vtb.demo",  pwd: "demo123" },
   { label: "Marina Costa", email: "student2@vtb.demo", pwd: "demo123" },
-];
+] : [];
 
-const ALL_ADMIN_DEMOS = [
+const ALL_ADMIN_DEMOS = import.meta.env.DEV ? [
   { label: "Super Admin (plataforma)", email: "superadmin@vtb.system", pwd: "superadmin123" },
   { label: "Elena Ibarra",             email: "admin@vtb.demo",        pwd: "admin123" },
   { label: "Marta Reyes",              email: "superadmin@vtb.demo",   pwd: "superadmin123" },
-];
+] : [];
 
 // ─── Inline login form ────────────────────────────────────────────────────────
 const PortalLoginForm = ({ primaryColor, domain }) => {
