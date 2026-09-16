@@ -18,7 +18,7 @@ import {
 } from "./middleware/rateLimit.js";
 import authRoutes from "./routes/auth.js";
 import electionRoutes from "./routes/elections.js";
-import adminRoutes from "./routes/admin.js";
+import adminRoutes from "./routes/admin/index.js";
 import registrationRoutes from "./routes/registration.js";
 import organizationRoutes from "./routes/organizations.js";
 
