@@ -1,23 +1,12 @@
 {
-  "network": "localhost",
+  "_nota": "Registro historico del contrato v1 (ElectionRegistry, VTB.sol) desplegado en Sepolia. Los despliegues nuevos NO escriben aqui: escriben deployments/<red>.json, uno por red, para que un despliegue local no borre el registro de Sepolia. Este fichero se conserva porque las elecciones anteriores al contrato v2 siguen apuntando a esta direccion (elections.chain_contract_address).",
+  "network": "sepolia",
+  "chainId": "11155111",
   "contractName": "ElectionRegistry",
-  "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "deployerAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-  "deploymentTime": "2026-04-16T10:14:55.544Z",
-  "electionId": 1,
-  "electionName": "Elección Universitaria 2026",
-  "startTime": 1776334505,
-  "endTime": 1784110495,
-  "chainId": "31337",
-  "frontendConfig": {
-    "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    "contractABI": "Ver: artifacts/contracts/VTB.sol/ElectionRegistry.json",
-    "electionId": 1,
-    "rpcUrl": "http://localhost:8545"
-  },
-  "backendConfig": {
-    "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    "rpcUrl": "http://localhost:8545",
-    "explorerUrl": "http://localhost:8545"
-  }
+  "contractAddress": "0x92110ea2a133567a0d6237e8991Fff336cd70778",
+  "deployBlock": 10823124,
+  "ownerAddress": "0x5D73CB4895b15E535901A15C980d7A990C4bD572",
+  "deploymentTime": "2026-05-09T00:00:00.000Z",
+  "verified": false,
+  "explorerUrl": "https://sepolia.etherscan.io"
 }

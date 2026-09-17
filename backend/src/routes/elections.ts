@@ -1,6 +1,5 @@
 import express, { Request, Response } from "express";
 import { ethers } from "ethers";
-import { createHash } from "crypto";
 import { getDbClient, VoteConflictError } from "../db/index.js";
 import { z } from "zod";
 import { generateNullifier, verifyToken, COOKIE_NAME_ACCESS } from "../utils/auth.js";
@@ -15,8 +14,15 @@ const db = getDbClient();
 
 const registerVoteSchema = z.object({
   electionId:  z.number().int().positive(),
-  voteHash:    z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'voteHash debe ser un hash hex de 32 bytes'),
-  candidateId: z.number().int().positive().optional(),
+  // Obligatorio desde el contrato v2: es lo que se registra en la cadena, y sin
+  // él el voto no cuenta para nadie. Antes era opcional y se podía registrar un
+  // voto sin candidato — de hecho hay uno así en la base.
+  candidateId: z.number().int().positive({ message: 'candidateId es obligatorio' }),
+  // Se sigue aceptando por compatibilidad con el frontend actual, pero ya no se
+  // usa para nada: el v2 registra el candidato, no un hash opaco. Nunca fue un
+  // compromiso abrible porque el salt se perdía en el navegador (BC-12). El
+  // frontend deja de enviarlo en el paso 5 y entonces desaparece de aquí.
+  voteHash:    z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'voteHash debe ser un hash hex de 32 bytes').optional(),
 });
 
 /**
@@ -203,6 +209,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       banner_color: string | null;
       voter_role: string | null;
       chain_status: string;
+      chain_contract_address: string | null;
     }>("SELECT * FROM elections WHERE id = ?", [id]);
 
     if (!election) {
@@ -224,23 +231,33 @@ router.get("/:id", async (req: Request, res: Response) => {
     // Obtener informacin del blockchain si est disponible
     let blockchainInfo = null;
     const contractAddress = process.env.CONTRACT_ADDRESS || "";
-    // Solo si la elección está en el contrato: con otro estado,
-    // election_id_blockchain no apunta a su elección.
-    if (contractAddress && election.chain_status === 'synced') {
+    // Dos condiciones, no una. Que la elección esté 'synced' dice que tiene un
+    // id en ALGÚN contrato; que su chain_contract_address sea el contrato
+    // configurado ahora dice que es ESTE. Una elección del contrato anterior
+    // tiene un id que allí significa otra cosa, y su ABI es distinto: leerla con
+    // este ABI devolvería basura o reventaría.
+    const enEsteContrato =
+      election.chain_status === 'synced' &&
+      (election.chain_contract_address ?? '').toLowerCase() === contractAddress.toLowerCase();
+
+    if (contractAddress && enEsteContrato) {
       try {
-        // ABI minimal del contrato ElectionRegistry
         const abi = [
-          "function getElection(uint256) public view returns (string, uint256, uint256, bool, uint256)",
+          "function getElection(uint256) view returns (tuple(string name, uint256 startTime, uint256 endTime, uint256 candidateCount, bytes32 candidatesRoot, bytes32 censusRoot, bool halted, uint256 totalVotes))",
         ];
 
         const contract = new ethers.Contract(contractAddress, abi, getProvider());
-        const onchainData = await contract.getElection(
-          election.election_id_blockchain
-        );
+        const onchain = await contract.getElection(election.election_id_blockchain);
 
         blockchainInfo = {
-          name: onchainData[0],
-          totalVotes: onchainData[4].toString(),
+          name: onchain.name,
+          totalVotes: onchain.totalVotes.toString(),
+          candidateCount: Number(onchain.candidateCount),
+          // Huella de la lista de candidatos comprometida al registrar la
+          // elección: con ella, un tercero comprueba que la lista que
+          // publicamos es la que estaba en la cadena.
+          candidatesRoot: onchain.candidatesRoot,
+          halted: onchain.halted,
         };
       } catch (err) {
         console.warn("No se pudo obtener datos del blockchain:", formatError(err));
@@ -394,7 +411,15 @@ router.get("/:id/results", async (req: Request, res: Response) => {
       start_time: number;
       end_time: number;
       is_active: boolean;
-    }>("SELECT id, name, description, start_time, end_time, is_active FROM elections WHERE id = ?", [id]);
+      election_id_blockchain: number;
+      chain_status: string;
+      chain_contract_address: string | null;
+    }>(
+      `SELECT id, name, description, start_time, end_time, is_active,
+              election_id_blockchain, chain_status, chain_contract_address
+         FROM elections WHERE id = ?`,
+      [id],
+    );
 
     if (!election) {
       res.status(404).json({ error: 'Elección no encontrada' });
@@ -415,13 +440,16 @@ router.get("/:id/results", async (req: Request, res: Response) => {
 
     const totalVoters = voterCount?.count || 0;
 
-    // Obtener candidatos
+    // Obtener candidatos. La posición es su identificador en la cadena: el
+    // recuento on-chain viene indexado por ella, así que hace falta aquí para
+    // poder comparar un recuento con el otro.
     const candidates = await db.run<{
       id: number;
       name: string;
       description: string;
+      position: number;
     }>(
-      "SELECT id, name, description FROM candidates WHERE election_id = ? ORDER BY position ASC",
+      "SELECT id, name, description, position FROM candidates WHERE election_id = ? ORDER BY position ASC",
       [election.id]
     );
 
@@ -456,16 +484,84 @@ router.get("/:id/results", async (req: Request, res: Response) => {
     candidatesWithVotes.sort((a, b) => b.votes - a.votes);
 
     const totalVoterCount = voterCount?.count || 0;
-    const onChainCount = await db.get<{ count: number }>(
-      `SELECT COUNT(*) as count
-       FROM nullifier_audit na
-       JOIN users u ON na.user_id = u.id
-       WHERE na.election_id = ?
-       AND na.tx_hash IS NOT NULL
-       AND na.block_number IS NOT NULL
-       AND u.email NOT LIKE '%@vtb.demo'`,
-      [election.id]
+
+    // ── Contraste con la cadena ────────────────────────────────────────────
+    //
+    // Antes, `onChainVerified` era true si AL MENOS UNA fila tenía tx_hash y
+    // block_number no nulos. Con 1.000 votos de los cuales uno llegó a la
+    // cadena, la elección se mostraba como verificada. Y ni siquiera consultaba
+    // la cadena: comprobaba columnas que la propia base había rellenado.
+    //
+    // Ahora se pregunta al contrato y se compara voto a voto. Verificado
+    // significa que los dos recuentos coinciden, y si no coinciden se dice.
+    const votosPorOrigen = await db.run<{ vote_source: string; n: number }>(
+      "SELECT vote_source, COUNT(*) as n FROM nullifier_audit WHERE election_id = ? GROUP BY vote_source",
+      [election.id],
     );
+    const cuenta = (origen: string) =>
+      Number(votosPorOrigen.find(v => v.vote_source === origen)?.n ?? 0);
+    const votosDemo = cuenta('demo') + cuenta('legacy');
+
+    // Recuento de la base, pero solo de los votos que dicen estar en la cadena:
+    // es lo que tiene que cuadrar con el contrato.
+    const recuentoBaseEnCadena = await db.run<{ position: number; votes: number }>(
+      `SELECT c.position, COUNT(*) as votes
+         FROM nullifier_audit na
+         JOIN candidates c ON c.id = na.candidate_id
+        WHERE na.election_id = ? AND na.vote_source = 'chain'
+        GROUP BY c.position`,
+      [election.id],
+    );
+
+    const contractAddress = (process.env.CONTRACT_ADDRESS || '').toLowerCase();
+    const enEsteContrato =
+      election.chain_status === 'synced' &&
+      contractAddress !== '' &&
+      (election.chain_contract_address ?? '').toLowerCase() === contractAddress;
+
+    let verificacion: {
+      estado: 'coincide' | 'discrepancia' | 'sin-respuesta' | 'no-aplica';
+      detalle: string;
+      recuentoCadena?: number[];
+      recuentoBase?: number[];
+      votosNoVerificables: number;
+    } = {
+      estado: 'no-aplica',
+      detalle: election.chain_status === 'synced'
+        ? 'Esta elección está registrada en un contrato anterior; su recuento no se puede contrastar con el contrato actual.'
+        : 'Esta elección todavía no está registrada en blockchain.',
+      votosNoVerificables: votosDemo,
+    };
+
+    const port = enEsteContrato ? getVotePort() : null;
+    if (port) {
+      try {
+        const recuentoCadena = await port.getTally(Number(election.election_id_blockchain));
+        const recuentoBase = recuentoCadena.map((_, posicion) =>
+          Number(recuentoBaseEnCadena.find(r => Number(r.position) === posicion)?.votes ?? 0),
+        );
+        const coincide =
+          recuentoCadena.length === recuentoBase.length &&
+          recuentoCadena.every((v, i) => v === recuentoBase[i]);
+
+        verificacion = {
+          estado: coincide ? 'coincide' : 'discrepancia',
+          detalle: coincide
+            ? 'El recuento de la cadena coincide con el de la base, candidato a candidato.'
+            : 'El recuento de la cadena NO coincide con el de la base. Es un defecto: no dé el resultado por bueno.',
+          recuentoCadena,
+          recuentoBase,
+          votosNoVerificables: votosDemo,
+        };
+      } catch (err) {
+        console.warn('No se ha podido leer el recuento de la cadena:', formatError(err));
+        verificacion = {
+          estado: 'sin-respuesta',
+          detalle: 'La cadena no ha respondido. Esto no dice nada sobre el resultado: vuelva a intentarlo.',
+          votosNoVerificables: votosDemo,
+        };
+      }
+    }
 
     res.json({
       election: {
@@ -482,7 +578,9 @@ router.get("/:id/results", async (req: Request, res: Response) => {
       participationRate: totalVoterCount > 0
         ? Math.round((realTotalVotes / totalVoterCount) * 1000) / 10
         : 0,
-      onChainVerified: (onChainCount?.count || 0) > 0,
+      // Verificado = los dos recuentos coinciden. Nada más cuenta como verificado.
+      onChainVerified: verificacion.estado === 'coincide',
+      verificacion,
     });
 
   } catch (error) {
@@ -514,37 +612,40 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
 
     const explorerUrl = process.env.EXPLORER_URL || "";
 
+    // El origen sale ahora de la columna, no de adivinarlo por el dominio del
+    // correo del votante (que además obligaba a unir con users en una ruta
+    // pública).
     const auditRecords = await db.run<{
       nullifier_hash: string;
       generated_at: string;
       tx_hash: string | null;
       block_number: number | null;
-      email: string;
+      vote_source: string;
     }>(
-      `SELECT na.nullifier_hash, na.generated_at, na.tx_hash, na.block_number, u.email
-       FROM nullifier_audit na
-       JOIN users u ON na.user_id = u.id
-       WHERE na.election_id = ?
-       ORDER BY na.generated_at DESC`,
+      `SELECT nullifier_hash, generated_at, tx_hash, block_number, vote_source
+       FROM nullifier_audit
+       WHERE election_id = ?
+       ORDER BY generated_at DESC`,
       [id]
     );
 
     const auditData = auditRecords.map((record) => {
-      const isDemo = record.email.endsWith("@vtb.demo");
-      const onChain = Boolean(record.tx_hash) && !isDemo && record.block_number !== null;
-      const txHash = record.tx_hash ||
-        `0x${createHash('sha256').update(record.nullifier_hash || '').digest('hex')}`;
+      const onChain = record.vote_source === 'chain' && Boolean(record.tx_hash) && record.block_number !== null;
       const explorerLink = explorerUrl && onChain
         ? `${explorerUrl.replace(/\/$/, "")}/tx/${record.tx_hash}`
         : null;
       return {
         nullifier: record.nullifier_hash,
-        txHash,
+        // Si no hay transacción, NULL. Antes se fabricaba aquí un SHA-256 con
+        // prefijo 0x —indistinguible de un hash de transacción real para quien
+        // no consultara la cadena— y se servía por una ruta pública (BC-28).
+        txHash: record.tx_hash,
         blockNumber: record.block_number,
         timestamp: record.generated_at,
         explorerLink,
         onChain,
-        isDemo,
+        source: record.vote_source,
+        isDemo: record.vote_source === 'demo',
       };
     });
 
@@ -629,6 +730,18 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       return res.status(403).json({ error: "No estás en el censo de esta elección" });
     }
 
+    // El candidato tiene que ser de ESTA elección. Antes no se comprobaba: se
+    // podía votar a un candidato de otra elección y la fila quedaba guardada
+    // igual. Y su posición es lo que viaja a la cadena como candidateId, así que
+    // un candidato ajeno enviaría un índice fuera de rango.
+    const candidato = await db.get<{ id: number; position: number }>(
+      "SELECT id, position FROM candidates WHERE id = ? AND election_id = ?",
+      [candidateId, election.id],
+    );
+    if (!candidato) {
+      return res.status(400).json({ error: "El candidato no pertenece a esta elección" });
+    }
+
     // GENERAR NULLIFIER EN ESTE MOMENTO (CAMBIO CRÍTICO)
     // Nullifier = HMAC(userId + electionId)
     const nullifier = generateNullifier(decoded.userId, electionId);
@@ -646,22 +759,24 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
     const isDemo = decoded.email?.endsWith('@vtb.demo');
 
     if (isDemo) {
-      const { createHash } = await import('crypto');
-      const syntheticTx = '0x' + createHash('sha256')
-        .update(`demo:${decoded.userId}:${electionId}:${Date.now()}`)
-        .digest('hex');
-
+      // Sin hash de transacción inventado. Antes se guardaba un SHA-256 con
+      // prefijo 0x, indistinguible de un hash real para quien no consultara la
+      // cadena, y /audit lo servía como si lo fuera (BC-21). Si no hay
+      // transacción, el campo es NULL y vote_source dice de dónde sale el voto.
       await db.exec(
-        'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id) VALUES (?, ?, ?, ?, ?, NULL, ?)',
-        [decoded.userId, electionId, nullifier, candidateId ? String(candidateId) : null, syntheticTx, candidateId ?? null]
+        `INSERT INTO nullifier_audit
+           (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, vote_source)
+         VALUES (?, ?, ?, ?, NULL, NULL, ?, 'demo')`,
+        [decoded.userId, electionId, nullifier, String(candidateId), candidateId]
       );
 
       return res.json({
         success: true,
-        txHash: syntheticTx,
+        txHash: null,
         blockNumber: null,
         isDemo: true,
-        message: 'Voto de demostración registrado (sintético — no está en la blockchain real)',
+        verifiable: false,
+        message: 'Voto de demostración registrado. No está en la blockchain y no es verificable desde fuera.',
       });
     }
 
@@ -705,22 +820,25 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         return res.status(500).json({ error: "Blockchain no configurado. Asegurate de que PRIVATE_KEY este definida." });
       }
 
-      // Enviar transaccin
       console.log(`Sending vote to blockchain...`);
-      console.log(`   - Election ID: ${election.election_id_blockchain}`);
+      console.log(`   - Election ID (on-chain): ${election.election_id_blockchain}`);
       console.log(`   - Nullifier: ${nullifier.substring(0, 20)}...`);
-      console.log(`   - Vote Hash: ${voteHash.substring(0, 20)}...`);
+      console.log(`   - Candidate (position): ${candidato.position}`);
 
-      // OJO: va el id de la elección EN EL CONTRATO, no el id de la base. Son
-      // distintos, y confundirlos registra el voto en otra elección. Hay un
-      // test que lo comprueba (vote-chain.test.ts).
+      // Dos cosas que no son lo que parecen y hay un test para cada una:
+      //
+      //  - va el id de la elección EN EL CONTRATO, no el id de la base; son
+      //    distintos y confundirlos registra el voto en otra elección;
+      //  - va la POSICIÓN del candidato en la papeleta, no candidates.id, que
+      //    es un autoincremento global. El contrato indexa el recuento por esa
+      //    posición y rechaza cualquiera >= candidateCount.
       //
       // El puerto envía y espera el recibo. Los errores de ethers suben sin
       // envolver: el catch de abajo los clasifica por subcadena y por `code`.
       const { txHash, blockNumber } = await port.castVote(
         election.election_id_blockchain,
         nullifier,
-        voteHash,
+        Number(candidato.position),
       );
 
       console.log(`Vote registered in transaction: ${txHash}`);
@@ -731,15 +849,17 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       let auditInserted = false;
       try {
         await db.exec(
-          'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          `INSERT INTO nullifier_audit
+             (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, vote_source)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'chain')`,
           [
             decoded.userId,
             electionId,
             nullifier,
-            candidateId ? String(candidateId) : null,
+            String(candidateId),
             txHash,
             blockNumber,
-            candidateId ?? null,
+            candidateId,
           ]
         );
         auditInserted = true;
@@ -802,29 +922,12 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         (blockchainError.code === "CALL_EXCEPTION" &&
           blockchainError.reason?.includes("election does not exist"));
 
-      if (isElectionMissing && decoded.email?.endsWith("@vtb.demo")) {
-        const syntheticTx = `0x${createHash('sha256')
-          .update(nullifier + String(electionId) + String(Date.now()))
-          .digest('hex')}`;
-        try {
-          await db.exec(
-            'INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [decoded.userId, electionId, nullifier, candidateId ? String(candidateId) : null, syntheticTx, null, candidateId ?? null]
-          );
-          console.warn(`Vote recorded off-chain (election ${election.election_id_blockchain} not registered on Sepolia): userId=${decoded.userId}`);
-          return res.json({
-            success: true,
-            txHash: syntheticTx,
-            blockNumber: null,
-            message: "Voto registrado exitosamente en el sistema",
-            voting: { nullifier, electionId: election.election_id_blockchain, voteHashReceived: voteHash },
-          });
-        } catch (auditErr) {
-          console.error('Failed to record off-chain fallback vote:', auditErr);
-          return res.status(500).json({ error: "Error al registrar voto" });
-        }
-      }
-
+      // Aquí había un camino (BC-22) que, cuando la transacción fallaba con
+      // "election does not exist" y el correo era @vtb.demo, guardaba el voto
+      // con otro hash inventado y respondía "Voto registrado exitosamente en el
+      // sistema", sin isDemo y sin ninguna señal de que no estaba en la cadena.
+      // Un voto fuera de cadena presentado como voto en cadena. Eliminado: si la
+      // elección no está en el contrato, es un 503 para todo el mundo.
       if (isElectionMissing) {
         return res.status(503).json({
           error: "Esta elección aún no está sincronizada en Sepolia",

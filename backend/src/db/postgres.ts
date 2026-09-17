@@ -1,6 +1,7 @@
 import pg from 'pg';
 import type { DbClient, ExecResult } from './client.js';
 import { VoteConflictError } from './client.js';
+import type { BusquedaDeVoto } from '../services/voteChain.js';
 
 const { Pool } = pg;
 
@@ -260,7 +261,7 @@ export class PgClient implements DbClient {
    * VoteCast on-chain, o null si no se encontró.
    */
   async cleanupStaleVoteAttempts(
-    checkOnChain: (nullifierHash: string) => Promise<{ txHash: string; blockNumber: number | null } | null>,
+    checkOnChain: (nullifierHash: string) => Promise<BusquedaDeVoto>,
   ): Promise<void> {
     const stale = await this.run<{
       id: number;
@@ -277,12 +278,24 @@ export class PgClient implements DbClient {
 
     for (const attempt of stale) {
       try {
-        let onChain: { txHash: string; blockNumber: number | null } | null = null;
+        const respuesta: BusquedaDeVoto = attempt.nullifier_hash
+          ? await checkOnChain(attempt.nullifier_hash)
+          : { estado: 'no-esta' };
 
-        if (attempt.nullifier_hash) {
-          onChain = await checkOnChain(attempt.nullifier_hash);
+        // BC-24: si el nodo no ha respondido, NO sabemos si el voto está en la
+        // cadena. Antes esto se trataba igual que "no está" y el intento se
+        // marcaba 'failed': un voto que sí estaba registrado se daba por perdido
+        // en silencio, y como el rango de bloques estaba mal (BC-23) la consulta
+        // fallaba siempre, así que le pasaba a todos. Se deja 'pending' y se
+        // vuelve a mirar en la pasada siguiente.
+        if (respuesta.estado === 'sin-respuesta') {
+          console.warn(
+            `[cleanup] intento ${attempt.id}: la cadena no ha respondido, se deja pendiente (${respuesta.motivo})`,
+          );
+          continue;
         }
 
+        const onChain = respuesta.estado === 'encontrado' ? respuesta.recibo : null;
         const newStatus: 'confirmed' | 'failed' = onChain ? 'confirmed' : 'failed';
 
         await this.pool.query(

@@ -360,6 +360,11 @@ export class Database {
       'ALTER TABLE elections ADD COLUMN chain_next_retry_at DATETIME DEFAULT NULL',
       'ALTER TABLE elections ADD COLUMN chain_claimed_at DATETIME DEFAULT NULL',
       'ALTER TABLE elections ADD COLUMN chain_synced_at DATETIME DEFAULT NULL',
+      // Paridad con la migración 009, que es solo de PostgreSQL. Sin estas dos,
+      // los tests corren contra un esquema que no es el del motor real: el voto
+      // escribe vote_source y /results lee chain_contract_address.
+      'ALTER TABLE elections ADD COLUMN chain_contract_address TEXT DEFAULT NULL',
+      "ALTER TABLE nullifier_audit ADD COLUMN vote_source TEXT NOT NULL DEFAULT 'legacy'",
     ]) {
       await this.exec(ddl).catch(() => {});
     }

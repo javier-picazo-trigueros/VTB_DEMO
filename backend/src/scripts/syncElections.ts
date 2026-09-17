@@ -55,12 +55,13 @@ import { ethers } from "ethers";
 import dotenv from "dotenv";
 import { getDbClient, ensureSchema } from "../db/index.js";
 import { formatError } from "../utils/errors.js";
+import { candidatesRoot, ListaDeCandidatosInvalida } from "../services/candidatesRoot.js";
 
 dotenv.config({ quiet: true });
 
 const CONTRACT_ABI = [
-  "function createElection(string _name, uint256 _startTime, uint256 _endTime) external",
-  "event ElectionCreated(uint256 indexed electionId, string name, uint256 startTime, uint256 endTime)",
+  "function createElection(string _name, uint256 _startTime, uint256 _endTime, uint256 _candidateCount, bytes32 _candidatesRoot, bytes32 _censusRoot) external returns (uint256)",
+  "event ElectionCreated(uint256 indexed electionId, string name, uint256 startTime, uint256 endTime, uint256 candidateCount, bytes32 candidatesRoot, bytes32 censusRoot)",
 ];
 
 /** Intentos antes de dejar la elección en 'failed'. */
@@ -75,13 +76,46 @@ const STUCK_MS = 15 * 60 * 1000;
 /** Cuánto se espera el recibo en cada intento. */
 const CONFIRM_TIMEOUT_MS = 3 * 60 * 1000;
 
-/** El contrato exige startTime >= block.timestamp: margen para que se mine. */
-const START_MARGIN_S = 120;
+// Ya no hay margen de inicio. El contrato v1 exigía startTime >= block.timestamp,
+// así que había que empujar el inicio 120 s al futuro y estirar el cierre: la
+// ventana que validaba la cadena no era la real, y durante esos 120 s la base
+// decía "activa" mientras el contrato rechazaba con un 500 genérico al votante
+// (BC-07). El v2 acepta una elección que ya empezó, así que se registra su
+// ventana tal cual.
+//
+// Lo que el v2 sí exige es que quede tiempo por delante: una elección ya
+// cerrada no se puede registrar, y no tendría sentido hacerlo.
 
 /** Lo único del contrato que usa la sincronización. Los tests lo sustituyen. */
 export interface ElectionRegistryPort {
-  /** Envía createElection y devuelve el hash, sin esperar a que se mine. */
-  send(name: string, startTime: number, endTime: number): Promise<string>;
+  /**
+   * Dirección del contrato al que escribe este puerto.
+   *
+   * Se guarda en la elección al confirmar. Sin esto, election_id_blockchain es
+   * un número sin contexto: vale para el contrato que estuviera configurado en
+   * ese momento, y al cambiar de contrato apuntaría a otra elección distinta.
+   */
+  readonly contractAddress: string;
+
+  /**
+   * Envía createElection y devuelve el hash, sin esperar a que se mine.
+   *
+   * @param candidateCount Número de candidatos; los ids válidos en la cadena
+   *        son 0..candidateCount-1, que son sus posiciones en la papeleta.
+   * @param candidatesRoot keccak256 de la lista canónica de candidatos. Los
+   *        nombres no van a la cadena: son datos personales y quedarían
+   *        escritos de forma inmutable.
+   * @param censusRoot Reservado para Semaphore. Hoy va a cero.
+   */
+  send(
+    name: string,
+    startTime: number,
+    endTime: number,
+    candidateCount: number,
+    candidatesRoot: string,
+    censusRoot: string,
+  ): Promise<string>;
+
   /** Espera el recibo y devuelve el id del evento ElectionCreated. */
   confirm(txHash: string): Promise<number>;
 }
@@ -134,8 +168,15 @@ function createRegistryPort(cfg: ChainConfig): ElectionRegistryPort {
   const contract = new ethers.Contract(cfg.contractAddress, CONTRACT_ABI, wallet);
 
   return {
-    async send(name, startTime, endTime) {
-      const tx = await contract.createElection(name, startTime, endTime, { gasLimit: 300_000 });
+    contractAddress: cfg.contractAddress,
+
+    async send(name, startTime, endTime, candidateCount, root, censusRoot) {
+      // El v2 escribe una estructura mayor que el v1 (candidatos, compromiso de
+      // la lista y raíz de censo), así que el límite de gas sube en consecuencia.
+      const tx = await contract.createElection(
+        name, startTime, endTime, candidateCount, root, censusRoot,
+        { gasLimit: 500_000 },
+      );
       return tx.hash as string;
     },
 
@@ -248,9 +289,32 @@ async function runOnce(opts: { port?: ElectionRegistryPort; retryFailed?: boolea
     try {
       let txHash = election.chain_tx_hash;
       if (!txHash) {
-        const startTime = Math.max(Number(election.start_time), Math.floor(Date.now() / 1000) + START_MARGIN_S);
-        const endTime = Math.max(Number(election.end_time), startTime + 3600);
-        txHash = await registry.send(election.name, startTime, endTime);
+        // La ventana real, sin inventar (BC-07).
+        const startTime = Number(election.start_time);
+        const endTime = Number(election.end_time);
+        if (endTime <= Math.floor(Date.now() / 1000)) {
+          throw new ListaDeCandidatosInvalida(
+            "la elección ya ha cerrado: el contrato no admite registrar una elección cuyo plazo ha terminado",
+          );
+        }
+
+        // El candidato viaja a la cadena como su posición en la papeleta, así que
+        // la lista tiene que ser densa desde 0. listaCanonica() lo comprueba y la
+        // migración 009 ya renumeró lo que había.
+        const candidatos = await db.run<{ name: string; position: number }>(
+          "SELECT name, position FROM candidates WHERE election_id = ? ORDER BY position ASC",
+          [id],
+        );
+        const root = candidatesRoot(candidatos);
+
+        txHash = await registry.send(
+          election.name,
+          startTime,
+          endTime,
+          candidatos.length,
+          root,
+          ethers.ZeroHash, // censusRoot: reservado para Semaphore
+        );
         // Antes de esperar el recibo: si el proceso muere ahora, el reintento
         // confirma esta transacción en vez de crear otra elección en el contrato.
         await db.exec("UPDATE elections SET chain_tx_hash = ? WHERE id = ?", [txHash, id]);
@@ -259,10 +323,11 @@ async function runOnce(opts: { port?: ElectionRegistryPort; retryFailed?: boolea
       const chainId = await registry.confirm(txHash);
       await db.exec(
         `UPDATE elections
-            SET chain_status = 'synced', election_id_blockchain = ?, chain_synced_at = CURRENT_TIMESTAMP,
+            SET chain_status = 'synced', election_id_blockchain = ?, chain_contract_address = ?,
+                chain_synced_at = CURRENT_TIMESTAMP,
                 chain_error = NULL, chain_claimed_at = NULL, chain_next_retry_at = NULL
           WHERE id = ?`,
-        [chainId, id],
+        [chainId, registry.contractAddress, id],
       );
       summary.synced++;
       console.log(`[chain-sync] "${election.name}" registrada en blockchain: #${chainId} (tx ${txHash})`);
@@ -270,7 +335,11 @@ async function runOnce(opts: { port?: ElectionRegistryPort; retryFailed?: boolea
       const message = describeError(err);
       const clearHash = err instanceof TransactionDroppedError ? ", chain_tx_hash = NULL" : "";
 
-      if (attempts >= CHAIN_MAX_ATTEMPTS) {
+      // Una lista de candidatos inválida o una elección ya cerrada no se
+      // arreglan reintentando: hace falta que alguien toque los datos. Se marca
+      // como fallida de inmediato, con el motivo, en vez de gastar cinco
+      // intentos y una hora de espera para acabar igual.
+      if (attempts >= CHAIN_MAX_ATTEMPTS || err instanceof ListaDeCandidatosInvalida) {
         await db.exec(
           `UPDATE elections
               SET chain_status = 'failed', chain_error = ?, chain_claimed_at = NULL, chain_next_retry_at = NULL${clearHash}

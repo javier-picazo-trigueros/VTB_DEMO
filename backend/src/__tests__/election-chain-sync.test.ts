@@ -142,10 +142,18 @@ describe('POST /admin/elections — responde sin esperar a la blockchain', () =>
 });
 
 describe('sincronización con la cadena', () => {
+  /**
+   * Dirección del contrato al que escriben los puertos falsos. Se guarda en la
+   * elección al confirmar: sin ella, election_id_blockchain es un número que
+   * vale para el contrato que hubiera configurado en ese momento.
+   */
+  const CONTRATO = '0x' + 'c0'.repeat(20);
+
   /** Puerto falso: cada nombre de elección tiene su id "del evento". */
   function fakePort(ids: Record<string, number>) {
     const sent: string[] = [];
     const port: ElectionRegistryPort = {
+      contractAddress: CONTRATO,
       send: vi.fn(async (name: string) => { sent.push(name); return `0xtx-${name}`; }),
       confirm: vi.fn(async (hash: string) => {
         const id = ids[hash.replace(/^0xtx-/, '')];
@@ -206,6 +214,7 @@ describe('sincronización con la cadena', () => {
     const s = Date.now();
     const [id] = await pendingElections(`Sync falla ${s}`);
     const rota: ElectionRegistryPort = {
+      contractAddress: CONTRATO,
       send: vi.fn(async () => { throw new Error('insufficient funds for gas'); }),
       confirm: vi.fn(),
     };
@@ -248,6 +257,7 @@ describe('sincronización con la cadena', () => {
       [isoAgo(20 * 60 * 1000), id],
     );
     const port: ElectionRegistryPort = {
+      contractAddress: CONTRATO,
       send: vi.fn(async () => '0xnueva'),
       confirm: vi.fn(async (hash: string) => (hash === '0xprevia' ? 888 : 0)),
     };
@@ -277,16 +287,25 @@ describe('sincronización con la cadena', () => {
 describe('register-vote en una elección que aún no está en blockchain', () => {
   it('una cuenta real recibe 503 ELECTION_NOT_ON_CHAIN y no se registra ningún voto', async () => {
     const user = await createFixtureUser();
-    const electionId = await createFixtureElection({ name: `Sin cadena ${Date.now()}` });
+    // Los candidatos los crea ya la fixture, en posiciones densas desde 0.
+    // Insertar otro aquí chocaba con UNIQUE(election_id, position), que es la
+    // restricción que impide que dos candidatos compartan identificador on-chain.
+    const electionId = await createFixtureElection({
+      name: `Sin cadena ${Date.now()}`,
+      candidates: ['Única'],
+    });
     await db.exec("UPDATE elections SET chain_status = 'pending' WHERE id = ?", [electionId]);
-    const candidate = await db.exec("INSERT INTO candidates (election_id, name) VALUES (?, 'Única')", [electionId]);
+    const candidate = await db.get<{ id: number }>(
+      'SELECT id FROM candidates WHERE election_id = ?',
+      [electionId],
+    );
     await db.exec('INSERT INTO election_voters (election_id, user_id) VALUES (?, ?)', [electionId, user.id]);
 
     const { agent, csrf } = await loginAsFixture(user.email, user.password);
     const res = await agent.post('/api/elections/register-vote').set('X-CSRF-Token', csrf).send({
       electionId,
       voteHash: '0x' + 'ab'.repeat(32),
-      candidateId: candidate.lastID,
+      candidateId: candidate!.id,
     });
 
     expect(res.status).toBe(503);

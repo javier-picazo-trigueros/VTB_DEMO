@@ -486,9 +486,26 @@ router.post("/elections/:id/candidates", requireAdmin, async (req: Request, res:
       return;
     }
 
-    const election = await db.get("SELECT id FROM elections WHERE id = ?", [id]);
+    const election = await db.get<{ id: number; chain_status: string }>(
+      "SELECT id, chain_status FROM elections WHERE id = ?",
+      [id],
+    );
     if (!election) {
       res.status(404).json({ error: "Elección no encontrada" });
+      return;
+    }
+
+    // Al registrar la elección en la cadena quedaron fijados candidateCount y
+    // candidatesRoot. Añadir un candidato después deja el contrato diciendo que
+    // hay N candidatos cuando en la base hay N+1: el voto al último revertiría
+    // con "candidate out of range", y la huella de la lista publicada dejaría de
+    // cuadrar con la que se comprometió al convocar.
+    if (election.chain_status === 'synced') {
+      res.status(409).json({
+        error: "La elección ya está registrada en blockchain y su lista de candidatos no se puede ampliar",
+        details: "El número de candidatos y la huella de la lista quedaron fijados en el contrato. Para cambiar la lista hay que crear una elección nueva.",
+        code: "ELECTION_ALREADY_ON_CHAIN",
+      });
       return;
     }
 

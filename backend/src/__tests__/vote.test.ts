@@ -112,7 +112,13 @@ describe('Vote flow (vtb.demo accounts — no blockchain needed)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(typeof res.body.txHash).toBe('string');
+    // Un voto de demostración ya NO recibe un hash de transacción inventado.
+    // Antes se guardaba un SHA-256 con prefijo 0x, indistinguible de un hash
+    // real para quien no consultara la cadena, y /audit lo servía como si lo
+    // fuera (BC-21). Sin transacción, el campo es null y la respuesta lo dice.
+    expect(res.body.txHash).toBeNull();
+    expect(res.body.isDemo).toBe(true);
+    expect(res.body.verifiable).toBe(false);
   });
 
   it('no se puede votar dos veces (409)', async () => {

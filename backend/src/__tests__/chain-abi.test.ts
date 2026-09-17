@@ -49,7 +49,7 @@ const FICHEROS = [
 const FRAGMENTO = /["'`]((?:event|function)\s+[A-Za-z_][^"'`]*)["'`]/g;
 
 const abiPublicado = JSON.parse(
-  readFileSync(join(RAIZ, 'blockchain', 'abi', 'ElectionRegistry.json'), 'utf8'),
+  readFileSync(join(RAIZ, 'blockchain', 'abi', 'ElectionRegistryV2.json'), 'utf8'),
 ).abi;
 
 const contrato = new ethers.Interface(abiPublicado);

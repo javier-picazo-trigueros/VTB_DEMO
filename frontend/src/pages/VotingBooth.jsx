@@ -454,7 +454,7 @@ export const VotingBoothContent = () => {
         // en nullifier y el parámetro timestamp, así que el topic0 calculado no
         // coincidía con ningún log real y este feed no se disparó nunca
         // (BC-29). Hay un test que compara esta cadena con el ABI compilado.
-        const contractAbi = ["event VoteCast(uint256 indexed electionId, bytes32 indexed nullifier, bytes32 voteHash, uint256 timestamp)"];
+        const contractAbi = ["event VoteCast(uint256 indexed electionId, uint256 indexed nullifier, uint256 indexed candidateId, uint256 timestamp)"];
         contract = new ethers.Contract(CONTRACT_ADDRESS, contractAbi, provider);
         setIsListening(true);
         setReconnecting(false);

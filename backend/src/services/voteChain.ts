@@ -1,36 +1,37 @@
 /**
- * Puerto de la cadena para el camino del voto.
+ * Puerto de la cadena para el camino del voto y para el recuento.
  *
  * ── Por qué existe ──────────────────────────────────────────────────────────
  *
- * Hasta ahora, POST /elections/register-vote construía el Wallet y el Contract
- * en línea, dentro del propio manejador:
+ * Hasta el paso 3, POST /elections/register-vote construía el Wallet y el
+ * Contract en línea, dentro del propio manejador. Eso no se puede probar sin una
+ * cadena de verdad, y por eso el camino crítico del voto no tenía ni un test:
+ * vote.test.ts entra con cuentas @vtb.demo, que se saltan la blockchain entera.
+ * Justo ahí apareció el fallo de los identificadores de elección.
  *
- *   const wallet = getWallet();
- *   const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, wallet);
- *   const tx = await contract.castVote(...);
+ * El patrón es el mismo que ElectionRegistryPort en scripts/syncElections.ts:
+ * una interfaz mínima con lo único que el camino necesita de la cadena, y los
+ * tests la sustituyen por un doble.
  *
- * Eso no se puede probar sin una cadena de verdad, y por eso el camino crítico
- * del voto no tenía ni un test: vote.test.ts entra con cuentas @vtb.demo, que
- * se saltan la blockchain entera. Justo ahí apareció el fallo de los
- * identificadores de elección, que escribía el voto en la elección equivocada.
+ * ── Contrato v2 ─────────────────────────────────────────────────────────────
  *
- * El patrón es el mismo que ElectionRegistryPort en scripts/syncElections.ts,
- * que ya demostró funcionar: una interfaz mínima con lo único que el camino
- * necesita de la cadena, y los tests la sustituyen por un doble.
+ * Este puerto habla con ElectionRegistryV2. Frente al anterior:
  *
- * ── Qué NO cambia ───────────────────────────────────────────────────────────
+ *   - castVote lleva el candidato (su posición en la papeleta), no un voteHash
+ *     opaco, para que el recuento se pueda rehacer desde fuera;
+ *   - el nullifier es uint256, que es el tipo que emite Semaphore, para no
+ *     tener que cambiarlo cuando llegue;
+ *   - getTally da el recuento por candidato, que es lo que /results compara
+ *     contra la base en vez de fiarse de ella.
  *
- * Los errores de ethers se propagan tal cual, sin envolver. La ruta los
- * clasifica buscando subcadenas ("election does not exist", "nullifier already
- * used") y leyendo `code`; envolverlos rompería en silencio la traducción a 409
- * y 503. Cuando el contrato v2 entre, esa clasificación debería pasar a
- * decodificar el motivo del revert, pero eso es otro paso.
+ * Las elecciones anteriores al v2 viven en el contrato viejo y su columna
+ * elections.chain_contract_address lo dice. No se puede votar en ellas con este
+ * puerto, y no hace falta: ninguna tiene un solo voto on-chain (comprobado, 29
+ * elecciones a cero).
  *
- * El ABI declarado aquí es el del contrato ACTUAL (ElectionRegistry, VTB.sol).
- * Hay un test que lo compara con el artefacto compilado: si alguien cambia el
- * contrato y no este fichero, salta. Es lo que no existía cuando BC-29 dejó el
- * feed de votos en vivo sin poder dispararse durante meses.
+ * El ABI declarado aquí se compara con el ABI publicado del contrato en
+ * chain-abi.test.ts. Es lo que no existía cuando BC-29 dejó el feed de votos en
+ * vivo sin poder dispararse durante meses.
  */
 import { ethers } from "ethers";
 import { chainConfig } from "../scripts/syncElections.js";
@@ -41,11 +42,24 @@ export interface VoteReceipt {
   blockNumber: number | null;
 }
 
-/** Fragmentos del contrato que usa el camino del voto. */
+/** Resultado de buscar un voto en la cadena. */
+export type BusquedaDeVoto =
+  | { estado: "encontrado"; recibo: VoteReceipt }
+  | { estado: "no-esta" }
+  /** El nodo no ha respondido. NO significa que el voto no exista (BC-24). */
+  | { estado: "sin-respuesta"; motivo: string };
+
+/** Fragmentos del contrato v2 que usa el backend. */
 export const VOTE_ABI = [
-  "function castVote(uint256 _electionId, bytes32 _nullifier, bytes32 _voteHash) public",
-  "event VoteCast(uint256 indexed electionId, bytes32 indexed nullifier, bytes32 voteHash, uint256 timestamp)",
+  "function castVote(uint256 _electionId, uint256 _nullifier, uint256 _candidateId) external",
+  "function getTally(uint256 _id) external view returns (uint256[])",
+  "function getTotalVotes(uint256 _id) external view returns (uint256)",
+  "function deploymentBlock() view returns (uint256)",
+  "event VoteCast(uint256 indexed electionId, uint256 indexed nullifier, uint256 indexed candidateId, uint256 timestamp)",
 ] as const;
+
+/** Ventana de bloques por consulta de logs: los proveedores limitan el rango. */
+const BLOCK_WINDOW = 45_000;
 
 export interface VotePort {
   /**
@@ -54,24 +68,26 @@ export interface VotePort {
    * @param onChainElectionId El id de la elección EN EL CONTRATO
    *        (elections.election_id_blockchain), que no es el id de la base.
    *        Confundirlos es el fallo que ya ocurrió.
+   * @param candidateId La posición del candidato en la papeleta, 0..n-1.
    */
   castVote(
     onChainElectionId: number,
     nullifier: string,
-    voteHash: string,
+    candidateId: number,
   ): Promise<VoteReceipt>;
 
   /**
-   * Busca el evento VoteCast de un nullifier, para reconstruir un voto cuyo
-   * registro en la base se perdió después de que la transacción entrara.
+   * Busca el evento VoteCast de un nullifier.
    *
-   * OJO — devuelve null tanto si el voto no está en la cadena como si el RPC
-   * falló. Es el defecto BC-24 de AUDITORIA_BLOCKCHAIN.md: quien lo consume
-   * (cleanupStaleVoteAttempts) marca 'failed' en ambos casos y puede dar por
-   * perdido un voto que sí está en la cadena. Se conserva el comportamiento
-   * tal cual en este paso, que es solo de refactor; se arregla en el paso 4.
+   * Devuelve tres estados distintos a propósito. Antes devolvía null tanto si el
+   * voto no estaba como si el RPC fallaba, y cleanupStaleVoteAttempts marcaba
+   * 'failed' en los dos casos: un voto que sí estaba en la cadena se daba por
+   * perdido en silencio (BC-24).
    */
-  findVote(nullifierHash: string): Promise<VoteReceipt | null>;
+  findVote(nullifierHash: string): Promise<BusquedaDeVoto>;
+
+  /** Recuento por candidato que mantiene el contrato. `tally[i]` = candidato i. */
+  getTally(onChainElectionId: number): Promise<number[]>;
 }
 
 // ── Doble para tests ────────────────────────────────────────────────────────
@@ -85,6 +101,20 @@ export function setVotePortForTesting(port: VotePort | null): void {
 
 // ── Puerto real ─────────────────────────────────────────────────────────────
 
+/**
+ * Desde qué bloque escanear los logs.
+ *
+ * Se pregunta al propio contrato, que guarda su bloque de despliegue. Antes se
+ * llamaba a queryFilter sin rango, es decir desde el bloque 0: todos los
+ * proveedores lo rechazan, así que la consulta fallaba SIEMPRE y el job de
+ * reconciliación no ha funcionado nunca (BC-23).
+ */
+async function bloqueInicial(contract: ethers.Contract): Promise<number> {
+  const env = Number(process.env.DEPLOY_BLOCK || "0");
+  if (env > 0) return env;
+  return Number(await contract.deploymentBlock());
+}
+
 function createVotePort(cfg: {
   rpcUrl: string;
   contractAddress: string;
@@ -93,37 +123,53 @@ function createVotePort(cfg: {
   const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
   const wallet = new ethers.Wallet(cfg.privateKey, provider);
   const contract = new ethers.Contract(cfg.contractAddress, [...VOTE_ABI], wallet);
+  const lectura = new ethers.Contract(cfg.contractAddress, [...VOTE_ABI], provider);
 
   return {
-    async castVote(onChainElectionId, nullifier, voteHash) {
-      const tx = await contract.castVote(onChainElectionId, nullifier, voteHash);
+    async castVote(onChainElectionId, nullifier, candidateId) {
+      const tx = await contract.castVote(onChainElectionId, nullifier, candidateId);
       const receipt = await tx.wait();
       return { txHash: tx.hash as string, blockNumber: receipt?.blockNumber ?? null };
     },
 
     async findVote(nullifierHash) {
       try {
-        const readOnly = new ethers.Contract(cfg.contractAddress, [...VOTE_ABI], provider);
-        const events = await readOnly.queryFilter(
-          readOnly.filters.VoteCast(null, nullifierHash),
-        );
-        if (events.length === 0) return null;
-        const ev = events[0] as ethers.EventLog;
-        return { txHash: ev.transactionHash, blockNumber: ev.blockNumber };
-      } catch {
-        // Ver la nota de BC-24 en la interfaz: el llamante no distingue esto
-        // de "no está en la cadena".
-        return null;
+        const desde = await bloqueInicial(lectura);
+        const hasta = await provider.getBlockNumber();
+        const filtro = lectura.filters.VoteCast(null, nullifierHash);
+
+        for (let inicio = desde; inicio <= hasta; inicio += BLOCK_WINDOW) {
+          const fin = Math.min(inicio + BLOCK_WINDOW - 1, hasta);
+          const eventos = await lectura.queryFilter(filtro, inicio, fin);
+          if (eventos.length > 0) {
+            const ev = eventos[0] as ethers.EventLog;
+            return {
+              estado: "encontrado",
+              recibo: { txHash: ev.transactionHash, blockNumber: ev.blockNumber },
+            };
+          }
+        }
+        return { estado: "no-esta" };
+      } catch (err) {
+        // Nunca el objeto de error entero: arrastra la URL del RPC con su clave.
+        const motivo =
+          err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200);
+        return { estado: "sin-respuesta", motivo };
       }
+    },
+
+    async getTally(onChainElectionId) {
+      const tally: bigint[] = await lectura.getTally(onChainElectionId);
+      return tally.map(Number);
     },
   };
 }
 
 /**
- * Puerto de voto listo para usar, o `null` si no hay cadena configurada.
+ * Puerto listo para usar, o `null` si no hay cadena configurada.
  *
- * No se cachea: `PRIVATE_KEY` y `RPC_URL` pueden cambiar entre peticiones en
- * los tests, y construir un JsonRpcProvider no hace E/S.
+ * No se cachea: PRIVATE_KEY y RPC_URL pueden cambiar entre peticiones en los
+ * tests, y construir un JsonRpcProvider no hace E/S.
  */
 export function getVotePort(): VotePort | null {
   if (testPort) return testPort;

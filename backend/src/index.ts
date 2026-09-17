@@ -8,7 +8,7 @@ import { app } from "./app.js";
 import { getDbClient, ensureSchema } from "./db/index.js";
 import { PgClient } from "./db/postgres.js";
 import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
-import { getVotePort } from "./services/voteChain.js";
+import { getVotePort, type BusquedaDeVoto } from "./services/voteChain.js";
 import net from "node:net";
 import { processEmailQueue } from "./services/email/queue.js";
 import { sendCensusInvitation, sendElectionOpen, sendElectionClose } from "./services/email/index.js";
@@ -238,8 +238,11 @@ async function start() {
         // devolviendo null tanto si el voto no está en la cadena como si el RPC
         // falló, y cleanupStaleVoteAttempts marca 'failed' en ambos casos
         // (BC-24 / P1-14). Eso se arregla en el paso 4, no aquí.
-        const checkOnChain = async (nullifierHash: string) =>
-          (await getVotePort()?.findVote(nullifierHash)) ?? null;
+        const checkOnChain = async (nullifierHash: string): Promise<BusquedaDeVoto> =>
+          (await getVotePort()?.findVote(nullifierHash)) ??
+          // Sin cadena configurada no hay respuesta posible, que no es lo mismo
+          // que "el voto no está": el intento se queda pendiente (BC-24).
+          { estado: 'sin-respuesta', motivo: 'blockchain no configurada' };
 
         setInterval(() => {
           dbClient.cleanupStaleVoteAttempts(checkOnChain).catch(err => {
