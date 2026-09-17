@@ -165,11 +165,39 @@ class PgTransactionClient implements DbClient {
 
 // ── PgClient ────────────────────────────────────────────────────────────────
 
-export class PgClient implements DbClient {
-  private pool: pg.Pool;
+/** Lo que devuelve una consulta. Solo lo que esta capa mira de un QueryResult. */
+export interface ResultadoConsulta {
+  rows: unknown[];
+  rowCount: number | null;
+}
 
-  constructor(connectionString: string) {
-    this.pool = new Pool({
+/**
+ * Lo único que PgClient usa de un Pool de `pg`.
+ *
+ * Existe para poder inyectar un doble en los tests. Sin esto, PgClient creaba su
+ * propio Pool en el constructor y su código no se podía ejecutar sin una base de
+ * PostgreSQL delante — y los tests de este proyecto corren sobre SQLite en
+ * memoria, por una razón que no se negocia: una ejecución contra Supabase llegó
+ * a sobrescribir las contraseñas de administración.
+ *
+ * La consecuencia era que cleanupStaleVoteAttempts, que decide si un voto se da
+ * por perdido, no tenía ni un test. Ahora sí lo tiene, sobre este mismo código.
+ */
+export interface PoolLike {
+  query(text: string, values?: unknown[]): Promise<ResultadoConsulta>;
+  connect(): Promise<pg.PoolClient>;
+  end(): Promise<void>;
+}
+
+export class PgClient implements DbClient {
+  private pool: PoolLike;
+
+  /**
+   * @param pool Solo para tests: sustituye el pool real. En producción se omite
+   *        y se construye contra `connectionString`.
+   */
+  constructor(connectionString: string, pool?: PoolLike) {
+    this.pool = pool ?? new Pool({
       connectionString,
       ssl:
         process.env.NODE_ENV === 'production'
@@ -190,7 +218,10 @@ export class PgClient implements DbClient {
   async exec(sql: string, params: unknown[] = []): Promise<ExecResult> {
     const pgSql = normalizeSql(sql);
     const res = await this.pool.query(pgSql, params);
-    return { lastID: res.rows[0]?.id ?? 0, changes: res.rowCount ?? 0 };
+    // PoolLike tipa rows como unknown[]: el RETURNING id que añade normalizeSql
+    // devuelve una fila con esa única columna.
+    const fila = res.rows[0] as { id?: number } | undefined;
+    return { lastID: fila?.id ?? 0, changes: res.rowCount ?? 0 };
   }
 
   async acquireVoteLock(
@@ -249,16 +280,20 @@ export class PgClient implements DbClient {
    * Job de limpieza de intentos de voto huérfanos.
    * Llámalo desde index.ts con setInterval cada 30 minutos.
    *
-   * Para cada intento 'pending' con más de 30 min de antigüedad:
-   *   - consulta la blockchain vía checkOnChain
-   *   - si devuelve { txHash, blockNumber }: reconstruye la fila de nullifier_audit
-   *     con todos los campos disponibles (tx_hash, block_number, candidate_id,
-   *     vote_choice) y marca vote_attempts como 'confirmed'
-   *   - si devuelve null: marca como 'failed' (permite reintento, aunque el
-   *     contrato rechazará nullifiers ya usados)
+   * Para cada intento 'pending' con más de 30 min de antigüedad se pregunta a la
+   * cadena por su nullifier, y se actúa según lo que conteste:
    *
-   * checkOnChain recibe el nullifier_hash y debe devolver los datos del evento
-   * VoteCast on-chain, o null si no se encontró.
+   *   'encontrado'    → reconstruye la fila de nullifier_audit con los datos del
+   *                     evento VoteCast y marca el intento 'confirmed'
+   *   'no-esta'       → marca 'failed' (permite reintentar; el contrato
+   *                     rechazará el nullifier si en realidad ya se usó)
+   *   'sin-respuesta' → NO TOCA NADA. El intento sigue 'pending' y se vuelve a
+   *                     mirar en la pasada siguiente (BC-24)
+   *
+   * Esa tercera rama es la importante y es nueva. Antes checkOnChain devolvía
+   * null tanto si el voto no estaba como si el RPC había fallado, así que un
+   * fallo de red marcaba el voto como perdido. Y como la consulta iba sin rango
+   * de bloques (BC-23), fallaba siempre: le pasaba a todos los intentos.
    */
   async cleanupStaleVoteAttempts(
     checkOnChain: (nullifierHash: string) => Promise<BusquedaDeVoto>,
