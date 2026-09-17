@@ -3,11 +3,18 @@
 **Destinatario:** comité electoral, secretaría general o servicio jurídico de la
 institución que valore usar VTB, además del equipo de desarrollo.
 
-**Estado:** este documento describe el diseño del registro en cadena con
-recuento verificable (contrato `ElectionRegistryV2`). El contrato está escrito y
-probado; **todavía no está desplegado en producción**. Hasta que lo esté, sigue
-en vigor el contrato anterior, que no registra a qué candidato se vota y cuyo
-recuento no es verificable desde fuera.
+**Estado:** este documento describe el registro en cadena con recuento
+verificable (contrato `ElectionRegistryV2`).
+
+El contrato está desplegado en Sepolia el 17-09-2026, en
+`0x124759Cc8bb31AAD866930dCd3caE6f148e4F607` (bloque 11724119), pero **todavía
+no está operativo**: la dirección autorizada para registrar votos no es la del
+servidor de VTB, de modo que hoy no puede entrar ningún voto. Hasta que eso se
+corrija sigue en vigor el contrato anterior, que **no registra a qué candidato se
+vota y cuyo recuento no es verificable desde fuera**.
+
+Mientras tanto, nada de lo que se afirma en el apartado 1 puede darse por
+vigente en producción.
 
 ---
 
@@ -146,20 +153,32 @@ sin necesidad de volver a desplegar el contrato ni de perder el histórico.
 
 Un comité electoral no tiene por qué fiarse de este documento:
 
-1. **El código del contrato es público y está verificado** en el explorador de
-   bloques. Se puede leer exactamente qué reglas aceptan o rechazan un voto.
+1. **El código del contrato es público.** Está en este repositorio
+   (`blockchain/contracts/ElectionRegistryV2.sol`) y se puede leer exactamente
+   qué reglas aceptan o rechazan un voto.
+
+   **Advertencia:** a fecha de hoy el contrato desplegado **no está verificado**
+   en el explorador de bloques, así que allí solo se ve bytecode y no hay forma
+   de comprobar desde fuera que corresponde a este código fuente. Es un
+   requisito pendiente y debe exigirse antes de convocar una elección real.
 2. **La herramienta de recuento independiente** (`blockchain/scripts/recount.ts`)
    lee únicamente la cadena a través de un nodo público y publica el resultado.
    Puede ejecutarla un tercero, en su propio equipo, sin credenciales nuestras.
+   El procedimiento completo, con lo que demuestra y lo que no, está en
+   **`RECUENTO_INDEPENDIENTE.md`**.
 3. **El recuento oficial y el de la cadena deben coincidir.** Si no coinciden,
    es un defecto y debe reclamarse. La aplicación muestra ambos.
 
 ## 5. Estado de este documento
 
-Redactado el 16-09-2026, al aprobarse el diseño del recuento verificable. Debe
-revisarse cuando se despliegue el contrato en producción y, de nuevo, cuando se
-implemente el anonimato criptográfico, que es lo que dejaría sin efecto el
-apartado 2.1.
+Redactado el 16-09-2026 al aprobarse el diseño del recuento verificable, y
+revisado el 17-09-2026 tras el despliegue en Sepolia.
+
+Debe revisarse otra vez cuando el despliegue quede operativo (relayer del
+servidor autorizado y contrato verificado en el explorador) y, de nuevo, cuando
+se implemente el anonimato criptográfico con Semaphore, que es lo único que
+dejaría sin efecto el apartado 2.1. **Mientras tanto, el apartado 2.1 sigue
+vigente: el voto no es anónimo frente a quien opera el sistema.**
 
 Los defectos concretos que sustentan lo dicho aquí están detallados en
 `AUDITORIA_BLOCKCHAIN.md`.
