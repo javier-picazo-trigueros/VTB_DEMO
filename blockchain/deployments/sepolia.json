@@ -1,0 +1,24 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "contractName": "ElectionRegistryV2",
+  "contractAddress": "0x124759Cc8bb31AAD866930dCd3caE6f148e4F607",
+  "deployBlock": 11724119,
+  "ownerAddress": "0x878059b91D846B2BC153fe96ee6DFb68fA9E9d6b",
+  "relayerAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "deploymentTime": "2026-09-17T13:50:53.097Z",
+  "verified": false,
+  "explorerUrl": "https://sepolia.etherscan.io",
+  "frontendConfig": {
+    "VITE_CONTRACT_ADDRESS": "0x124759Cc8bb31AAD866930dCd3caE6f148e4F607",
+    "VITE_EXPLORER_URL": "https://sepolia.etherscan.io"
+  },
+  "backendConfig": {
+    "CONTRACT_ADDRESS": "0x124759Cc8bb31AAD866930dCd3caE6f148e4F607",
+    "DEPLOY_BLOCK": "11724119",
+    "EXPLORER_URL": "https://sepolia.etherscan.io"
+  },
+  "constructorArgs": [
+    "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+  ]
+}

@@ -96,3 +96,10 @@ blockchain/node_modules/
 # fichero rastreado; eso requiere `git rm --cached`.
 .env.*
 !.env.example
+
+# Registros de despliegue en cadenas locales: ruido, cambian en cada
+# `npm run deploy:local` y no sirven a nadie fuera de tu maquina.
+# El de las redes reales (sepolia.json) SI se versiona: RECUENTO_INDEPENDIENTE.md
+# le dice a un tercero que ahi encontrara la direccion del contrato.
+blockchain/deployments/localhost.json
+blockchain/deployments/hardhat.json
