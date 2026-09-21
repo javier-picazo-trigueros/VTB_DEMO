@@ -23,25 +23,10 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
     proxy: {
-      '/api': {
+      '/backend': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-      },
-      '/auth': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-      '/admin': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-      '/registration': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-      '/health': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/backend/, ''),
       },
     },
   },

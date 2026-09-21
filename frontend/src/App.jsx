@@ -28,7 +28,7 @@ import { Pricing } from './pages/Pricing'
 import { ForgotPassword } from './pages/ForgotPassword'
 import { ResetPassword } from './pages/ResetPassword'
 
-const API_URL = import.meta.env.VITE_API_URL || ''
+const API_URL = import.meta.env.VITE_API_URL || '/backend'
 
 /**
  * Componente ProtectedRoute:

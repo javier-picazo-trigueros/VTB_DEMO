@@ -91,10 +91,7 @@ async function setSessionCookies(
   const REFRESH_MS = REFRESH_TOKEN_TTL_DAYS * 86400 * 1000;
 
   res.cookie(COOKIE_NAME_ACCESS, accessToken, cookieOpts(ACCESS_MS));
-  res.cookie(COOKIE_NAME_REFRESH, plaintext, {
-    ...cookieOpts(REFRESH_MS),
-    path: '/auth',
-  });
+  res.cookie(COOKIE_NAME_REFRESH, plaintext, cookieOpts(REFRESH_MS));
   // CSRF cookie must NOT be httpOnly so the frontend JS can read it.
   res.cookie(COOKIE_NAME_CSRF, csrfToken, {
     httpOnly: false,
@@ -670,9 +667,9 @@ router.post('/logout', async (req: Request, res: Response) => {
     await db.exec('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?', [hash]).catch(() => {});
   }
 
-  const clearOpts = { httpOnly: true, secure: IS_PROD, sameSite: 'lax' as const };
-  res.clearCookie(COOKIE_NAME_ACCESS,  { ...clearOpts, path: '/' });
-  res.clearCookie(COOKIE_NAME_REFRESH, { ...clearOpts, path: '/auth' });
+  const clearOpts = { httpOnly: true, secure: IS_PROD, sameSite: 'lax' as const, path: '/' };
+  res.clearCookie(COOKIE_NAME_ACCESS,  clearOpts);
+  res.clearCookie(COOKIE_NAME_REFRESH, clearOpts);
   res.clearCookie(COOKIE_NAME_CSRF,    { path: '/' });
 
   res.json({ success: true });

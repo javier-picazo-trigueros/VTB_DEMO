@@ -13,10 +13,9 @@
 
 import axios from 'axios';
 
-// Con proxy de mismo origen (Vite en local, rewrite de Vercel en prod),
-// las llamadas van relativas al mismo origen ('') para que las cookies sean
-// first-party y vtb_csrf se pueda leer con document.cookie sin problemas de CORS.
-const API_URL = import.meta.env.VITE_API_URL || '';
+// Con proxy de mismo origen bajo prefijo dedicado (/backend en local y en Vercel),
+// las rutas de la API no colisionan nunca con las páginas del frontend (/admin, /auth/set-password).
+const API_URL = import.meta.env.VITE_API_URL || '/backend';
 
 // ── CSRF helper ───────────────────────────────────────────────────────────────
 // The backend sets vtb_csrf as a non-httpOnly cookie so JS can read it.
@@ -82,8 +81,9 @@ api.interceptors.response.use(
     }
 
     // Let the caller handle 401s on paths that don't represent expired sessions
-    const requestPath = original?.url ?? '';
-    if (SKIP_REFRESH_PATHS.has(requestPath)) {
+    const rawPath = original?.url ?? '';
+    const requestPath = rawPath.replace(/^\/backend/, '');
+    if (SKIP_REFRESH_PATHS.has(requestPath) || SKIP_REFRESH_PATHS.has(rawPath)) {
       return Promise.reject(error);
     }
 
@@ -126,8 +126,11 @@ export const apiFetch = (url, options = {}) => {
   if (!SAFE_METHODS.has(method)) {
     headers['X-CSRF-Token'] = getCsrfToken();
   }
+  const finalUrl = url.startsWith('http') || (API_URL && url.startsWith(API_URL))
+    ? url
+    : `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
   return fetch(
-    url.startsWith('http') ? url : `${API_URL}${url}`,
+    finalUrl,
     { ...options, credentials: 'include', headers },
   );
 };

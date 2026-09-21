@@ -17,45 +17,35 @@ describe('BLOQUE 0 — Same-origin reverse proxy, cookie policy and CSRF propaga
     expect(prodOpts.sameSite).toBe('lax');
   });
 
-  it('2. frontend/vite.config.js must proxy all backend routes (/api, /auth, /admin, /registration, /health), not only /api', () => {
+  it('2. frontend/vite.config.js must proxy backend traffic via /backend and strip prefix with rewrite', () => {
     const viteConfigPath = path.join(rootDir, 'frontend', 'vite.config.js');
     const content = fs.readFileSync(viteConfigPath, 'utf8');
 
-    // Must proxy /api, /auth, /admin, /registration, /health to backend :3001
-    expect(content).toMatch(/'\/api'|\"\/api\"/);
-    expect(content).toMatch(/'\/auth'|\"\/auth\"/);
-    expect(content).toMatch(/'\/admin'|\"\/admin\"/);
-    expect(content).toMatch(/'\/registration'|\"\/registration\"/);
-    expect(content).toMatch(/'\/health'|\"\/health\"/);
+    // Must proxy /backend to backend :3001 and rewrite to strip prefix
+    expect(content).toMatch(/'\/backend'|\"\/backend\"/);
+    expect(content).toMatch(/rewrite/);
   });
 
-  it('3. frontend/vercel.json must rewrite backend routes (/api, /auth, /admin, /registration, /health) to Render production backend', () => {
+  it('3. frontend/vercel.json must rewrite /backend/:path* to Render production backend', () => {
     const vercelConfigPath = path.join(rootDir, 'frontend', 'vercel.json');
     const content = fs.readFileSync(vercelConfigPath, 'utf8');
     const parsed = JSON.parse(content);
 
     const rewrites = parsed.rewrites || [];
-    const sources = rewrites.map((r: { source: string }) => r.source);
+    const backendRewrite = rewrites.find((r: { source: string }) => r.source === '/backend/:path*');
 
-    // Verifies that rewrites exist for each backend path prefix before the fallback SPA rule
-    expect(sources.some((s: string) => s.includes('/api/'))).toBe(true);
-    expect(sources.some((s: string) => s.includes('/auth/'))).toBe(true);
-    expect(sources.some((s: string) => s.includes('/admin/'))).toBe(true);
-    expect(sources.some((s: string) => s.includes('/registration/'))).toBe(true);
-    expect(sources.some((s: string) => s.includes('/health'))).toBe(true);
-
-    // Destinations must target the production backend URL
-    const destinations = rewrites.map((r: { destination: string }) => r.destination);
-    expect(destinations.some((d: string) => d.includes('https://vtb-backend-4emv.onrender.com/api'))).toBe(true);
+    expect(backendRewrite).toBeDefined();
+    expect(backendRewrite.destination).toBe('https://vtb-backend-4emv.onrender.com/:path*');
   });
 
-  it('4. frontend/src/utils/apiClient.js must default to relative requests (empty string) for same-origin proxying', () => {
+  it('4. frontend/src/utils/apiClient.js must default to /backend for same-origin proxying', () => {
     const clientPath = path.join(rootDir, 'frontend', 'src', 'utils', 'apiClient.js');
     const content = fs.readFileSync(clientPath, 'utf8');
 
-    // In a same-origin setup, default API_URL must be empty string '' (or relative calls),
+    // In a same-origin setup with route isolation, default API_URL must be '/backend',
     // NOT hardcoded to 'http://localhost:3001'
-    expect(content).not.toMatch(/VITE_API_URL\s*\|\|\s*['"]http:\/\/localhost:3001['"]/);
+    expect(content).toMatch(/VITE_API_URL\s*\|\|\s*['"]\/backend['"]/);
+    expect(content).not.toMatch(/http:\/\/localhost:3001/);
   });
 
   it('5. CSRF extraction helper extracts token correctly from cookie string and attaches to mutating requests', () => {
