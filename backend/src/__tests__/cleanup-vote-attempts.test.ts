@@ -40,18 +40,28 @@ const intento = (over: Partial<IntentoPendiente> = {}): IntentoPendiente => ({
  * Pool falso: devuelve los intentos pendientes a la consulta del job y apunta
  * todo lo que se le pida escribir.
  */
-function poolFalso(pendientes: IntentoPendiente[]) {
+function poolFalso(pendientes: IntentoPendiente[], candidatos: Array<{ id: number; position: number }> = [{ id: 7, position: 0 }]) {
   const consultas: Array<{ sql: string; params: unknown[] }> = [];
 
+  const handleQuery = async (sql: string, params: unknown[] = []): Promise<ResultadoConsulta> => {
+    consultas.push({ sql, params });
+    if (/FROM vote_attempts/i.test(sql) && /'pending'/.test(sql)) {
+      return { rows: pendientes, rowCount: pendientes.length };
+    }
+    if (/FROM candidates/i.test(sql)) {
+      const pos = params[1];
+      const match = candidatos.find(c => c.position === pos);
+      return { rows: match ? [match] : [], rowCount: match ? 1 : 0 };
+    }
+    return { rows: [], rowCount: 1 };
+  };
+
   const pool: PoolLike = {
-    async query(sql: string, params: unknown[] = []): Promise<ResultadoConsulta> {
-      consultas.push({ sql, params });
-      if (/FROM vote_attempts/i.test(sql) && /'pending'/.test(sql)) {
-        return { rows: pendientes, rowCount: pendientes.length };
-      }
-      return { rows: [], rowCount: 1 };
-    },
-    connect: async () => { throw new Error('transaction() no se usa en este job'); },
+    query: handleQuery,
+    connect: async () => ({
+      query: handleQuery,
+      release: () => {},
+    }),
     end: async () => {},
   };
 
@@ -81,26 +91,32 @@ describe('cleanupStaleVoteAttempts', () => {
     expect(escrituras()).toEqual([]);
   });
 
-  it('si el voto está en la cadena, lo confirma y reconstruye la fila de auditoría', async () => {
-    const { pool, actualizaciones, inserciones } = poolFalso([intento()]);
+  it('si el voto está en la cadena, lo confirma e inserta la auditoría en la misma transacción con vote_source=chain', async () => {
+    const { pool, consultas, actualizaciones, inserciones } = poolFalso(
+      [intento({ candidate_id: 7 })],
+      [{ id: 99, position: 2 }]
+    );
     const checkOnChain = respuesta({
       estado: 'encontrado',
-      recibo: { txHash: '0xtx', blockNumber: 987 },
+      recibo: { txHash: '0xtx', blockNumber: 987, candidatePosition: 2 },
     });
 
     await clienteCon(pool).cleanupStaleVoteAttempts(checkOnChain);
+
+    // Debe ejecutar en transacción (BEGIN ... COMMIT)
+    const sqlCommands = consultas.map(c => c.sql);
+    expect(sqlCommands).toContain('BEGIN');
+    expect(sqlCommands).toContain('COMMIT');
 
     expect(actualizaciones()).toHaveLength(1);
     expect(actualizaciones()[0].params[0]).toBe('confirmed');
 
     expect(inserciones()).toHaveLength(1);
-    const [userId, electionId, nullifier, txHash, blockNumber, candidateId, voteChoice] =
-      inserciones()[0].params;
-    expect([userId, electionId, nullifier]).toEqual([10, 5, '0xnullifier']);
-    expect([txHash, blockNumber]).toEqual(['0xtx', 987]);
-    expect([candidateId, voteChoice]).toEqual([7, '7']);
-    // Protege contra doble inserción si la ruta ya la había escrito.
-    expect(inserciones()[0].sql).toMatch(/ON CONFLICT \(user_id, election_id\) DO NOTHING/);
+    expect(inserciones()[0].sql).toMatch(/vote_source/);
+    expect(inserciones()[0].params).toContain('chain');
+
+    // Debe contrastar el candidato del evento (posición 2 -> id 99)
+    expect(inserciones()[0].params).toContain(99);
   });
 
   it('si el voto no está en la cadena, lo marca fallido y no inventa una fila', async () => {

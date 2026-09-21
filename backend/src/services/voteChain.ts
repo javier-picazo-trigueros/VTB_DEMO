@@ -40,6 +40,7 @@ import { chainConfig } from "../scripts/syncElections.js";
 export interface VoteReceipt {
   txHash: string;
   blockNumber: number | null;
+  candidatePosition?: number | null;
 }
 
 /** Resultado de buscar un voto en la cadena. */
@@ -160,9 +161,21 @@ function createVotePort(cfg: {
           const eventos = await activeLectura.queryFilter(filtro, inicio, fin);
           if (eventos.length > 0) {
             const ev = eventos[0] as ethers.EventLog;
+            let candidatePosition: number | null = null;
+            try {
+              if (ev.args) {
+                candidatePosition = Number(ev.args[2] ?? (ev.args as any).candidateId);
+              }
+            } catch {
+              // Si falla el parseo de args, se omite
+            }
             return {
               estado: "encontrado",
-              recibo: { txHash: ev.transactionHash, blockNumber: ev.blockNumber },
+              recibo: {
+                txHash: ev.transactionHash,
+                blockNumber: ev.blockNumber,
+                candidatePosition,
+              },
             };
           }
         }

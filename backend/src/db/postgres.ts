@@ -345,32 +345,53 @@ export class PgClient implements DbClient {
         }
 
         const onChain = respuesta.estado === 'encontrado' ? respuesta.recibo : null;
-        const newStatus: 'confirmed' | 'failed' = onChain ? 'confirmed' : 'failed';
-
-        await this.pool.query(
-          `UPDATE vote_attempts
-           SET status = $1, completed_at = NOW()
-           WHERE id = $2`,
-          [newStatus, attempt.id],
-        );
 
         if (onChain) {
-          // Reconstruir la fila de nullifier_audit desde los datos del evento VoteCast.
-          // ON CONFLICT DO NOTHING protege contra doble inserción si la ruta ya lo insertó.
+          // Reconstruir la fila de nullifier_audit y confirmar el intento dentro de la MISMA transacción.
+          await this.transaction(async (tx) => {
+            await tx.exec(
+              `UPDATE vote_attempts
+               SET status = ?, completed_at = NOW()
+               WHERE id = ?`,
+              ['confirmed', attempt.id],
+            );
+
+            // Contrastar el candidato del evento con la tabla candidates
+            let finalCandidateId = attempt.candidate_id;
+            if (onChain.candidatePosition != null) {
+              const matched = await tx.get<{ id: number }>(
+                'SELECT id FROM candidates WHERE election_id = ? AND position = ?',
+                [attempt.election_id, onChain.candidatePosition],
+              );
+              if (matched) {
+                finalCandidateId = matched.id;
+              }
+            }
+
+            await tx.exec(
+              `INSERT INTO nullifier_audit
+                 (user_id, election_id, nullifier_hash, tx_hash, block_number, candidate_id, vote_choice, vote_source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT (user_id, election_id) DO NOTHING`,
+              [
+                attempt.user_id,
+                attempt.election_id,
+                attempt.nullifier_hash,
+                onChain.txHash,
+                onChain.blockNumber,
+                finalCandidateId,
+                finalCandidateId != null ? String(finalCandidateId) : null,
+                'chain',
+              ],
+            );
+          });
+        } else {
+          // Fallo definitivo: 'no-esta' tras consultar la cadena
           await this.pool.query(
-            `INSERT INTO nullifier_audit
-               (user_id, election_id, nullifier_hash, tx_hash, block_number, candidate_id, vote_choice)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (user_id, election_id) DO NOTHING`,
-            [
-              attempt.user_id,
-              attempt.election_id,
-              attempt.nullifier_hash,
-              onChain.txHash,
-              onChain.blockNumber,
-              attempt.candidate_id,
-              attempt.candidate_id != null ? String(attempt.candidate_id) : null,
-            ],
+            `UPDATE vote_attempts
+             SET status = $1, completed_at = NOW()
+             WHERE id = $2`,
+            ['failed', attempt.id],
           );
         }
       } catch (err) {
