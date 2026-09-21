@@ -11,8 +11,8 @@
  * IMPORTANTE: todos los limitadores por IP dependen de que `req.ip` sea la IP
  * del cliente y no la del proxy. Ver `configureTrustProxy` en app.ts.
  */
-import rateLimit from 'express-rate-limit';
-import type { Request } from 'express';
+import rateLimit, { type Options } from 'express-rate-limit';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
 
 const IS_TEST = process.env.NODE_ENV === 'test';
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -42,11 +42,11 @@ function limit(prod: number, dev: number): number {
   return IS_PROD ? prod : dev;
 }
 
-function ipOf(req: Request): string {
+export function ipOf(req: Request): string {
   return req.ip ?? 'unknown';
 }
 
-function emailOf(req: Request): string | null {
+export function emailOf(req: Request): string | null {
   const raw = (req.body as Record<string, unknown> | undefined)?.email;
   return typeof raw === 'string' && raw.trim() ? raw.trim().toLowerCase() : null;
 }
@@ -54,14 +54,61 @@ function emailOf(req: Request): string | null {
 const COMMON = { standardHeaders: true, legacyHeaders: false } as const;
 
 // ── Login ────────────────────────────────────────────────────────────────────
+//
+// Dos cubos complementarios (evita bloqueo de campus tras NAT):
+//
+//   por email → frena ataques dirigidos de fuerza bruta contra una cuenta concreta
+//   por IP    → red de seguridad amplia con skipSuccessfulRequests para no penalizar
+//               a cientos de estudiantes en la misma red universitaria (NAT/proxy).
 
-export const loginLimiter = rateLimit({
-  ...COMMON,
-  windowMs: 15 * 60 * 1000,
-  max: IS_TEST ? NO_LIMIT : (IS_PROD ? envLimit('RATE_LIMIT_MAX', 10) : 100),
-  keyGenerator: (req) => `login:ip:${ipOf(req)}`,
-  message: { error: 'Demasiados intentos de inicio de sesión. Inténtalo de nuevo en 15 minutos.' },
-});
+export function createLoginAccountLimiter(overrides: Partial<Options> = {}): RequestHandler {
+  return rateLimit({
+    ...COMMON,
+    windowMs: 15 * 60 * 1000,
+    max: IS_TEST ? NO_LIMIT : (IS_PROD ? envLimit('RATE_LIMIT_ACCOUNT_MAX', 10) : 100),
+    keyGenerator: (req) => `login:email:${emailOf(req)}`,
+    skip: (req) => emailOf(req) === null,
+    skipSuccessfulRequests: true,
+    message: { error: 'Demasiados intentos para esta cuenta. Inténtalo de nuevo en 15 minutos.' },
+    ...overrides,
+  });
+}
+
+export function createLoginIpLimiter(overrides: Partial<Options> = {}): RequestHandler {
+  return rateLimit({
+    ...COMMON,
+    windowMs: 15 * 60 * 1000,
+    max: IS_TEST ? NO_LIMIT : (IS_PROD ? envLimit('RATE_LIMIT_LOGIN_IP_MAX', 500) : 1000),
+    keyGenerator: (req) => `login:ip:${ipOf(req)}`,
+    skipSuccessfulRequests: true,
+    message: { error: 'Demasiados intentos de inicio de sesión desde esta red. Inténtalo de nuevo en 15 minutos.' },
+    ...overrides,
+  });
+}
+
+export const loginAccountLimiter: RequestHandler = createLoginAccountLimiter();
+export const loginIpLimiter: RequestHandler = createLoginIpLimiter();
+
+export function createLoginLimiter(
+  ipOverrides: Partial<Options> = {},
+  accountOverrides: Partial<Options> = {}
+): RequestHandler {
+  const ipLimiter = createLoginIpLimiter(ipOverrides);
+  const accountLimiter = createLoginAccountLimiter(accountOverrides);
+  return (req: Request, res: Response, next: NextFunction) => {
+    ipLimiter(req, res, (err?: any) => {
+      if (err) return next(err);
+      accountLimiter(req, res, next);
+    });
+  };
+}
+
+export const loginLimiter: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
+  loginIpLimiter(req, res, (err?: any) => {
+    if (err) return next(err);
+    loginAccountLimiter(req, res, next);
+  });
+};
 
 // ── Registro público ─────────────────────────────────────────────────────────
 //

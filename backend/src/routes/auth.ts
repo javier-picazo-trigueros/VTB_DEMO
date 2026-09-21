@@ -505,10 +505,16 @@ router.patch("/change-password", requireAuth, async (req: Request, res: Response
     }
 
     const newHash = await hashPassword(newPassword);
-    await db.exec(
-      "UPDATE users SET password_hash = ?, must_change_password = FALSE WHERE id = ?",
-      [newHash, userId]
-    );
+    await withTransaction(async (tx) => {
+      await tx.exec(
+        "UPDATE users SET password_hash = ?, must_change_password = FALSE WHERE id = ?",
+        [newHash, userId]
+      );
+      await tx.exec(
+        "UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?",
+        [userId]
+      );
+    });
     res.json({ success: true, message: "Contraseña actualizada correctamente" });
   } catch (err: any) {
     console.error('Error en change-password:', formatError(err));
@@ -639,15 +645,23 @@ router.post('/refresh', async (req: Request, res: Response) => {
   }
 
   // Rotación atómica: revocar el viejo y emitir el nuevo son una sola operación.
-  //
-  // Si se hicieran por separado y fallara el INSERT tras el UPDATE, el usuario
-  // perdería la sesión (molesto, pero seguro). El orden inverso es el peligroso:
-  // emitir el nuevo y que falle la revocación deja DOS tokens válidos, que es
-  // justo lo que la rotación existe para impedir.
-  await withTransaction(async (tx) => {
-    await tx.exec('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?', [hash]);
+  // El UPDATE condiciona revoked=FALSE para evitar que dos peticiones concurrentes
+  // con el mismo token obtengan sesión simultáneamente.
+  const rotated = await withTransaction(async (tx) => {
+    const updateResult = await tx.exec(
+      'UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ? AND revoked = FALSE',
+      [hash],
+    );
+    if (!updateResult || updateResult.changes === 0) {
+      return false;
+    }
     await setSessionCookies(res, user.id, user.email, user.role, user.admin_domain, tx);
+    return true;
   });
+
+  if (!rotated) {
+    return res.status(401).json({ error: 'Refresh token inválido o expirado' });
+  }
 
   res.json({ success: true });
 });
@@ -766,7 +780,14 @@ router.post('/reset-password', async (req: Request, res: Response) => {
     // used_at falla, la contraseña queda cambiada y **el enlace sigue siendo
     // válido**. Cualquiera que lo tuviera — reenvío del correo, historial del
     // navegador, un proxy — podría volver a usarlo para cambiarla otra vez.
-    await withTransaction(async (tx) => {
+    const resetSucceeded = await withTransaction(async (tx) => {
+      const markUsed = await tx.exec(
+        `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ? AND used_at IS NULL`,
+        [row.id],
+      );
+      if (!markUsed || markUsed.changes === 0) {
+        return false;
+      }
       await tx.exec(
         `UPDATE users
             SET password_hash = ?, must_change_password = FALSE, updated_at = CURRENT_TIMESTAMP
@@ -774,10 +795,16 @@ router.post('/reset-password', async (req: Request, res: Response) => {
         [passwordHash, row.user_id],
       );
       await tx.exec(
-        `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [row.id],
+        `UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?`,
+        [row.user_id],
       );
+      return true;
     });
+
+    if (!resetSucceeded) {
+      res.status(400).json({ error: 'El enlace no es válido o ya fue utilizado.' });
+      return;
+    }
 
     res.json({ success: true, message: 'Contraseña actualizada correctamente.' });
   } catch (err) {

@@ -350,7 +350,22 @@ router.get("/:id/eligibility", requireAuth, async (req: Request, res: Response) 
       return;
     }
 
-    // 3. Verificar que el usuario est en el censo (election_voters)
+    // 3. Verificar que la cuenta del usuario está activa, aprobada y no borrada
+    const userAccount = await db.get<{
+      is_eligible: number | boolean;
+      is_approved: number | boolean;
+      deleted_at: string | Date | null;
+    }>(
+      "SELECT is_eligible, is_approved, deleted_at FROM users WHERE id = ?",
+      [userId]
+    );
+
+    if (!userAccount || !userAccount.is_eligible || !userAccount.is_approved || userAccount.deleted_at !== null) {
+      res.json({ eligible: false, reason: 'account_inactive' });
+      return;
+    }
+
+    // 4. Verificar que el usuario est en el censo (election_voters)
     const voterReg = await db.get<{ id: number }>(
       "SELECT election_id FROM election_voters WHERE election_id = ? AND user_id =?",
       [election.id, userId]
@@ -712,12 +727,17 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       return;
     }
 
-    // Verificar que el usuario está habilitado para votar
-    const voter = await db.get<{ is_eligible: number; name: string }>(
-      "SELECT is_eligible, name FROM users WHERE id = ?",
+    // Verificar que el usuario está habilitado para votar, aprobado y no borrado
+    const voter = await db.get<{
+      is_eligible: number | boolean;
+      is_approved: number | boolean;
+      deleted_at: string | Date | null;
+      name: string;
+    }>(
+      "SELECT is_eligible, is_approved, deleted_at, name FROM users WHERE id = ?",
       [decoded.userId]
     );
-    if (!voter || !voter.is_eligible) {
+    if (!voter || !voter.is_eligible || !voter.is_approved || voter.deleted_at !== null) {
       return res.status(403).json({ error: "Tu cuenta no está habilitada para votar" });
     }
 

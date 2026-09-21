@@ -106,10 +106,16 @@ router.post("/users", requireAdmin, async (req: Request, res: Response) => {
       return;
     }
 
+    let finalAdminDomain = admin_domain;
+
     if (!isSuperAdmin(req)) {
       const adminDomain = getAdminDomain(req);
+      if (!adminDomain) {
+        res.status(403).json({ error: "No tienes permisos para gestionar usuarios sin un dominio asignado" });
+        return;
+      }
       const emailDomain = email.split("@")[1];
-      if (adminDomain && !isSubDomain(emailDomain, adminDomain)) {
+      if (!emailDomain || !isSubDomain(emailDomain, adminDomain)) {
         res.status(403).json({
           error: `Solo puedes crear usuarios del dominio @${adminDomain} y sus subdominios`,
         });
@@ -118,6 +124,21 @@ router.post("/users", requireAdmin, async (req: Request, res: Response) => {
       if (role === "superadmin") {
         res.status(403).json({ error: "No tienes permisos para crear superadministradores" });
         return;
+      }
+      if (role === "admin") {
+        if (admin_domain !== undefined && (admin_domain === null || !isSubDomain(admin_domain, adminDomain))) {
+          res.status(403).json({
+            error: `Solo puedes crear administradores para tu propio dominio @${adminDomain}`,
+          });
+          return;
+        }
+        finalAdminDomain = admin_domain || adminDomain;
+      } else {
+        finalAdminDomain = null;
+      }
+    } else {
+      if (role !== "admin") {
+        finalAdminDomain = null;
       }
     }
 
@@ -141,7 +162,7 @@ router.post("/users", requireAdmin, async (req: Request, res: Response) => {
         `INSERT INTO users (email, password_hash, name, student_id, role, admin_domain,
                            is_approved, approved_by, approved_at, is_eligible)
          VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, CURRENT_TIMESTAMP, TRUE)`,
-        [email, passwordHash, name, student_id, role, admin_domain, req.user!.userId]
+        [email, passwordHash, name, student_id, role, finalAdminDomain, req.user!.userId]
       );
 
       const emailDomain = email.split('@')[1];
@@ -180,6 +201,14 @@ router.post("/users/import", requireAdmin, upload.single('file'), async (req: Re
     // nada. Antes el bucle validaba y escribía a la vez, así que un fallo a
     // mitad dejaba media plantilla creada.
     const adminDomain = getAdminDomain(req);
+    if (!isSuperAdmin(req) && !adminDomain) {
+      res.status(403).json({
+        success: false,
+        error: "No tienes permisos para importar usuarios sin un dominio asignado",
+      });
+      return;
+    }
+
     const errors: string[] = [];
     const plan: Array<{
       email: string; full_name: string; student_id: string; role: string; exists: boolean;
@@ -205,9 +234,17 @@ router.post("/users/import", requireAdmin, upload.single('file'), async (req: Re
       }
       seen.add(normalized);
 
-      if (!isSuperAdmin(req) && adminDomain) {
+      if (!isSuperAdmin(req)) {
+        if (role === 'superadmin') {
+          errors.push(`Línea ${linea}: No tienes permisos para crear superadministradores`);
+          continue;
+        }
+        if (role === 'admin') {
+          errors.push(`Línea ${linea}: La importación masiva de censo no permite rol admin`);
+          continue;
+        }
         const emailDomain = email.split('@')[1];
-        if (!emailDomain || !isSubDomain(emailDomain, adminDomain)) {
+        if (!emailDomain || !isSubDomain(emailDomain, adminDomain!)) {
           errors.push(`Línea ${linea}: ${email} no pertenece al dominio @${adminDomain}`);
           continue;
         }
@@ -309,8 +346,12 @@ router.patch("/users/:id/approval", requireAdmin, async (req: Request, res: Resp
 
     if (!isSuperAdmin(req)) {
       const adminDomain = getAdminDomain(req);
+      if (!adminDomain) {
+        res.status(403).json({ error: "No tienes permisos para gestionar usuarios sin un dominio asignado" });
+        return;
+      }
       const userDomain = targetUser.email.split("@")[1];
-      if (adminDomain && !isSubDomain(userDomain, adminDomain)) {
+      if (!userDomain || !isSubDomain(userDomain, adminDomain)) {
         res.status(403).json({ error: "No tienes permisos para gestionar usuarios de otro dominio" });
         return;
       }
@@ -328,11 +369,17 @@ router.patch("/users/:id/approval", requireAdmin, async (req: Request, res: Resp
       );
       res.json({ success: true, message: "Cuenta aprobada correctamente" });
     } else {
-      await db.exec(
-        `UPDATE users SET is_approved = FALSE, approved_by = NULL, approved_at = NULL,
-         updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [id]
-      );
+      await withTransaction(async (tx) => {
+        await tx.exec(
+          `UPDATE users SET is_approved = FALSE, approved_by = NULL, approved_at = NULL,
+           updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          [id]
+        );
+        await tx.exec(
+          `UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?`,
+          [id]
+        );
+      });
       res.json({ success: true, message: "Aprobación revocada correctamente" });
     }
   } catch (error) {
@@ -360,8 +407,12 @@ router.delete("/users/:id", requireAdmin, async (req: Request, res: Response) =>
 
     if (!isSuperAdmin(req)) {
       const adminDomain = getAdminDomain(req);
+      if (!adminDomain) {
+        res.status(403).json({ error: "No tienes permisos para eliminar usuarios sin un dominio asignado" });
+        return;
+      }
       const userDomain = user.email.split("@")[1];
-      if (adminDomain && !isSubDomain(userDomain, adminDomain)) {
+      if (!userDomain || !isSubDomain(userDomain, adminDomain)) {
         res.status(403).json({ error: "No tienes permisos para eliminar usuarios de otro dominio" });
         return;
       }
@@ -376,11 +427,18 @@ router.delete("/users/:id", requireAdmin, async (req: Request, res: Response) =>
       return;
     }
 
-    // Borrado lógico: preserva FKs (election_voters, nullifier_audit) y permite auditoría
-    await db.exec(
-      "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [id],
-    );
+    // Borrado lógico: preserva FKs (election_voters, nullifier_audit) y permite auditoría.
+    // Además se revoca cualquier sesión/refresh token activo.
+    await withTransaction(async (tx) => {
+      await tx.exec(
+        "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [id],
+      );
+      await tx.exec(
+        "UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?",
+        [id],
+      );
+    });
 
     res.json({ success: true, message: "Usuario eliminado" });
   } catch (error) {
