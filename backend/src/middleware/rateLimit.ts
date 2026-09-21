@@ -55,21 +55,37 @@ const COMMON = { standardHeaders: true, legacyHeaders: false } as const;
 
 // ── Login ────────────────────────────────────────────────────────────────────
 //
-// Dos cubos complementarios (evita bloqueo de campus tras NAT):
+// Tres capas complementarias (evita bloqueo de campus y ataques DoS a votantes):
 //
-//   por email → frena ataques dirigidos de fuerza bruta contra una cuenta concreta
-//   por IP    → red de seguridad amplia con skipSuccessfulRequests para no penalizar
-//               a cientos de estudiantes en la misma red universitaria (NAT/proxy).
+//   1. IP        → red de seguridad amplia con skipSuccessfulRequests para no penalizar
+//                  a cientos de estudiantes en la misma red universitaria (NAT/proxy).
+//   2. Email+IP  → frena ataques de fuerza bruta contra una cuenta desde un mismo origen,
+//                  impidiendo que un atacante desde otra IP bloquee al votante legítimo.
+//   3. Email     → umbral alto para frenar ataques de fuerza bruta distribuidos
+//                  (botnet o IPs rotativas) contra una sola cuenta.
 
 export function createLoginAccountLimiter(overrides: Partial<Options> = {}): RequestHandler {
   return rateLimit({
     ...COMMON,
     windowMs: 15 * 60 * 1000,
     max: IS_TEST ? NO_LIMIT : (IS_PROD ? envLimit('RATE_LIMIT_ACCOUNT_MAX', 10) : 100),
-    keyGenerator: (req) => `login:email:${emailOf(req)}`,
+    keyGenerator: (req) => `login:account:${emailOf(req)}:${ipOf(req)}`,
     skip: (req) => emailOf(req) === null,
     skipSuccessfulRequests: true,
-    message: { error: 'Demasiados intentos para esta cuenta. Inténtalo de nuevo en 15 minutos.' },
+    message: { error: 'Demasiados intentos para esta cuenta desde esta red. Inténtalo de nuevo en 15 minutos.' },
+    ...overrides,
+  });
+}
+
+export function createLoginDistributedLimiter(overrides: Partial<Options> = {}): RequestHandler {
+  return rateLimit({
+    ...COMMON,
+    windowMs: 15 * 60 * 1000,
+    max: IS_TEST ? NO_LIMIT : (IS_PROD ? envLimit('RATE_LIMIT_DISTRIBUTED_MAX', 100) : 500),
+    keyGenerator: (req) => `login:distributed:${emailOf(req)}`,
+    skip: (req) => emailOf(req) === null,
+    skipSuccessfulRequests: true,
+    message: { error: 'Demasiados intentos fallidos para esta cuenta. Inténtalo de nuevo en 15 minutos.' },
     ...overrides,
   });
 }
@@ -87,18 +103,24 @@ export function createLoginIpLimiter(overrides: Partial<Options> = {}): RequestH
 }
 
 export const loginAccountLimiter: RequestHandler = createLoginAccountLimiter();
+export const loginDistributedLimiter: RequestHandler = createLoginDistributedLimiter();
 export const loginIpLimiter: RequestHandler = createLoginIpLimiter();
 
 export function createLoginLimiter(
   ipOverrides: Partial<Options> = {},
-  accountOverrides: Partial<Options> = {}
+  accountOverrides: Partial<Options> = {},
+  distributedOverrides: Partial<Options> = {}
 ): RequestHandler {
   const ipLimiter = createLoginIpLimiter(ipOverrides);
   const accountLimiter = createLoginAccountLimiter(accountOverrides);
+  const distributedLimiter = createLoginDistributedLimiter(distributedOverrides);
   return (req: Request, res: Response, next: NextFunction) => {
     ipLimiter(req, res, (err?: any) => {
       if (err) return next(err);
-      accountLimiter(req, res, next);
+      distributedLimiter(req, res, (err2?: any) => {
+        if (err2) return next(err2);
+        accountLimiter(req, res, next);
+      });
     });
   };
 }
@@ -106,7 +128,10 @@ export function createLoginLimiter(
 export const loginLimiter: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
   loginIpLimiter(req, res, (err?: any) => {
     if (err) return next(err);
-    loginAccountLimiter(req, res, next);
+    loginDistributedLimiter(req, res, (err2?: any) => {
+      if (err2) return next(err2);
+      loginAccountLimiter(req, res, next);
+    });
   });
 };
 

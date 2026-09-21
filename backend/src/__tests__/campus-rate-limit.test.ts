@@ -128,4 +128,48 @@ describe('BLOQUE 1.4 — Rate limit del login por IP que bloquea un campus', () 
     expect(resBlocked.status).toBe(429);
     expect(resBlocked.body.error).toContain('Demasiados intentos de inicio de sesión desde esta red');
   });
+
+  it('un atacante desde otra IP fallando contraseñas no bloquea el acceso del titular legítimo desde su IP', async () => {
+    const probe = express();
+    probe.set('trust proxy', true);
+    probe.use(express.json());
+
+    // Cuenta limitada a 2 intentos fallidos desde un mismo origen
+    const limiter = createLoginLimiter({ max: 50 }, { max: 2 });
+    probe.post('/login', limiter, (req: Request, res: Response) => {
+      if (req.body.password === 'valid-secret') {
+        return res.status(200).json({ token: 'jwt-ok' });
+      }
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    });
+
+    const ATTACKER_IP = '198.51.100.99';
+    const VOTER_IP = '80.58.1.2';
+    const TARGET_EMAIL = 'votante@campus.vtb';
+
+    // 1. Un atacante desde otra IP falla 2 contraseñas contra la cuenta del votante
+    for (let i = 0; i < 2; i++) {
+      const res = await request(probe)
+        .post('/login')
+        .set('X-Forwarded-For', ATTACKER_IP)
+        .send({ email: TARGET_EMAIL, password: `wrong-${i}` });
+      expect(res.status).toBe(401);
+    }
+
+    // 2. El atacante queda bloqueado desde su IP en el siguiente intento
+    const resAttackerBlocked = await request(probe)
+      .post('/login')
+      .set('X-Forwarded-For', ATTACKER_IP)
+      .send({ email: TARGET_EMAIL, password: 'wrong-again' });
+    expect(resAttackerBlocked.status).toBe(429);
+
+    // 3. El titular legítimo (votante) intenta acceder desde su IP con su contraseña correcta:
+    // NO debe estar bloqueado. Debe poder votar/iniciar sesión.
+    const resVoter = await request(probe)
+      .post('/login')
+      .set('X-Forwarded-For', VOTER_IP)
+      .send({ email: TARGET_EMAIL, password: 'valid-secret' });
+
+    expect(resVoter.status).toBe(200);
+  });
 });
