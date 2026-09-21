@@ -702,8 +702,14 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
     const decoded = req.user!;
 
     // Verificar que eleccin existe en BD local
-    const election = await db.get<{ id: number; election_id_blockchain: number; name: string; chain_status: string }>(
-      "SELECT id, election_id_blockchain, name, chain_status FROM elections WHERE id = ? AND is_active = TRUE",
+    const election = await db.get<{
+      id: number;
+      election_id_blockchain: number;
+      name: string;
+      chain_status: string;
+      chain_contract_address: string | null;
+    }>(
+      "SELECT id, election_id_blockchain, name, chain_status, chain_contract_address FROM elections WHERE id = ? AND is_active = TRUE",
       [electionId]
     );
 
@@ -833,15 +839,17 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
 
 
 
-    // PREPARAR TRANSACCIN EN BLOCKCHAIN
+    // PREPARAR TRANSACCIÓN EN BLOCKCHAIN
     try {
-      const port = getVotePort();
+      const targetContract = election.chain_contract_address || process.env.CONTRACT_ADDRESS || undefined;
+      const port = getVotePort(targetContract);
       if (!port) {
         return res.status(500).json({ error: "Blockchain no configurado. Asegurate de que PRIVATE_KEY este definida." });
       }
 
       console.log(`Sending vote to blockchain...`);
       console.log(`   - Election ID (on-chain): ${election.election_id_blockchain}`);
+      console.log(`   - Contract Address: ${targetContract ?? 'global'}`);
       console.log(`   - Nullifier: ${nullifier.substring(0, 20)}...`);
       console.log(`   - Candidate (position): ${candidato.position}`);
 
@@ -859,6 +867,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         election.election_id_blockchain,
         nullifier,
         Number(candidato.position),
+        targetContract,
       );
 
       console.log(`Vote registered in transaction: ${txHash}`);

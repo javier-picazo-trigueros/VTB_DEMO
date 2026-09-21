@@ -238,8 +238,12 @@ async function start() {
         // devolviendo null tanto si el voto no está en la cadena como si el RPC
         // falló, y cleanupStaleVoteAttempts marca 'failed' en ambos casos
         // (BC-24 / P1-14). Eso se arregla en el paso 4, no aquí.
-        const checkOnChain = async (nullifierHash: string): Promise<BusquedaDeVoto> =>
-          (await getVotePort()?.findVote(nullifierHash)) ??
+        const checkOnChain = async (
+          nullifierHash: string,
+          onChainElectionId?: number | null,
+          contractAddress?: string | null,
+        ): Promise<BusquedaDeVoto> =>
+          (await getVotePort(contractAddress)?.findVote(nullifierHash, onChainElectionId, contractAddress)) ??
           // Sin cadena configurada no hay respuesta posible, que no es lo mismo
           // que "el voto no está": el intento se queda pendiente (BC-24).
           { estado: 'sin-respuesta', motivo: 'blockchain no configurada' };

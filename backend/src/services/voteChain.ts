@@ -62,6 +62,8 @@ export const VOTE_ABI = [
 const BLOCK_WINDOW = 45_000;
 
 export interface VotePort {
+  readonly contractAddress?: string;
+
   /**
    * Registra el voto y espera el recibo.
    *
@@ -69,11 +71,13 @@ export interface VotePort {
    *        (elections.election_id_blockchain), que no es el id de la base.
    *        Confundirlos es el fallo que ya ocurrió.
    * @param candidateId La posición del candidato en la papeleta, 0..n-1.
+   * @param contractAddress Dirección opcional del contrato de la elección.
    */
   castVote(
     onChainElectionId: number,
     nullifier: string,
     candidateId: number,
+    contractAddress?: string,
   ): Promise<VoteReceipt>;
 
   /**
@@ -84,10 +88,14 @@ export interface VotePort {
    * 'failed' en los dos casos: un voto que sí estaba en la cadena se daba por
    * perdido en silencio (BC-24).
    */
-  findVote(nullifierHash: string): Promise<BusquedaDeVoto>;
+  findVote(
+    nullifierHash: string,
+    onChainElectionId?: number | null,
+    contractAddress?: string | null,
+  ): Promise<BusquedaDeVoto>;
 
   /** Recuento por candidato que mantiene el contrato. `tally[i]` = candidato i. */
-  getTally(onChainElectionId: number): Promise<number[]>;
+  getTally(onChainElectionId: number, contractAddress?: string | null): Promise<number[]>;
 }
 
 // ── Doble para tests ────────────────────────────────────────────────────────
@@ -126,21 +134,30 @@ function createVotePort(cfg: {
   const lectura = new ethers.Contract(cfg.contractAddress, [...VOTE_ABI], provider);
 
   return {
-    async castVote(onChainElectionId, nullifier, candidateId) {
-      const tx = await contract.castVote(onChainElectionId, nullifier, candidateId);
+    contractAddress: cfg.contractAddress,
+    async castVote(onChainElectionId, nullifier, candidateId, contractAddress) {
+      const target = contractAddress && contractAddress.trim() ? contractAddress.trim() : cfg.contractAddress;
+      const activeContract = target.toLowerCase() !== cfg.contractAddress.toLowerCase()
+        ? new ethers.Contract(target, [...VOTE_ABI], wallet)
+        : contract;
+      const tx = await activeContract.castVote(onChainElectionId, nullifier, candidateId);
       const receipt = await tx.wait();
       return { txHash: tx.hash as string, blockNumber: receipt?.blockNumber ?? null };
     },
 
-    async findVote(nullifierHash) {
+    async findVote(nullifierHash, onChainElectionId, contractAddress) {
       try {
-        const desde = await bloqueInicial(lectura);
+        const target = contractAddress && contractAddress.trim() ? contractAddress.trim() : cfg.contractAddress;
+        const activeLectura = target.toLowerCase() !== cfg.contractAddress.toLowerCase()
+          ? new ethers.Contract(target, [...VOTE_ABI], provider)
+          : lectura;
+        const desde = await bloqueInicial(activeLectura);
         const hasta = await provider.getBlockNumber();
-        const filtro = lectura.filters.VoteCast(null, nullifierHash);
+        const filtro = activeLectura.filters.VoteCast(onChainElectionId ?? null, nullifierHash);
 
         for (let inicio = desde; inicio <= hasta; inicio += BLOCK_WINDOW) {
           const fin = Math.min(inicio + BLOCK_WINDOW - 1, hasta);
-          const eventos = await lectura.queryFilter(filtro, inicio, fin);
+          const eventos = await activeLectura.queryFilter(filtro, inicio, fin);
           if (eventos.length > 0) {
             const ev = eventos[0] as ethers.EventLog;
             return {
@@ -158,8 +175,12 @@ function createVotePort(cfg: {
       }
     },
 
-    async getTally(onChainElectionId) {
-      const tally: bigint[] = await lectura.getTally(onChainElectionId);
+    async getTally(onChainElectionId, contractAddress) {
+      const target = contractAddress && contractAddress.trim() ? contractAddress.trim() : cfg.contractAddress;
+      const activeLectura = target.toLowerCase() !== cfg.contractAddress.toLowerCase()
+        ? new ethers.Contract(target, [...VOTE_ABI], provider)
+        : lectura;
+      const tally: bigint[] = await activeLectura.getTally(onChainElectionId);
       return tally.map(Number);
     },
   };
@@ -171,9 +192,10 @@ function createVotePort(cfg: {
  * No se cachea: PRIVATE_KEY y RPC_URL pueden cambiar entre peticiones en los
  * tests, y construir un JsonRpcProvider no hace E/S.
  */
-export function getVotePort(): VotePort | null {
+export function getVotePort(contractAddress?: string | null): VotePort | null {
   if (testPort) return testPort;
   const cfg = chainConfig();
   if (!cfg) return null;
-  return createVotePort(cfg);
+  const target = contractAddress && contractAddress.trim() ? contractAddress.trim() : cfg.contractAddress;
+  return createVotePort({ ...cfg, contractAddress: target });
 }

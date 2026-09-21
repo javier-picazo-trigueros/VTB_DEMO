@@ -296,7 +296,11 @@ export class PgClient implements DbClient {
    * de bloques (BC-23), fallaba siempre: le pasaba a todos los intentos.
    */
   async cleanupStaleVoteAttempts(
-    checkOnChain: (nullifierHash: string) => Promise<BusquedaDeVoto>,
+    checkOnChain: (
+      nullifierHash: string,
+      onChainElectionId?: number | null,
+      contractAddress?: string | null,
+    ) => Promise<BusquedaDeVoto>,
   ): Promise<void> {
     const stale = await this.run<{
       id: number;
@@ -304,17 +308,27 @@ export class PgClient implements DbClient {
       election_id: number;
       nullifier_hash: string | null;
       candidate_id: number | null;
+      election_id_blockchain: number | null;
+      chain_contract_address: string | null;
     }>(
-      `SELECT id, user_id, election_id, nullifier_hash, candidate_id
-       FROM vote_attempts
-       WHERE status = 'pending'
-         AND started_at < NOW() - INTERVAL '30 minutes'`,
+      `SELECT va.id, va.user_id, va.election_id, va.nullifier_hash, va.candidate_id,
+              e.election_id_blockchain, e.chain_contract_address
+       FROM vote_attempts va
+       LEFT JOIN elections e ON va.election_id = e.id
+       WHERE va.status = 'pending'
+         AND va.started_at < NOW() - INTERVAL '30 minutes'`,
     );
 
     for (const attempt of stale) {
       try {
         const respuesta: BusquedaDeVoto = attempt.nullifier_hash
-          ? await checkOnChain(attempt.nullifier_hash)
+          ? (attempt.election_id_blockchain !== undefined || attempt.chain_contract_address !== undefined)
+            ? await checkOnChain(
+                attempt.nullifier_hash,
+                attempt.election_id_blockchain ?? null,
+                attempt.chain_contract_address ?? null,
+              )
+            : await checkOnChain(attempt.nullifier_hash)
           : { estado: 'no-esta' };
 
         // BC-24: si el nodo no ha respondido, NO sabemos si el voto está en la

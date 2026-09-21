@@ -48,10 +48,10 @@ async function eleccionVotable(chainId: number, opts: { email?: string } = {}) {
 
 /** Doble del puerto que apunta lo que se le pide enviar. */
 function puerto(comportamiento?: () => never) {
-  const enviados: Array<{ electionId: number; nullifier: string; candidateId: number }> = [];
+  const enviados: Array<{ electionId: number; nullifier: string; candidateId: number; contractAddress?: string }> = [];
   const port: VotePort = {
-    castVote: vi.fn(async (electionId: number, nullifier: string, candidateId: number) => {
-      enviados.push({ electionId, nullifier, candidateId });
+    castVote: vi.fn(async (electionId: number, nullifier: string, candidateId: number, contractAddress?: string) => {
+      enviados.push({ electionId, nullifier, candidateId, contractAddress });
       if (comportamiento) comportamiento();
       return RECIBO;
     }),
@@ -210,6 +210,19 @@ describe('register-vote contra la cadena', () => {
 
     expect(res.status).toBe(500);
     expect(await votosDe(electionId)).toHaveLength(0);
+  });
+
+  it('envía el voto al chain_contract_address de la elección, no a la dirección global', async () => {
+    const { enviados } = puerto();
+    const specificContract = '0x1111111111111111111111111111111111111111';
+    const { user, electionId, candidatos } = await eleccionVotable(4249);
+    await db.exec('UPDATE elections SET chain_contract_address = ? WHERE id = ?', [specificContract, electionId]);
+
+    const res = await emitirVoto(user, electionId, { candidateId: candidatos[0].id });
+
+    expect(res.status).toBe(200);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0].contractAddress?.toLowerCase()).toBe(specificContract.toLowerCase());
   });
 });
 
