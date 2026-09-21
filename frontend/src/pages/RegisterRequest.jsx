@@ -7,11 +7,9 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import axios from 'axios'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+import { api, apiFetch } from '../utils/apiClient'
 
 export const RegisterRequest = () => {
   const navigate = useNavigate()
@@ -45,7 +43,7 @@ export const RegisterRequest = () => {
       setSchoolsData([])
       return
     }
-    fetch(`${API_URL}/api/schools-degrees?domain=${domain}`)
+    apiFetch(`/api/schools-degrees?domain=${encodeURIComponent(domain)}`)
       .then(r => r.json())
       .then(data => setSchoolsData(data.schools_degrees || []))
       .catch(() => setSchoolsData([]))
@@ -101,7 +99,7 @@ export const RegisterRequest = () => {
     setError('')
 
     try {
-      const response = await axios.post(`${API_URL}/registration/request`, {
+      const response = await api.post('/registration/request', {
         fullName: formData.fullName,
         email: formData.email,
         studentId: formData.studentId,

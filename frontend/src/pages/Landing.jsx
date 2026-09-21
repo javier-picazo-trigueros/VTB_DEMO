@@ -7,8 +7,7 @@ import { DemoModeButton } from "../components/DemoModeButton";
 import { DemoLoginModal } from "../components/DemoLoginModal";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import { apiFetch } from "../utils/apiClient";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -33,7 +32,7 @@ export const Landing = () => {
   const [demoOpen, setDemoOpen] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/stats`)
+    apiFetch('/api/stats')
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error("stats failed"))))
       .then(setStats)
       .catch(() => {

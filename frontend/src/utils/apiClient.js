@@ -13,11 +13,15 @@
 
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Con proxy de mismo origen (Vite en local, rewrite de Vercel en prod),
+// las llamadas van relativas al mismo origen ('') para que las cookies sean
+// first-party y vtb_csrf se pueda leer con document.cookie sin problemas de CORS.
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // ── CSRF helper ───────────────────────────────────────────────────────────────
 // The backend sets vtb_csrf as a non-httpOnly cookie so JS can read it.
-const getCsrfToken = () => {
+export const getCsrfToken = () => {
+  if (typeof document === 'undefined') return '';
   const entry = document.cookie
     .split('; ')
     .find(row => row.startsWith('vtb_csrf='));

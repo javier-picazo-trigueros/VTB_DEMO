@@ -28,7 +28,7 @@ import { Pricing } from './pages/Pricing'
 import { ForgotPassword } from './pages/ForgotPassword'
 import { ResetPassword } from './pages/ResetPassword'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+const API_URL = import.meta.env.VITE_API_URL || ''
 
 /**
  * Componente ProtectedRoute:
@@ -58,7 +58,7 @@ const ProtectedRoute = ({ element, requiredRole = null }) => {
  */
 const AppContent = () => {
   const { backendSleeping } = useAuth()
-  const isLocalBackend = API_URL.includes('localhost') || API_URL.includes('127.0.0.1')
+  const isLocalBackend = !API_URL || API_URL.includes('localhost') || API_URL.includes('127.0.0.1') || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
 
   const wakeBackend = async () => {
     try {

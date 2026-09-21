@@ -4,6 +4,11 @@
   "installCommand": "npm install --legacy-peer-deps",
   "framework": "vite",
   "rewrites": [
+    { "source": "/api/:path*", "destination": "https://vtb-backend-4emv.onrender.com/api/:path*" },
+    { "source": "/auth/:path*", "destination": "https://vtb-backend-4emv.onrender.com/auth/:path*" },
+    { "source": "/admin/:path*", "destination": "https://vtb-backend-4emv.onrender.com/admin/:path*" },
+    { "source": "/registration/:path*", "destination": "https://vtb-backend-4emv.onrender.com/registration/:path*" },
+    { "source": "/health", "destination": "https://vtb-backend-4emv.onrender.com/health" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

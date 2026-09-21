@@ -27,6 +27,22 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/auth': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/admin': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/registration': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 })

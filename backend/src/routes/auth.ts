@@ -40,11 +40,21 @@ const registerSchema = z.object({
 });
 
 /** Shared cookie options for access and refresh tokens. */
-function cookieOpts(maxAgeMs: number): object {
+export function cookieOpts(maxAgeMs: number, forceProd?: boolean): {
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: 'lax';
+  maxAge: number;
+  path: string;
+} {
+  const isProd = forceProd ?? IS_PROD;
   return {
     httpOnly: true,
-    secure: IS_PROD,
-    sameSite: (IS_PROD ? 'none' : 'lax') as 'none' | 'lax',
+    secure: isProd,
+    // Con proxy de mismo origen (rewrite de Vercel y proxy de Vite), las cookies
+    // son de primer origen (first-party). sameSite: 'lax' funciona en todos los
+    // navegadores sin ser bloqueado por Safari ITP ni por la política de terceros.
+    sameSite: 'lax',
     maxAge: maxAgeMs,
     path: '/',
   };
@@ -89,7 +99,7 @@ async function setSessionCookies(
   res.cookie(COOKIE_NAME_CSRF, csrfToken, {
     httpOnly: false,
     secure: IS_PROD,
-    sameSite: (IS_PROD ? 'none' : 'lax') as 'none' | 'lax',
+    sameSite: 'lax',
     maxAge: ACCESS_MS,
     path: '/',
   });
@@ -660,7 +670,7 @@ router.post('/logout', async (req: Request, res: Response) => {
     await db.exec('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?', [hash]).catch(() => {});
   }
 
-  const clearOpts = { httpOnly: true, secure: IS_PROD, sameSite: (IS_PROD ? 'none' : 'lax') as 'none' | 'lax' };
+  const clearOpts = { httpOnly: true, secure: IS_PROD, sameSite: 'lax' as const };
   res.clearCookie(COOKIE_NAME_ACCESS,  { ...clearOpts, path: '/' });
   res.clearCookie(COOKIE_NAME_REFRESH, { ...clearOpts, path: '/auth' });
   res.clearCookie(COOKIE_NAME_CSRF,    { path: '/' });

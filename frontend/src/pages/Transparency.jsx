@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Navbar } from '../components/Navbar';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { apiFetch } from '../utils/apiClient';
 
 export function Transparency() {
   const { t } = useTranslation();
@@ -11,7 +10,7 @@ export function Transparency() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/audit/public`)
+    apiFetch('/api/audit/public')
       .then(r => r.ok ? r.json() : Promise.reject(new Error('audit failed')))
       .then(data => setTransactions(data.transactions || []))
       .catch(() => setTransactions([]))

@@ -13,7 +13,7 @@
 import { useState } from 'react'
 import { Spinner } from './Spinner'
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 export const VoteModal = ({ election, user, onClose, onSuccess }) => {
   const [selectedCandidate, setSelectedCandidate] = useState(null)
