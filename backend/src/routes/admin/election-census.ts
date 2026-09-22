@@ -425,30 +425,41 @@ router.post("/elections/:id/notify-open", requireAdmin, async (req: Request, res
       return;
     }
 
-    const voters = await db.run<{ email: string; name: string }>(
-      `SELECT u.email, u.name
-         FROM election_voters ev
-         JOIN users u ON u.id = ev.user_id
-        WHERE ev.election_id = ?
-          AND u.deleted_at IS NULL
-          AND u.email NOT LIKE '%@vtb.demo'
-        LIMIT ${MAX_NOTIFY_BATCH}`,
-      [electionId],
-    );
-
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-    for (const v of voters) {
-      sendElectionOpen({
-        to:           v.email,
-        name:         v.name,
-        electionName: election.name,
-        startTime:    new Date(election.start_time * 1000),
-        endTime:      new Date(election.end_time   * 1000),
-        voteUrl:      `${frontendUrl}/voting/${electionId}`,
-      });
+    let offset = 0;
+    let totalQueued = 0;
+    while (true) {
+      const voters = await db.run<{ email: string; name: string }>(
+        `SELECT u.email, u.name
+           FROM election_voters ev
+           JOIN users u ON u.id = ev.user_id
+          WHERE ev.election_id = ?
+            AND u.deleted_at IS NULL
+            AND u.email NOT LIKE '%@vtb.demo'
+          ORDER BY u.id ASC
+          LIMIT ${MAX_NOTIFY_BATCH} OFFSET ${offset}`,
+        [electionId],
+      );
+
+      if (voters.length === 0) break;
+
+      for (const v of voters) {
+        sendElectionOpen({
+          to:           v.email,
+          name:         v.name,
+          electionName: election.name,
+          startTime:    new Date(election.start_time * 1000),
+          endTime:      new Date(election.end_time   * 1000),
+          voteUrl:      `${frontendUrl}/voting/${electionId}`,
+        });
+      }
+
+      totalQueued += voters.length;
+      if (voters.length < MAX_NOTIFY_BATCH) break;
+      offset += MAX_NOTIFY_BATCH;
     }
 
-    res.json({ success: true, queued: voters.length });
+    res.json({ success: true, queued: totalQueued });
   } catch (err) {
     console.error('notify-open error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -477,33 +488,44 @@ router.post("/elections/:id/notify-close", requireAdmin, async (req: Request, re
       return;
     }
 
-    const voters = await db.run<{ email: string; name: string }>(
-      `SELECT u.email, u.name
-         FROM election_voters ev
-         JOIN users u ON u.id = ev.user_id
-        WHERE ev.election_id = ?
-          AND u.deleted_at IS NULL
-          AND u.email NOT LIKE '%@vtb.demo'
-        LIMIT ${MAX_NOTIFY_BATCH}`,
-      [electionId],
-    );
-
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     const closedAt = election.end_time
       ? new Date(election.end_time * 1000)
       : new Date();
 
-    for (const v of voters) {
-      sendElectionClose({
-        to:           v.email,
-        name:         v.name,
-        electionName: election.name,
-        closedAt,
-        resultsUrl:   `${frontendUrl}/results/${electionId}`,
-      });
+    let offset = 0;
+    let totalQueued = 0;
+    while (true) {
+      const voters = await db.run<{ email: string; name: string }>(
+        `SELECT u.email, u.name
+           FROM election_voters ev
+           JOIN users u ON u.id = ev.user_id
+          WHERE ev.election_id = ?
+            AND u.deleted_at IS NULL
+            AND u.email NOT LIKE '%@vtb.demo'
+          ORDER BY u.id ASC
+          LIMIT ${MAX_NOTIFY_BATCH} OFFSET ${offset}`,
+        [electionId],
+      );
+
+      if (voters.length === 0) break;
+
+      for (const v of voters) {
+        sendElectionClose({
+          to:           v.email,
+          name:         v.name,
+          electionName: election.name,
+          closedAt,
+          resultsUrl:   `${frontendUrl}/results/${electionId}`,
+        });
+      }
+
+      totalQueued += voters.length;
+      if (voters.length < MAX_NOTIFY_BATCH) break;
+      offset += MAX_NOTIFY_BATCH;
     }
 
-    res.json({ success: true, queued: voters.length });
+    res.json({ success: true, queued: totalQueued });
   } catch (err) {
     console.error('notify-close error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });

@@ -124,42 +124,49 @@ async function start() {
         ).catch(() => []);
 
         for (const election of toOpen) {
-          const voters = await db.run<{
-            id: number; email: string; name: string; must_change_password: boolean | number;
-          }>(
-            `SELECT u.id, u.email, u.name, u.must_change_password
-               FROM election_voters ev
-               JOIN users u ON u.id = ev.user_id
-              WHERE ev.election_id = ?
-                AND u.deleted_at IS NULL
-                AND u.email NOT LIKE '%@vtb.demo'
-              LIMIT ${MAX_NOTIFY_BATCH}`,
-            [election.id],
-          ).catch(() => []);
+          let offset = 0;
+          let totalQueued = 0;
+          while (true) {
+            const voters = await db.run<{
+              id: number; email: string; name: string; must_change_password: boolean | number;
+            }>(
+              `SELECT u.id, u.email, u.name, u.must_change_password
+                 FROM election_voters ev
+                 JOIN users u ON u.id = ev.user_id
+                WHERE ev.election_id = ?
+                  AND u.deleted_at IS NULL
+                  AND u.email NOT LIKE '%@vtb.demo'
+                ORDER BY u.id ASC
+                LIMIT ${MAX_NOTIFY_BATCH} OFFSET ${offset}`,
+              [election.id],
+            ).catch(() => []);
 
-          for (const v of voters) {
-            if (v.must_change_password) {
-              // Punto 2: usuario no ha activado su cuenta todavía.
-              // Se le reenvía la invitación. El token nuevo (que anula los
-              // anteriores) lo emite el worker de la cola al enviar, para que
-              // no quede en claro en email_log (P1-7).
-              sendCensusInvitation({
-                to:              v.email,
-                userId:          v.id,
-                name:            v.name,
-                electionName:    election.name,
-                institutionName: 'tu institución',
-              });
-            } else {
-              sendElectionOpen({
-                to:           v.email,
-                name:         v.name,
-                electionName: election.name,
-                startTime:    new Date(election.start_time * 1000),
-                endTime:      new Date(election.end_time   * 1000),
-                voteUrl:      `${frontendUrl}/voting/${election.id}`,
-              });
+            if (voters.length === 0) break;
+
+            for (const v of voters) {
+              if (v.must_change_password) {
+                sendCensusInvitation({
+                  to:              v.email,
+                  userId:          v.id,
+                  name:            v.name,
+                  electionName:    election.name,
+                  institutionName: 'tu institución',
+                });
+              } else {
+                sendElectionOpen({
+                  to:           v.email,
+                  name:         v.name,
+                  electionName: election.name,
+                  startTime:    new Date(election.start_time * 1000),
+                  endTime:      new Date(election.end_time   * 1000),
+                  voteUrl:      `${frontendUrl}/voting/${election.id}`,
+                });
+              }
             }
+
+            totalQueued += voters.length;
+            if (voters.length < MAX_NOTIFY_BATCH) break;
+            offset += MAX_NOTIFY_BATCH;
           }
 
           await db.exec(
@@ -167,7 +174,7 @@ async function start() {
             [election.id],
           ).catch(err => console.error('[notify-open] update failed:', err));
 
-          console.log(`[notify-open] "${election.name}" → ${voters.length} emails encolados`);
+          console.log(`[notify-open] "${election.name}" → ${totalQueued} emails encolados`);
         }
 
         // ── Elecciones que acaban de cerrar ─────────────────────────────────
@@ -180,25 +187,36 @@ async function start() {
         ).catch(() => []);
 
         for (const election of toClose) {
-          const voters = await db.run<{ email: string; name: string }>(
-            `SELECT u.email, u.name
-               FROM election_voters ev
-               JOIN users u ON u.id = ev.user_id
-              WHERE ev.election_id = ?
-                AND u.deleted_at IS NULL
-                AND u.email NOT LIKE '%@vtb.demo'
-              LIMIT ${MAX_NOTIFY_BATCH}`,
-            [election.id],
-          ).catch(() => []);
+          let offset = 0;
+          let totalQueued = 0;
+          while (true) {
+            const voters = await db.run<{ email: string; name: string }>(
+              `SELECT u.email, u.name
+                 FROM election_voters ev
+                 JOIN users u ON u.id = ev.user_id
+                WHERE ev.election_id = ?
+                  AND u.deleted_at IS NULL
+                  AND u.email NOT LIKE '%@vtb.demo'
+                ORDER BY u.id ASC
+                LIMIT ${MAX_NOTIFY_BATCH} OFFSET ${offset}`,
+              [election.id],
+            ).catch(() => []);
 
-          for (const v of voters) {
-            sendElectionClose({
-              to:           v.email,
-              name:         v.name,
-              electionName: election.name,
-              closedAt:     new Date(election.end_time * 1000),
-              resultsUrl:   `${frontendUrl}/results/${election.id}`,
-            });
+            if (voters.length === 0) break;
+
+            for (const v of voters) {
+              sendElectionClose({
+                to:           v.email,
+                name:         v.name,
+                electionName: election.name,
+                closedAt:     new Date(election.end_time * 1000),
+                resultsUrl:   `${frontendUrl}/results/${election.id}`,
+              });
+            }
+
+            totalQueued += voters.length;
+            if (voters.length < MAX_NOTIFY_BATCH) break;
+            offset += MAX_NOTIFY_BATCH;
           }
 
           await db.exec(
@@ -206,7 +224,7 @@ async function start() {
             [election.id],
           ).catch(err => console.error('[notify-close] update failed:', err));
 
-          console.log(`[notify-close] "${election.name}" → ${voters.length} emails encolados`);
+          console.log(`[notify-close] "${election.name}" → ${totalQueued} emails encolados`);
         }
       }
 

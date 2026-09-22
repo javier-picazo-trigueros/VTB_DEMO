@@ -30,7 +30,7 @@ const createElectionSchema = z.object({
   candidates:         z.array(z.object({
     name:        z.string().trim().min(1, 'Cada candidato necesita un nombre').max(200),
     description: z.string().trim().max(2000).optional(),
-  })).max(100).optional(),
+  })).max(64, 'El número máximo de candidatos permitidos es 64').optional(),
 }).refine(d => d.end_time > d.start_time, {
   message: 'end_time debe ser posterior a start_time',
   path: ['end_time'],
@@ -192,11 +192,17 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
           }
         } else {
           for (const target of targets) {
+            const targetConditions = ["(u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ? OR u.org_unit = ?)"];
+            const targetParams: any[] = [target.value, target.value, target.value];
+            if (adminDomain) {
+              targetConditions.push("(u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ?)");
+              targetParams.push(adminDomain, adminDomain);
+            }
             const targetUsers = await tx.run<{ id: number }>(
               `SELECT DISTINCT u.id FROM users u
-               WHERE (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ? OR u.org_unit = ?)
+               WHERE ${targetConditions.join(' AND ')}
                  AND u.is_approved = TRUE AND u.role IN ('student','voter')`,
-              [target.value, target.value, target.value]
+              targetParams
             );
             for (const user of targetUsers) {
               await tx.exec(
@@ -220,8 +226,13 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
           conditions.push(`degree IN (${(target_degrees as string[]).map(() => '?').join(',')})`);
           params2.push(...(target_degrees as string[]));
         }
+        let domainClause = '';
+        if (adminDomain) {
+          domainClause = " AND (email LIKE '%@' || ? OR email LIKE '%@%.' || ?)";
+          params2.push(adminDomain, adminDomain);
+        }
         const targetUsers = await tx.run<{ id: number }>(
-          `SELECT id FROM users WHERE ${conditions.join(' OR ')} AND is_approved = TRUE`,
+          `SELECT id FROM users WHERE (${conditions.join(' OR ')}) AND is_approved = TRUE${domainClause}`,
           params2
         );
         for (const user of targetUsers) {
@@ -548,6 +559,15 @@ router.post("/elections/:id/candidates", requireAdmin, async (req: Request, res:
         details: "El número de candidatos y la huella de la lista quedaron fijados o enviados al contrato. Para cambiar la lista hay que crear una elección nueva.",
         code: "ELECTION_ALREADY_ON_CHAIN",
       });
+      return;
+    }
+
+    const currentCount = await db.get<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM candidates WHERE election_id = ?",
+      [id],
+    );
+    if ((currentCount?.count ?? 0) >= 64) {
+      res.status(400).json({ error: "El número máximo de candidatos permitidos es 64" });
       return;
     }
 
