@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import request from 'supertest';
-import app from '../app.js';
+import { app } from '../app.js';
 import { getDbClient } from '../db/index.js';
 import { createFixtureUser, createFixtureElection, loginAsFixture } from './helpers/fixtures.js';
 import { setVotePortForTesting, type VotePort } from '../services/voteChain.js';

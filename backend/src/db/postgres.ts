@@ -99,7 +99,7 @@ export function normalizeSql(raw: string): string {
 // vayan por la misma conexión y queden dentro del BEGIN/COMMIT.
 
 class PgTransactionClient implements DbClient {
-  constructor(private client: pg.PoolClient) {}
+  constructor(private client: PoolClientLike) {}
 
   async run<T>(sql: string, params: unknown[] = []): Promise<T[]> {
     const res = await this.client.query(toPositional(sql), params);
@@ -113,7 +113,8 @@ class PgTransactionClient implements DbClient {
   async exec(sql: string, params: unknown[] = []): Promise<ExecResult> {
     const pgSql = normalizeSql(sql);
     const res = await this.client.query(pgSql, params);
-    return { lastID: res.rows[0]?.id ?? 0, changes: res.rowCount ?? 0 };
+    const fila = res.rows[0] as { id?: number } | undefined;
+    return { lastID: fila?.id ?? 0, changes: res.rowCount ?? 0 };
   }
 
   async acquireVoteLock(
@@ -206,9 +207,14 @@ export interface ResultadoConsulta {
  * La consecuencia era que cleanupStaleVoteAttempts, que decide si un voto se da
  * por perdido, no tenía ni un test. Ahora sí lo tiene, sobre este mismo código.
  */
+export interface PoolClientLike {
+  query(text: string, values?: unknown[]): Promise<ResultadoConsulta>;
+  release(): void;
+}
+
 export interface PoolLike {
   query(text: string, values?: unknown[]): Promise<ResultadoConsulta>;
-  connect(): Promise<pg.PoolClient>;
+  connect(): Promise<PoolClientLike>;
   end(): Promise<void>;
 }
 
