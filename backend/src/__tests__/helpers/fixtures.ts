@@ -103,15 +103,9 @@ export async function createFixtureElection(opts: {
   name?: string;
   description?: string;
   blockchainId?: number;
-  /**
-   * Candidatos de la elección. Por defecto dos, en las posiciones 0 y 1.
-   *
-   * No es un detalle: desde el contrato v2, registrar una elección en la cadena
-   * exige su número de candidatos y la huella de la lista, y las posiciones
-   * tienen que ser 0..n-1. Una elección sin candidatos no se puede registrar,
-   * así que una fixture sin ellos no representa nada real.
-   */
   candidates?: string[];
+  startTime?: number;
+  endTime?: number;
 } = {}): Promise<number> {
   const db = getDatabase();
   const now = Math.floor(Date.now() / 1000);
@@ -123,8 +117,8 @@ export async function createFixtureElection(opts: {
       opts.blockchainId ?? Math.floor(Math.random() * 1_000_000) + 9_000_000,
       opts.name ?? `Fixture Election ${uniqueSuffix()}`,
       opts.description ?? 'Created by test fixtures',
-      now - 3600,
-      now + 3600,
+      opts.startTime ?? now - 3600,
+      opts.endTime ?? now + 3600,
     ]
   );
 

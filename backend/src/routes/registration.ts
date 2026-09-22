@@ -95,9 +95,14 @@ router.post("/request", async (req: Request, res: Response) => {
 
           await tx.exec("UPDATE email_whitelist SET used = TRUE WHERE id = ?", [whitelisted.id]);
 
+          const now = Math.floor(Date.now() / 1000);
           const elections = await tx.run<{ election_id: number }>(
-            "SELECT election_id FROM election_access WHERE email_domain = ? OR email_domain = '*'",
-            [emailDomain]
+            `SELECT ea.election_id
+               FROM election_access ea
+               JOIN elections e ON e.id = ea.election_id
+              WHERE (ea.email_domain = ? OR ea.email_domain = '*')
+                AND e.start_time > ?`,
+            [emailDomain, now]
           );
           for (const elec of elections) {
             await tx.exec(

@@ -51,7 +51,12 @@ describe('import-voters — fallo a mitad de la transacción', () => {
     const admin = await createFixtureUser({ role: 'admin', adminDomain: 'test.vtb' });
     adminEmail = admin.email;
     adminPassword = admin.password;
-    electionId = await createFixtureElection({ name: 'Elección atomicidad' });
+    const now = Math.floor(Date.now() / 1000);
+    electionId = await createFixtureElection({
+      name: 'Elección atomicidad',
+      startTime: now + 3600,
+      endTime: now + 7200,
+    });
 
     // La elección tiene que pertenecer al dominio del admin: desde H-1, las
     // rutas que reciben el id por la URL comprueban el alcance y responden 404

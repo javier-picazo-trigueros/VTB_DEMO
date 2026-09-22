@@ -49,11 +49,21 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
       return;
     }
 
-    const election = await db.get<{ id: number; name: string }>(
-      "SELECT id, name FROM elections WHERE id = ?", [id]
+    const election = await db.get<{ id: number; name: string; start_time: number }>(
+      "SELECT id, name, start_time FROM elections WHERE id = ?", [id]
     );
     if (!election) {
       res.status(404).json({ error: "Elección no encontrada" });
+      return;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (now >= Number(election.start_time)) {
+      res.status(409).json({
+        error: "El censo de la elección está congelado porque la votación ya ha comenzado",
+        details: "No se puede importar el censo una vez abierta la votación.",
+        code: "CENSUS_FROZEN",
+      });
       return;
     }
 

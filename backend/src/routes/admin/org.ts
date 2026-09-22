@@ -473,10 +473,15 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
           [id]
         );
 
+        const now = Math.floor(Date.now() / 1000);
         if (domain) {
           const elections = await tx.run<{ election_id: number }>(
-            "SELECT election_id FROM election_access WHERE email_domain = ? OR email_domain = '*'",
-            [domain]
+            `SELECT ea.election_id
+               FROM election_access ea
+               JOIN elections e ON e.id = ea.election_id
+              WHERE (ea.email_domain = ? OR ea.email_domain = '*')
+                AND e.start_time > ?`,
+            [domain, now]
           );
           for (const election of elections) {
             await tx.exec(
@@ -489,9 +494,12 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
         // Also auto-assign to elections targeting user's org_unit
         if (orgUnit) {
           const targetedElections = await tx.run<{ election_id: number }>(
-            `SELECT DISTINCT election_id FROM election_targets
-             WHERE target_value = ? OR target_value = '*'`,
-            [orgUnit]
+            `SELECT DISTINCT et.election_id
+               FROM election_targets et
+               JOIN elections e ON e.id = et.election_id
+              WHERE (et.target_value = ? OR et.target_value = '*')
+                AND e.start_time > ?`,
+            [orgUnit, now]
           );
           for (const election of targetedElections) {
             await tx.exec(

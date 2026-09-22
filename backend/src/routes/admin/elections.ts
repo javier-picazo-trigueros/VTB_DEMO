@@ -334,11 +334,35 @@ router.patch("/elections/:id", requireAdmin, async (req: Request, res: Response)
   try {
     if (await denyIfElectionOutOfScope(req, res, id)) return;
 
-    const election = await db.get("SELECT * FROM elections WHERE id = ?", [id]);
+    const election = await db.get<{
+      id: number;
+      name: string;
+      description: string;
+      end_time: number;
+      chain_status: string;
+      chain_tx_hash: string | null;
+    }>("SELECT id, name, description, end_time, chain_status, chain_tx_hash FROM elections WHERE id = ?", [id]);
     if (!election) {
       res.status(404).json({ error: "Elección no encontrada" });
       return;
     }
+
+    const isFrozen =
+      election.chain_status === 'synced' ||
+      election.chain_status === 'syncing' ||
+      (election.chain_status === 'pending' && Boolean(election.chain_tx_hash));
+
+    if (end_time !== undefined && end_time !== null && Number(end_time) !== Number(election.end_time)) {
+      if (isFrozen) {
+        res.status(409).json({
+          error: "No se puede modificar la fecha de finalización porque la elección ya está sincronizada o en proceso de sincronización en blockchain",
+          details: "El plazo de finalización quedó fijado o enviado al contrato en blockchain. Para modificarlo hay que convocar una nueva elección.",
+          code: "ELECTION_ALREADY_ON_CHAIN",
+        });
+        return;
+      }
+    }
+
     await db.exec(
       `UPDATE elections SET
         name = COALESCE(?, name),
@@ -441,9 +465,22 @@ router.post("/elections/:id/voters", requireAdmin, async (req: Request, res: Res
       return;
     }
 
-    const election = await db.get("SELECT id FROM elections WHERE id = ?", [id]);
+    const election = await db.get<{ id: number; start_time: number }>(
+      "SELECT id, start_time FROM elections WHERE id = ?",
+      [id],
+    );
     if (!election) {
       res.status(404).json({ error: "Elección no encontrada" });
+      return;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (now >= Number(election.start_time)) {
+      res.status(409).json({
+        error: "El censo de la elección está congelado porque la votación ya ha comenzado",
+        details: "No se pueden añadir votantes una vez abierta la votación.",
+        code: "CENSUS_FROZEN",
+      });
       return;
     }
 
@@ -486,8 +523,8 @@ router.post("/elections/:id/candidates", requireAdmin, async (req: Request, res:
       return;
     }
 
-    const election = await db.get<{ id: number; chain_status: string }>(
-      "SELECT id, chain_status FROM elections WHERE id = ?",
+    const election = await db.get<{ id: number; chain_status: string; chain_tx_hash: string | null }>(
+      "SELECT id, chain_status, chain_tx_hash FROM elections WHERE id = ?",
       [id],
     );
     if (!election) {
@@ -500,10 +537,15 @@ router.post("/elections/:id/candidates", requireAdmin, async (req: Request, res:
     // hay N candidatos cuando en la base hay N+1: el voto al último revertiría
     // con "candidate out of range", y la huella de la lista publicada dejaría de
     // cuadrar con la que se comprometió al convocar.
-    if (election.chain_status === 'synced') {
+    const isFrozen =
+      election.chain_status === 'synced' ||
+      election.chain_status === 'syncing' ||
+      (election.chain_status === 'pending' && Boolean(election.chain_tx_hash));
+
+    if (isFrozen) {
       res.status(409).json({
-        error: "La elección ya está registrada en blockchain y su lista de candidatos no se puede ampliar",
-        details: "El número de candidatos y la huella de la lista quedaron fijados en el contrato. Para cambiar la lista hay que crear una elección nueva.",
+        error: "La elección ya está sincronizada o en proceso de sincronización en blockchain y su lista de candidatos no se puede ampliar",
+        details: "El número de candidatos y la huella de la lista quedaron fijados o enviados al contrato. Para cambiar la lista hay que crear una elección nueva.",
         code: "ELECTION_ALREADY_ON_CHAIN",
       });
       return;
