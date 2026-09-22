@@ -93,4 +93,31 @@ describe("recuento independiente (scripts/recount.ts)", () => {
     expect(r.totalFromContract).to.equal(0);
     expect(r.consistent).to.equal(true);
   });
+
+  it("mantiene la coherencia evaluando eventos y estado en el mismo bloque aunque se mine un voto durante el recuento", async () => {
+    const { address, registry, relayer } = await loadFixture(eleccionVotadaFixture);
+
+    const originalQueryFilter = ethers.Contract.prototype.queryFilter;
+    let injected = false;
+    (ethers.Contract.prototype as any).queryFilter = async function (...args: any[]) {
+      const res = await originalQueryFilter.apply(this, args as any);
+      if (!injected) {
+        injected = true;
+        // Minamos un nuevo voto después de que se hayan consultado los eventos
+        await registry.connect(relayer).castVote(1, BigInt(ethers.id("votante-extra-durante-recuento")), 0);
+      }
+      return res;
+    };
+
+    try {
+      const r = await recount(ethers.provider, address, 1);
+      // Debe evaluar la coherencia en el bloque fijado (toBlock), ignorando bloques posteriores
+      expect(r.totalFromEvents).to.equal(6);
+      expect(r.totalFromContract).to.equal(6);
+      expect(r.tallyFromContract).to.deep.equal([4, 2, 0]);
+      expect(r.consistent).to.equal(true);
+    } finally {
+      ethers.Contract.prototype.queryFilter = originalQueryFilter;
+    }
+  });
 });

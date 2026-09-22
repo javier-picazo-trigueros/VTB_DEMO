@@ -78,14 +78,15 @@ export async function recount(
   contractAddress: string,
   electionId: number,
   fromBlock?: number,
+  toBlock?: number,
 ): Promise<RecountResult> {
   const contract = new ethers.Contract(contractAddress, ABI, provider);
 
-  const election = await contract.getElection(electionId);
+  const hasta = toBlock ?? (await provider.getBlockNumber());
+  const election = await contract.getElection(electionId, { blockTag: hasta });
   const candidateCount = Number(election.candidateCount);
 
-  const desde = fromBlock ?? Number(await contract.deploymentBlock());
-  const hasta = await provider.getBlockNumber();
+  const desde = fromBlock ?? Number(await contract.deploymentBlock({ blockTag: hasta }));
 
   // ── 1. Reconstrucción desde los eventos ─────────────────────────────────
   const tallyFromEvents = new Array<number>(candidateCount).fill(0);
@@ -113,8 +114,12 @@ export async function recount(
   }
 
   // ── 2. Lo que dice el contrato ──────────────────────────────────────────
-  const tallyFromContract: number[] = (await contract.getTally(electionId)).map(Number);
-  const totalFromContract = Number(await contract.getTotalVotes(electionId));
+  const tallyFromContract: number[] = (
+    await contract.getTally(electionId, { blockTag: hasta })
+  ).map(Number);
+  const totalFromContract = Number(
+    await contract.getTotalVotes(electionId, { blockTag: hasta })
+  );
 
   const consistent =
     repeatedNullifiers === 0 &&
