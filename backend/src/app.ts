@@ -105,6 +105,10 @@ app.use(cors({
 app.use(express.json());
 
 app.use((req, res, next) => {
+  // Omitir logs con timestamp exacto en emisión de voto para prevenir correlación temporal con la cadena
+  if (req.path.includes('/register-vote')) {
+    return next();
+  }
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });

@@ -875,11 +875,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         return res.status(500).json({ error: "Blockchain no configurado. Asegurate de que PRIVATE_KEY este definida." });
       }
 
-      console.log(`Sending vote to blockchain...`);
-      console.log(`   - Election ID (on-chain): ${election.election_id_blockchain}`);
-      console.log(`   - Contract Address: ${targetContract ?? 'global'}`);
-      console.log(`   - Nullifier: ${nullifier.substring(0, 20)}...`);
-      console.log(`   - Candidate (position): ${candidato.position}`);
+      console.log(`Sending vote to blockchain for on-chain election #${election.election_id_blockchain}...`);
 
       // Dos cosas que no son lo que parecen y hay un test para cada una:
       //
