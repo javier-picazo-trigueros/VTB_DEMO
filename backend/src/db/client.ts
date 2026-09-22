@@ -40,7 +40,6 @@ export interface DbClient {
 
   /**
    * Marca el intento de voto como 'confirmed' o 'failed' tras la respuesta de blockchain.
-   * No-op en SQLite.
    */
   releaseVoteLock(
     userId: number,
@@ -51,6 +50,20 @@ export interface DbClient {
 
   /** Comprueba si hay un intento de voto en curso (estado 'pending') */
   hasPendingVoteLock?(userId: number, electionId: number): Promise<boolean>;
+
+  /**
+   * Guarda el hash y el nonce de la transacción de un intento 'pending', una vez
+   * castVote() los devuelve (acquireVoteLock() se llama ANTES y todavía no los
+   * conoce). findVote() los necesita para mirar el recibo de ESA transacción
+   * concreta cuando no encuentra el evento VoteCast por nullifier — es lo único
+   * que permite distinguir "revertida"/"reemplazada" de "todavía no minada".
+   */
+  recordPendingTx(
+    userId: number,
+    electionId: number,
+    txHash: string,
+    nonce: number | null,
+  ): Promise<void>;
 
   /** Ejecuta varias operaciones en una sola transacción atómica. No-op tx en SQLite. */
   transaction<T>(fn: (tx: DbClient) => Promise<T>): Promise<T>;

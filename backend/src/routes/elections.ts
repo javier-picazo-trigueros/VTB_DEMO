@@ -891,7 +891,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       //
       // El puerto envía y espera el recibo. Los errores de ethers suben sin
       // envolver: el catch de abajo los clasifica por subcadena y por `code`.
-      const { txHash, blockNumber, status: chainTxStatus } = await port.castVote(
+      const { txHash, blockNumber, status: chainTxStatus, nonce: txNonce } = await port.castVote(
         election.election_id_blockchain,
         nullifier,
         Number(candidato.position),
@@ -905,6 +905,13 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       // Si la transacción está pendiente de confirmación (timeout de tx.wait()),
       // NO se inserta en nullifier_audit ni se marca confirmed. El cerrojo queda
       // en 'pending' para que el job de reconciliación lo resuelva cuando se mine.
+      // Se guarda tx_hash/nonce del intento: es lo que findVote() necesita para
+      // mirar el recibo de ESTA transacción si el evento VoteCast no aparece
+      // (revertida o reemplazada, no solo "todavía no minada").
+      if (isPendingConfirmation) {
+        await db.recordPendingTx(decoded.userId, electionId, txHash, txNonce ?? null).catch(() => {});
+      }
+
       if (!isPendingConfirmation) {
         let auditInserted = false;
         try {
@@ -929,7 +936,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         }
 
         if (auditInserted) {
-          // Marcar el intento como confirmado (PG: actualiza vote_attempts; SQLite: libera cerrojo en memoria)
+          // Marcar el intento como confirmado (borra la fila de vote_attempts)
           await db.releaseVoteLock(decoded.userId, electionId, 'confirmed').catch(() => {});
 
           // Confirmación por email (fire-and-forget, no bloquea la respuesta)

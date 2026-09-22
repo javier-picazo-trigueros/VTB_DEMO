@@ -114,6 +114,18 @@ export class SqliteAdapter implements DbClient {
     return !!row;
   }
 
+  async recordPendingTx(
+    userId: number,
+    electionId: number,
+    txHash: string,
+    nonce: number | null,
+  ): Promise<void> {
+    await this.db.exec(
+      'UPDATE vote_attempts SET tx_hash = ?, nonce = ? WHERE user_id = ? AND election_id = ?',
+      [txHash, nonce, userId, electionId],
+    );
+  }
+
   /**
    * Transacción real sobre la única conexión de SQLite.
    *

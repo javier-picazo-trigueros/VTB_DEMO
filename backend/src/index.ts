@@ -262,16 +262,17 @@ async function start() {
         // Busca el evento VoteCast indexado por nullifier para confirmar la tx.
         // nullifier es bytes32 indexed en el contrato → se puede filtrar sin electionId.
         // La consulta vive en services/voteChain.ts, que es lo que los tests
-        // pueden sustituir. El comportamiento no cambia en este paso: sigue
-        // devolviendo null tanto si el voto no está en la cadena como si el RPC
-        // falló, y cleanupStaleVoteAttempts marca 'failed' en ambos casos
-        // (BC-24 / P1-14). Eso se arregla en el paso 4, no aquí.
+        // pueden sustituir. Cuando no hay evento y se conoce la tx concreta del
+        // intento (pendingTx, guardado por recordPendingTx), findVote() mira su
+        // recibo directamente: distingue revertida/reemplazada de simplemente
+        // lenta (paso 4, antes findVote solo podía devolver 'no-esta').
         const checkOnChain = async (
           nullifierHash: string,
           onChainElectionId?: number | null,
           contractAddress?: string | null,
+          pendingTx?: { txHash: string; nonce: number | null } | null,
         ): Promise<BusquedaDeVoto> =>
-          (await getVotePort(contractAddress)?.findVote(nullifierHash, onChainElectionId, contractAddress)) ??
+          (await getVotePort(contractAddress)?.findVote(nullifierHash, onChainElectionId, contractAddress, pendingTx)) ??
           // Sin cadena configurada no hay respuesta posible, que no es lo mismo
           // que "el voto no está": el intento se queda pendiente (BC-24).
           { estado: 'sin-respuesta', motivo: 'blockchain no configurada' };

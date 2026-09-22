@@ -182,6 +182,8 @@ export class Database {
             status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'failed')),
             nullifier_hash TEXT,
             candidate_id INTEGER,
+            tx_hash TEXT DEFAULT NULL,
+            nonce INTEGER DEFAULT NULL,
             started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             completed_at DATETIME DEFAULT NULL,
             error_detail TEXT DEFAULT NULL,

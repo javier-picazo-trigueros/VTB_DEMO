@@ -176,6 +176,18 @@ class PgTransactionClient implements DbClient {
     return (res.rowCount ?? 0) > 0;
   }
 
+  async recordPendingTx(
+    userId: number,
+    electionId: number,
+    txHash: string,
+    nonce: number | null,
+  ): Promise<void> {
+    await this.client.query(
+      `UPDATE vote_attempts SET tx_hash = $3, nonce = $4 WHERE user_id = $1 AND election_id = $2`,
+      [userId, electionId, txHash, nonce],
+    );
+  }
+
   // Las operaciones dentro de un callback de transaction() ya están en la tx.
   // Anidar transacciones no está soportado; ejecutamos el fn directamente.
   async transaction<T>(fn: (tx: DbClient) => Promise<T>): Promise<T> {
@@ -314,6 +326,18 @@ export class PgClient implements DbClient {
     return (res.rowCount ?? 0) > 0;
   }
 
+  async recordPendingTx(
+    userId: number,
+    electionId: number,
+    txHash: string,
+    nonce: number | null,
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE vote_attempts SET tx_hash = $3, nonce = $4 WHERE user_id = $1 AND election_id = $2`,
+      [userId, electionId, txHash, nonce],
+    );
+  }
+
   async transaction<T>(fn: (tx: DbClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {
@@ -354,6 +378,7 @@ export class PgClient implements DbClient {
       nullifierHash: string,
       onChainElectionId?: number | null,
       contractAddress?: string | null,
+      pendingTx?: { txHash: string; nonce: number | null } | null,
     ) => Promise<BusquedaDeVoto>,
   ): Promise<void> {
     const stale = await this.run<{
@@ -362,10 +387,13 @@ export class PgClient implements DbClient {
       election_id: number;
       nullifier_hash: string | null;
       candidate_id: number | null;
+      tx_hash: string | null;
+      nonce: number | null;
       election_id_blockchain: number | null;
       chain_contract_address: string | null;
     }>(
       `SELECT va.id, va.user_id, va.election_id, va.nullifier_hash, va.candidate_id,
+              va.tx_hash, va.nonce,
               e.election_id_blockchain, e.chain_contract_address
        FROM vote_attempts va
        LEFT JOIN elections e ON va.election_id = e.id
@@ -375,14 +403,16 @@ export class PgClient implements DbClient {
 
     for (const attempt of stale) {
       try {
+        const pendingTx = attempt.tx_hash ? { txHash: attempt.tx_hash, nonce: attempt.nonce } : null;
         const respuesta: BusquedaDeVoto = attempt.nullifier_hash
           ? (attempt.election_id_blockchain !== undefined || attempt.chain_contract_address !== undefined)
             ? await checkOnChain(
                 attempt.nullifier_hash,
                 attempt.election_id_blockchain ?? null,
                 attempt.chain_contract_address ?? null,
+                pendingTx,
               )
-            : await checkOnChain(attempt.nullifier_hash)
+            : await checkOnChain(attempt.nullifier_hash, undefined, undefined, pendingTx)
           : { estado: 'no-esta', definitivo: true, motivo: 'Intento sin nullifier_hash' };
 
         // BC-24: si el nodo no ha respondido, NO sabemos si el voto está en la

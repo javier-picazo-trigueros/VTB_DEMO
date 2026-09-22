@@ -42,6 +42,17 @@ export interface VoteReceipt {
   blockNumber: number | null;
   candidatePosition?: number | null;
   status?: 'confirmed' | 'pending_confirmation';
+  /** Nonce del relayer usado para esta tx. Se guarda en vote_attempts cuando
+   *  queda 'pending_confirmation' — es lo que permite a findVote() distinguir
+   *  después una transacción revertida/reemplazada de una simplemente lenta. */
+  nonce?: number | null;
+}
+
+/** Transacción pendiente conocida de un intento, para que findVote() pueda
+ *  mirar su recibo concreto cuando el evento VoteCast no aparece por nullifier. */
+export interface PendingTxRef {
+  txHash: string;
+  nonce: number | null;
 }
 
 /** Resultado de buscar un voto en la cadena. */
@@ -99,6 +110,7 @@ export interface VotePort {
     nullifierHash: string,
     onChainElectionId?: number | null,
     contractAddress?: string | null,
+    pendingTx?: PendingTxRef | null,
   ): Promise<BusquedaDeVoto>;
 
   /** Recuento por candidato que mantiene el contrato. `tally[i]` = candidato i. */
@@ -397,6 +409,7 @@ export function createVotePort(cfg: CreateVotePortOptions): VotePort {
           txHash: tx.hash as string,
           blockNumber: null,
           status: 'pending_confirmation',
+          nonce: tx.nonce,
         };
       }
 
@@ -404,10 +417,11 @@ export function createVotePort(cfg: CreateVotePortOptions): VotePort {
         txHash: tx.hash as string,
         blockNumber: waitResult.receipt?.blockNumber ?? null,
         status: 'confirmed',
+        nonce: tx.nonce,
       };
     },
 
-    async findVote(nullifierHash, onChainElectionId, contractAddress) {
+    async findVote(nullifierHash, onChainElectionId, contractAddress, pendingTx) {
       try {
         const target = contractAddress && contractAddress.trim() ? contractAddress.trim() : cfg.contractAddress;
         const activeLectura = target.toLowerCase() !== cfg.contractAddress.toLowerCase()
@@ -440,6 +454,32 @@ export function createVotePort(cfg: CreateVotePortOptions): VotePort {
             };
           }
         }
+
+        // Sin evento VoteCast para este nullifier. Si se conoce la transacción
+        // concreta del intento, se mira su recibo antes de rendirse: un evento
+        // ausente no dice si la tx se perdió, revirtió o fue reemplazada.
+        if (pendingTx) {
+          const recibo = await relayer.provider.getTransactionReceipt(pendingTx.txHash);
+          if (recibo) {
+            if (recibo.status === 0) {
+              return { estado: "revertido", txHash: pendingTx.txHash, motivo: "recibo con status 0" };
+            }
+            // status === 1 sin evento VoteCast: no debería pasar (castVote
+            // siempre lo emite si no revierte). Se trata como indexación
+            // retrasada, no como hallazgo — no es definitivo.
+            return { estado: "no-esta", motivo: "recibo status 1 sin evento indexado todavía" };
+          }
+          // Sin recibo: la tx concreta nunca se minó. Si el hueco de nonce ya
+          // está consumido por otra transacción, esta fue reemplazada (bump de
+          // gas, cancelación o un reintento). Si sigue libre, sigue en mempool.
+          if (pendingTx.nonce != null) {
+            const nonceConfirmado = await relayer.provider.getTransactionCount(relayer.wallet.address, 'latest');
+            if (nonceConfirmado > pendingTx.nonce) {
+              return { estado: "reemplazado", nonceConsumido: pendingTx.nonce };
+            }
+          }
+        }
+
         return { estado: "no-esta" };
       } catch (err) {
         // Nunca el objeto de error entero: arrastra la URL del RPC con su clave.

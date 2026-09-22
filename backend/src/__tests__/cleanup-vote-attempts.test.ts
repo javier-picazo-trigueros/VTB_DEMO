@@ -87,7 +87,7 @@ describe('cleanupStaleVoteAttempts', () => {
 
     await clienteCon(pool).cleanupStaleVoteAttempts(checkOnChain);
 
-    expect(checkOnChain).toHaveBeenCalledWith('0xnullifier');
+    expect(checkOnChain).toHaveBeenCalledWith('0xnullifier', undefined, undefined, null);
     // Ni una escritura: ni marcarlo fallido, ni confirmarlo.
     expect(escrituras()).toEqual([]);
   });
