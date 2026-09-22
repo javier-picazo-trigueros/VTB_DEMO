@@ -23,37 +23,51 @@ vigente en producción.
 1. **Registro inmutable.** Cada voto queda escrito en una cadena de bloques
    pública. Nadie —tampoco quien administra VTB— puede borrarlo, modificarlo ni
    antedatarlo. La fecha y hora las pone la propia red, no nuestro servidor.
-2. **Recuento verificable por terceros.** Cualquiera puede recontar los votos
+2. **Recuento verificable de lo registrado.** Cualquiera puede recontar los votos
    leyendo únicamente la cadena, sin acceso a nuestra base de datos, sin
    permisos y sin fiarse de nuestra interfaz. Se publica una herramienta
-   independiente para hacerlo.
+   independiente para hacerlo. **Limitación fundamental:** un auditor externo solo puede
+   contar lo que el contrato aceptó; no puede saber si los votos corresponden a votantes
+   reales o si faltan votos legítimos que el servidor no llegó a enviar.
 3. **Prevención del doble voto.** Cada votante genera un testigo único por
    elección (*nullifier*). El contrato rechaza un segundo voto con el mismo
    testigo. La comprobación es criptográfica y ocurre en la cadena, no en
    nuestro código.
-4. **Solo una dirección autorizada puede registrar votos.** No es posible que
-   un tercero infle el recuento escribiendo votos inventados.
+4. **Control de acceso al registro.** Solo una dirección con el rol autorizado
+   (`RELAYER_ROLE`) puede registrar votos. Nadie sin esa clave puede invocar
+   `castVote`. Sin embargo, el contrato verifica la unicidad del nullifier pero **no
+   verifica que pertenezca a un votante real del censo**: un relayer comprometido o un
+   operador deshonesto sí puede inyectar votos inventando nullifiers válidos.
 
 ## 2. Lo que el sistema NO garantiza
 
-### 2.1 El voto no es anónimo frente al operador
+### 2.1 El voto es seudonimización, no anonimización, y no es secreto frente al operador
 
 Es la limitación más importante y conviene entenderla antes que ninguna otra.
 
-El testigo único de cada votante lo calcula hoy nuestro servidor, a partir de la
-identidad del votante y de un secreto que custodiamos nosotros. **Quien tenga
-acceso a ese secreto puede saber qué voto de la cadena corresponde a qué
-persona.** Además, la base de datos de la aplicación guarda hoy, en la misma
-fila, el identificador del votante y su elección.
+Los identificadores en la cadena no son una anonimización completa, sino una
+**seudonimización**: cada votante queda asociado a un seudónimo criptográfico (*nullifier*).
+El testigo único de cada votante lo calcula hoy nuestro servidor a partir de la
+identidad del votante y de un secreto que custodiamos nosotros (HMAC-SHA256). **Quien tenga
+acceso a ese secreto puede saber qué voto de la cadena corresponde a qué persona.**
+Además, la base de datos de la aplicación guarda hoy, en la misma fila, el identificador
+del votante y su elección. Conociendo el momento del voto y los registros del servidor,
+el operador puede correlacionar votantes y votos emitidos.
 
-En términos prácticos: el voto está protegido frente a cualquier observador
-externo, pero **no frente a quien administra el sistema**. VTB, tal y como está
-hoy, no puede describirse como voto secreto ni como voto anónimo.
+En términos prácticos: el voto está protegido frente a un observador casual externo,
+pero **no frente a quien administra el sistema** ni frente a quien acceda a los registros
+del servidor. VTB, tal y como está hoy, no puede describirse como voto secreto ni como
+voto anónimo.
 
-Esto se resuelve con pruebas de conocimiento cero (Semaphore), que permitirían
-al votante demostrar que pertenece al censo sin revelar quién es, de forma que
-ni siquiera el operador pudiera deshacer la asociación. Está previsto y el
-contrato ya reserva el espacio necesario, pero **no está implementado**.
+**Sobre Semaphore, ZK y consultas no secretas:**
+No hay ningún plan en marcha ni desarrollo activo para integrar Semaphore o pruebas
+de conocimiento cero. Además, Semaphore y las pruebas ZK no resuelven por sí solas la
+coacción ni la compra de votos (para ello se requiere resistencia al recibo y a la coacción
+como MACI o votación en cabina física). Por tanto, debe reconocerse con honestidad que la
+solución actual es adecuada únicamente para **consultas no secretas**, presupuestos participativos
+o elecciones donde el sentido público del voto en la cadena sea admisible por reglamento.
+Una elección secreta vinculante requeriría un diseño criptográfico y de procedimiento
+completamente distinto.
 
 ### 2.2 El reparto de votos es público durante la votación
 
@@ -66,7 +80,7 @@ escrito en la cadena pública, de forma inmediata y visible para cualquiera:
 | Dato | ¿Visible? | Detalle |
 |---|---|---|
 | Identificador de la elección | Sí | Número que asigna el contrato |
-| Testigo único del votante | Sí | Valor de 32 bytes, no legible como identidad |
+| Testigo único del votante | Sí | Valor de 32 bytes (seudonimización) |
 | **Candidato elegido** | **Sí** | Número de orden del candidato en la papeleta |
 | Fecha y hora del voto | Sí | Con precisión de unos 12 segundos |
 | Nombre y apellidos del votante | No | Nunca sale de nuestra base de datos |
@@ -112,7 +126,7 @@ junto con la convocatoria, y la cadena guarda una huella criptográfica de esa
 lista para que nadie pueda alterarla después. Es decir: el número de orden
 identifica al candidato sin ninguna ambigüedad. No es un mecanismo de secreto.
 
-### 2.4 El momento del voto puede desanonimizar en grupos pequeños
+### 2.4 El momento del voto facilita la correlación en grupos pequeños
 
 Cada voto lleva su hora. Si el censo es reducido —la delegación de un curso, por
 ejemplo— y alguien dispone además de los registros de acceso al sistema, de la
@@ -120,10 +134,12 @@ red o del proveedor de identidad, puede llegar a relacionar "esta persona entró
 a las 14:32" con "hubo un voto a las 14:32". Cuantos menos votantes y más
 espaciados, más fiable es esa correlación.
 
-Es un riesgo inherente a registrar votos individualmente en una cadena pública,
-y afecta también al contrato anterior. Con el candidato escrito en claro, la
-consecuencia de acertar es mayor: no se deduce solo que esa persona votó, sino
-qué votó.
+Es un riesgo inherente a registrar votos individualmente en una cadena pública.
+Tratar los hashes de nullifier como anonimización total es un error: se trata de
+**seudonimización**. Conociendo el momento del voto y los registros del servidor,
+el operador puede correlacionar identidades y elecciones. Con el candidato escrito
+en claro, la consecuencia de acertar es que no se deduce solo que esa persona votó,
+sino qué votó.
 
 ### 2.5 Quien opera el sistema puede detener una votación
 
@@ -140,14 +156,17 @@ el contrato hace es **obligar a que su uso sea visible** en lugar de invisible.
 
 | Actor | Puede | No puede |
 |---|---|---|
-| Cualquier persona | Leer todos los votos y recontar | Escribir ningún voto |
-| Servidor de VTB (relayer) | Registrar votos y crear elecciones | Alterar el recuento, borrar votos, detener una elección |
-| Propietario del contrato | Autorizar o revocar servidores, detener una elección, traspasar la propiedad | Alterar el recuento, añadir o borrar votos, reabrir lo detenido |
+| Cualquier persona | Leer todos los votos y recontar lo que el contrato aceptó | Escribir votos ni verificar desde la cadena si corresponden a votantes legítimos |
+| Servidor de VTB (relayer) | Registrar votos y crear elecciones (puede inyectar votos inventando nullifiers) | Modificar o borrar votos ya confirmados en la cadena |
+| Propietario del contrato | Autorizar o revocar relayers, detener una elección, traspasar la propiedad, y autorizarse como relayer para emitir votos | Modificar o borrar votos ya confirmados en la cadena, o reabrir lo detenido |
 
 Las dos claves son distintas y se custodian por separado. La del servidor está
 en el servidor, porque tiene que firmar cada voto; la del propietario se guarda
 fuera de línea. Si la del servidor se ve comprometida, el propietario la revoca
 sin necesidad de volver a desplegar el contrato ni de perder el histórico.
+Sin embargo, dado que el propietario posee el rol administrativo principal,
+puede autorizarse como relayer en cualquier momento y registrar votos directamente.
+Ninguna de las dos claves puede modificar o borrar transacciones ya confirmadas.
 
 ## 4. Cómo comprobarlo por su cuenta
 
@@ -165,20 +184,20 @@ Un comité electoral no tiene por qué fiarse de este documento:
    lee únicamente la cadena a través de un nodo público y publica el resultado.
    Puede ejecutarla un tercero, en su propio equipo, sin credenciales nuestras.
    El procedimiento completo, con lo que demuestra y lo que no, está en
-   **`RECUENTO_INDEPENDIENTE.md`**.
+   **`RECUENTO_INDEPENDIENTE.md`**. Un auditor externo solo puede contar lo que el
+   contrato aceptó; no puede auditar si el servidor omitió votos legítimos o si
+   el relayer inyectó votos adicionales.
 3. **El recuento oficial y el de la cadena deben coincidir.** Si no coinciden,
    es un defecto y debe reclamarse. La aplicación muestra ambos.
 
 ## 5. Estado de este documento
 
 Redactado el 16-09-2026 al aprobarse el diseño del recuento verificable, y
-revisado el 17-09-2026 tras el despliegue en Sepolia.
+revisado en septiembre de 2026 para corregir las garantías de seguridad y el modelo de confianza.
 
-Debe revisarse otra vez cuando el despliegue quede operativo (relayer del
-servidor autorizado y contrato verificado en el explorador) y, de nuevo, cuando
-se implemente el anonimato criptográfico con Semaphore, que es lo único que
-dejaría sin efecto el apartado 2.1. **Mientras tanto, el apartado 2.1 sigue
-vigente: el voto no es anónimo frente a quien opera el sistema.**
+Debe entenderse que el sistema proporciona registro inmutable y recuento público de lo
+aceptado por el contrato, bajo un esquema de seudonimización apto para consultas no secretas.
+**El apartado 2.1 sigue plenamente vigente: el voto no es anónimo frente a quien opera el sistema.**
 
 Los defectos concretos que sustentan lo dicho aquí están detallados en
 `AUDITORIA_BLOCKCHAIN.md`.
