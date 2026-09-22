@@ -47,8 +47,20 @@ describe('Punto 14: Corrección de afirmaciones y garantías en SEGURIDAD.md', (
     expect(content).toMatch(/solo puede\s+(contar|verificar)\s+lo que el contrato acept[oó]/i);
   });
 
-  it('afirma con precisión que no se conserva la correspondencia tras el cierre pero el operador la conoce al procesar', () => {
-    expect(content).toMatch(/la base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elecci[oó]n,\s*pero el operador la conoce en el momento de procesar el voto/i);
+  it('no afirma que la base de datos deja de conservar la correspondencia tras el cierre (falso mientras nullifier_audit guarde user_id sin separar)', () => {
+    // Afirmación que estuvo en el documento y es falsa hoy: nullifier_audit guarda
+    // user_id, election_id y vote_choice en la misma fila, sin plazo de borrado,
+    // se cierre o no la elección. La sal efímera (services/electionSalt.ts) impide
+    // recalcular el nullifier tras el cierre, pero no borra esa fila ni separa el
+    // user_id del voto. Este test debe seguir fallando si la frase vuelve, y solo
+    // se relaja si algún día existe código que de verdad separe esa relación.
+    expect(content).not.toMatch(/la base de datos no conserva la correspondencia entre votante y voto/i);
     expect(content).not.toMatch(/\bvoto an[oó]nimo\b/i);
+  });
+
+  it('reconoce que el operador conserva la correspondencia en nullifier_audit sin plazo de borrado, y que la sal no la separa', () => {
+    expect(content).toMatch(/el operador conserva la correspondencia entre votante y voto en `?nullifier_audit`?/i);
+    expect(content).toMatch(/sin plazo de borrado/i);
+    expect(content).toMatch(/separaci[oó]n de (esa relaci[oó]n|tablas)[^.]*pendiente/i);
   });
 });

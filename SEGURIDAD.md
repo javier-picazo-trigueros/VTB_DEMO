@@ -54,7 +54,7 @@ Además, la base de datos de la aplicación guarda hoy, en la misma fila, el ide
 del votante y su elección. Conociendo el momento del voto y los registros del servidor,
 el operador puede correlacionar votantes y votos emitidos.
 
-En términos prácticos: la base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero el operador la conoce en el momento de procesar el voto.
+En términos prácticos: el operador conserva la correspondencia entre votante y voto en `nullifier_audit`, sin plazo de borrado — la fila con `user_id`, `election_id` y el candidato elegido no se anonimiza ni se elimina cuando la elección cierra. Desde la versión con sal efímera por elección, el testigo único deja de poder recalcularse desde cero una vez cerrada la elección y resueltos los votos pendientes (la sal se destruye entonces), pero eso no borra la correspondencia que la base ya tiene escrita: sigue estando ahí, en claro, en la misma fila. Separar esa relación en tablas distintas está pendiente.
 
 **Sobre Semaphore, ZK y consultas no secretas:**
 No hay ningún plan en marcha ni desarrollo activo para integrar Semaphore o pruebas
@@ -196,7 +196,7 @@ revisado en septiembre de 2026 para corregir las garantías de seguridad y el mo
 
 Debe entenderse que el sistema proporciona registro inmutable y recuento público de lo
 aceptado por el contrato, bajo un esquema de seudonimización apto para consultas no secretas.
-**El apartado 2.1 sigue plenamente vigente: la base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero el operador la conoce en el momento de procesar el voto.**
+**El apartado 2.1 sigue plenamente vigente: el operador conserva la correspondencia entre votante y voto en `nullifier_audit`, sin plazo de borrado. La sal efímera impide recalcular el testigo único tras el cierre, pero no separa ni borra esa correspondencia ya escrita — la separación de tablas está pendiente.**
 
 Los defectos concretos que sustentan lo dicho aquí están detallados en
 `AUDITORIA_BLOCKCHAIN.md`.
