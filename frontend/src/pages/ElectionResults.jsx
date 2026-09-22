@@ -534,141 +534,164 @@ const ElectionResults = () => {
         {/* RESULTS TAB */}
         {activeTab === 'results' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-
-            {/* Chart card */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('results.votesByCandidate')}</h2>
-                <div className="flex gap-2">
-                  {['bar', 'pie'].map(type => (
-                    <button
-                      key={type}
-                      onClick={() => setChartType(type)}
-                      className={`px-3 py-1 rounded text-sm capitalize font-medium transition ${
-                        chartType === type
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
+            {election?.status === 'active' ? (
+              <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-8 text-center">
+                <div className="max-w-lg mx-auto space-y-4">
+                  <div className="text-4xl">🗳️</div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {t('results.activeNoticeTitle') || 'Votación en curso'}
+                  </h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {t('results.activeNoticeDesc') || 'Mientras la elección está activa, la interfaz muestra únicamente los datos de participación para evitar el voto estratégico. El reparto de votos por candidato estará disponible una vez cerrada la votación.'}
+                  </p>
+                  <div className="pt-2">
+                    <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                      {t('results.activeParticipationOnly', {
+                        votes: totalVotes,
+                        rate: safeRate.toFixed(1),
+                      }) || `Participación actual: ${totalVotes} votos (${safeRate.toFixed(1)}%)`}
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              {candidates.length === 0 || totalVotes === 0 ? (
-                <div className="text-center py-12 text-slate-400 dark:text-slate-500">
-                  <div className="text-4xl mb-3">🗳️</div>
-                  <p>{t('results.noVotesCast')}</p>
-                  <p className="text-sm mt-1">{t('results.noVotesCastDesc')}</p>
-                </div>
-              ) : chartType === 'bar' ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart
-                    data={candidates.map(c => ({ name: c.name, votes: c.votes, percentage: c.percentage || 0 }))}
-                    margin={{ top: 10, right: 30, left: 0, bottom: 50 }}
-                  >
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 12, fill: '#94a3b8' }}
-                      angle={-20}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} allowDecimals={false} />
-                    <Tooltip
-                      content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        return (
-                          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 shadow-lg">
-                            <p className="font-semibold text-slate-900 dark:text-white mb-1">{label}</p>
-                            <p className="text-sm text-blue-600">Votes: {payload[0].value}</p>
-                            <p className="text-sm text-slate-500">{(payload[0].payload.percentage || 0).toFixed(1)}%</p>
-                          </div>
-                        );
-                      }}
-                    />
-                    <Bar dataKey="votes" radius={[4, 4, 0, 0]} isAnimationActive>
-                      {candidates.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex justify-center">
-                  <PieChart width={420} height={300}>
-                    <Pie
-                      data={candidates.map(c => ({ name: c.name, value: c.votes }))}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={110}
-                      dataKey="value"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                      labelLine={false}
-                    >
-                      {candidates.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </div>
-              )}
-            </div>
-
-            {/* Candidate breakdown table */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-6">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">{t('results.candidateBreakdown')}</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="border-b border-slate-200 dark:border-slate-700">
-                    <tr>
-                      <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">#</th>
-                      <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">{t('results.candidate')}</th>
-                      <th className="text-right px-3 py-3 text-sm font-medium text-slate-500">{t('results.votes')}</th>
-                      <th className="text-right px-3 py-3 text-sm font-medium text-slate-500">%</th>
-                      <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">{t('results.progress')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedCandidates.map((c, idx) => {
-                      const isWinner = election?.status === 'closed' && totalVotes > 0 && c.votes === maxVotes;
-                      return (
-                        <tr
-                          key={c.id || idx}
-                          className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition"
+            ) : (
+              <>
+                {/* Chart card */}
+                <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('results.votesByCandidate')}</h2>
+                    <div className="flex gap-2">
+                      {['bar', 'pie'].map(type => (
+                        <button
+                          key={type}
+                          onClick={() => setChartType(type)}
+                          className={`px-3 py-1 rounded text-sm capitalize font-medium transition ${
+                            chartType === type
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                          }`}
                         >
-                          <td className="px-3 py-3 text-slate-400 font-mono text-sm">#{idx + 1}</td>
-                          <td className="px-3 py-3 font-medium text-slate-900 dark:text-white">
-                            {c.name}
-                            {isWinner && (
-                              <span className="ml-2 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
-                                👑 {t('results.winner')}
-                              </span>
-                            )}
-                          </td>
-                          <td className="text-right px-3 py-3 font-mono text-blue-600 dark:text-blue-400 font-semibold">
-                            {c.votes}
-                          </td>
-                          <td className="text-right px-3 py-3 text-slate-600 dark:text-slate-400">
-                            {(c.percentage || 0).toFixed(1)}%
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="w-32 bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${Math.min(c.percentage || 0, 100)}%`,
-                                  backgroundColor: COLORS[idx % COLORS.length],
-                                }}
-                              />
-                            </div>
-                          </td>
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {candidates.length === 0 || totalVotes === 0 ? (
+                    <div className="text-center py-12 text-slate-400 dark:text-slate-500">
+                      <div className="text-4xl mb-3">🗳️</div>
+                      <p>{t('results.noVotesCast')}</p>
+                      <p className="text-sm mt-1">{t('results.noVotesCastDesc')}</p>
+                    </div>
+                  ) : chartType === 'bar' ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart
+                        data={candidates.map(c => ({ name: c.name, votes: c.votes, percentage: c.percentage || 0 }))}
+                        margin={{ top: 10, right: 30, left: 0, bottom: 50 }}
+                      >
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 12, fill: '#94a3b8' }}
+                          angle={-20}
+                          textAnchor="end"
+                          height={60}
+                        />
+                        <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} allowDecimals={false} />
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload?.length) return null;
+                            return (
+                              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 shadow-lg">
+                                <p className="font-semibold text-slate-900 dark:text-white mb-1">{label}</p>
+                                <p className="text-sm text-blue-600">Votes: {payload[0].value}</p>
+                                <p className="text-sm text-slate-500">{(payload[0].payload.percentage || 0).toFixed(1)}%</p>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Bar dataKey="votes" radius={[4, 4, 0, 0]} isAnimationActive>
+                          {candidates.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex justify-center">
+                      <PieChart width={420} height={300}>
+                        <Pie
+                          data={candidates.map(c => ({ name: c.name, value: c.votes }))}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={110}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                          labelLine={false}
+                        >
+                          {candidates.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </div>
+                  )}
+                </div>
+
+                {/* Candidate breakdown table */}
+                <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-6">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">{t('results.candidateBreakdown')}</h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                          <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">#</th>
+                          <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">{t('results.candidate')}</th>
+                          <th className="text-right px-3 py-3 text-sm font-medium text-slate-500">{t('results.votes')}</th>
+                          <th className="text-right px-3 py-3 text-sm font-medium text-slate-500">%</th>
+                          <th className="text-left px-3 py-3 text-sm font-medium text-slate-500">{t('results.progress')}</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                      </thead>
+                      <tbody>
+                        {sortedCandidates.map((c, idx) => {
+                          const isWinner = election?.status === 'closed' && totalVotes > 0 && c.votes === maxVotes;
+                          return (
+                            <tr
+                              key={c.id || idx}
+                              className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition"
+                            >
+                              <td className="px-3 py-3 text-slate-400 font-mono text-sm">#{idx + 1}</td>
+                              <td className="px-3 py-3 font-medium text-slate-900 dark:text-white">
+                                {c.name}
+                                {isWinner && (
+                                  <span className="ml-2 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                                    👑 {t('results.winner')}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="text-right px-3 py-3 font-mono text-blue-600 dark:text-blue-400 font-semibold">
+                                {c.votes}
+                              </td>
+                              <td className="text-right px-3 py-3 text-slate-600 dark:text-slate-400">
+                                {(c.percentage || 0).toFixed(1)}%
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="w-32 bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-500"
+                                    style={{
+                                      width: `${Math.min(c.percentage || 0, 100)}%`,
+                                      backgroundColor: COLORS[idx % COLORS.length],
+                                    }}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
           </motion.div>
         )}
 

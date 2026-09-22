@@ -93,6 +93,8 @@ incluido el reparto por candidato. No hace falta ser votante ni tener cuenta.
 No existe forma de impedirlo: lo que se escribe en una cadena pública es legible
 por definición, y ninguna medida en nuestra aplicación puede ocultarlo.
 
+**Medida en la interfaz y límites:** mientras la elección está activa, la interfaz web de VTB (`/results`) muestra únicamente la participación global y oculta el desglose y gráficos por candidato para mitigar el voto estratégico. Sin embargo, debe quedar completamente claro que **esto NO oculta el escrutinio**: los votos quedan registrados en tiempo real con su candidato en la cadena pública, de modo que está en la cadena y cualquiera puede leerlo conectándose a un nodo RPC o inspeccionando los eventos `VoteCast` del contrato.
+
 **Lo que esto puede provocar**, y que la literatura electoral documenta:
 
 - **Efecto arrastre o de desánimo**: quien vota por la tarde conoce el resultado
