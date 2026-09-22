@@ -68,6 +68,7 @@ export class Database {
             start_time INTEGER NOT NULL,
             end_time INTEGER NOT NULL,
             is_active BOOLEAN DEFAULT 1,
+            ephemeral_salt TEXT DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
@@ -169,6 +170,22 @@ export class Database {
             target_value TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (election_id) REFERENCES elections(id)
+          )
+        `);
+
+        // Tabla de intentos de voto (paridad con PostgreSQL)
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS vote_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            election_id INTEGER NOT NULL,
+            status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'failed')),
+            nullifier_hash TEXT,
+            candidate_id INTEGER,
+            started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME DEFAULT NULL,
+            error_detail TEXT DEFAULT NULL,
+            UNIQUE(user_id, election_id)
           )
         `, (err) => {
           if (err) reject(err);
@@ -365,6 +382,7 @@ export class Database {
       // escribe vote_source y /results lee chain_contract_address.
       'ALTER TABLE elections ADD COLUMN chain_contract_address TEXT DEFAULT NULL',
       "ALTER TABLE nullifier_audit ADD COLUMN vote_source TEXT NOT NULL DEFAULT 'legacy'",
+      'ALTER TABLE elections ADD COLUMN ephemeral_salt TEXT DEFAULT NULL',
     ]) {
       await this.exec(ddl).catch(() => {});
     }

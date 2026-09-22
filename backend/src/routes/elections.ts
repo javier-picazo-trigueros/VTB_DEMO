@@ -735,8 +735,9 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       name: string;
       chain_status: string;
       chain_contract_address: string | null;
+      ephemeral_salt: string | null;
     }>(
-      "SELECT id, election_id_blockchain, name, chain_status, chain_contract_address FROM elections WHERE id = ? AND is_active = TRUE",
+      "SELECT id, election_id_blockchain, name, chain_status, chain_contract_address, ephemeral_salt FROM elections WHERE id = ? AND is_active = TRUE",
       [electionId]
     );
 
@@ -796,8 +797,11 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
     }
 
     // GENERAR NULLIFIER EN ESTE MOMENTO (CAMBIO CRÍTICO)
-    // Nullifier = HMAC(userId + electionId)
-    const nullifier = generateNullifier(decoded.userId, electionId);
+    // Nullifier = HMAC(userId + electionId + sal efímera de la elección).
+    // Mientras la elección conserve su ephemeral_salt, el nullifier no se puede
+    // recalcular sin ella — ver services/electionSalt.ts sobre cuándo se destruye
+    // y qué NO resuelve por sí sola (nullifier_audit sigue guardando user_id).
+    const nullifier = generateNullifier(decoded.userId, electionId, election.ephemeral_salt);
 
     // Verificar doble voto (aplica también para cuentas demo antes del shortcut)
     const alreadyVoted = await db.get<{ id: number }>(

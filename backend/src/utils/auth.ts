@@ -121,10 +121,20 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
  *
  * @param userId ID del usuario (de SQLite)
  * @param electionId ID de la elección
+ * @param electionSalt Sal efímera de la elección (elections.ephemeral_salt). Si se
+ *        pasa, entra en el HMAC y el nullifier deja de ser recalculable una vez la
+ *        sal se destruye (ver services/electionSalt.ts). Si la elección no tiene sal
+ *        (creada antes de la migración, o null/undefined), se mantiene el cálculo
+ *        legacy sin sal — compatible con los nullifiers ya emitidos.
  * @returns Nullifier hash (32 bytes hex) para enviar al contrato
  */
-export function generateNullifier(userId: number, electionId: number): string {
-  const message = `${userId}:${electionId}:vtb-voter`;
+export function generateNullifier(
+  userId: number,
+  electionId: number,
+  electionSalt?: string | null,
+): string {
+  const saltPart = electionSalt ? `:${electionSalt}` : '';
+  const message = `${userId}:${electionId}${saltPart}:vtb-voter`;
 
   // HMAC-SHA256 con secret del servidor
   const nullifier = crypto

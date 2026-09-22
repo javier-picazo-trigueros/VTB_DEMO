@@ -2,10 +2,12 @@
  * SqliteAdapter — envuelve la clase Database existente (SQLite)
  * e implementa la interfaz DbClient para compatibilidad con el nuevo sistema.
  *
- * acquireVoteLock: comportamiento legacy (SELECT check).
- *   La race condition TOCTOU sigue presente, pero SQLite es single-writer
- *   y la probabilidad real en este contexto es baja.
- * releaseVoteLock: no-op (SQLite no tiene la tabla vote_attempts).
+ * acquireVoteLock / releaseVoteLock / hasPendingVoteLock: persisten en la
+ * tabla vote_attempts, igual que PgClient (ver postgres.ts) — misma UPSERT
+ * condicionada a status='failed', mismo DELETE al confirmar. SQLite ≥3.35
+ * soporta ON CONFLICT ... DO UPDATE ... WHERE (aquí corre 3.52), así que el
+ * chequeo es una única sentencia atómica, sin el hueco TOCTOU que tenía el
+ * Set en memoria de antes.
  * transaction: BEGIN/COMMIT/ROLLBACK reales, serializados. Ver más abajo.
  */
 import type { Database } from '../config/database.js';
@@ -31,9 +33,6 @@ export class SqliteAdapter implements DbClient {
   /** Profundidad actual, para que una transacción anidada reutilice la de fuera. */
   private txDepth = 0;
 
-  /** Cerrojos de voto en memoria para SQLite (single-writer) */
-  private pendingVoteLocks = new Set<string>();
-
   constructor(private db: Database) {}
 
   run<T>(sql: string, params: unknown[] = []): Promise<T[]> {
@@ -54,33 +53,65 @@ export class SqliteAdapter implements DbClient {
   async acquireVoteLock(
     userId: number,
     electionId: number,
-    _nullifierHash: string,
-    _candidateId: number | null,
+    nullifierHash: string,
+    candidateId: number | null,
   ): Promise<void> {
-    const key = `${userId}:${electionId}`;
-    if (this.pendingVoteLocks.has(key)) {
-      throw new VoteConflictError('Ya has votado o hay un voto en curso');
-    }
-    // SQLite legacy: check nullifier_audit directly (pre-blockchain check)
+    // Comprobación previa al voto en cadena (pre-blockchain check), igual que antes.
     const existing = await this.db.get<{ id: number }>(
       'SELECT id FROM nullifier_audit WHERE user_id = ? AND election_id = ?',
       [userId, electionId],
     );
     if (existing) throw new VoteConflictError('Ya has votado en esta elección');
-    this.pendingVoteLocks.add(key);
+
+    // Misma UPSERT atómica que PgClient.acquireVoteLock: solo toma el cerrojo si
+    // no hay fila (primer intento) o la fila existente está 'failed'. Si está
+    // 'pending' o 'confirmed', la cláusula WHERE bloquea el UPDATE y changes=0.
+    const res = await this.db.exec(
+      `INSERT INTO vote_attempts (user_id, election_id, status, nullifier_hash, candidate_id)
+       VALUES (?, ?, 'pending', ?, ?)
+       ON CONFLICT(user_id, election_id) DO UPDATE SET
+         status         = 'pending',
+         started_at     = CURRENT_TIMESTAMP,
+         nullifier_hash = excluded.nullifier_hash,
+         candidate_id   = excluded.candidate_id,
+         completed_at   = NULL,
+         error_detail   = NULL
+       WHERE vote_attempts.status = 'failed'`,
+      [userId, electionId, nullifierHash, candidateId],
+    );
+    if (res.changes === 0) throw new VoteConflictError('Ya has votado o hay un voto en curso');
   }
 
   async releaseVoteLock(
     userId: number,
     electionId: number,
-    _status: 'confirmed' | 'failed',
-    _errorDetail?: string,
+    status: 'confirmed' | 'failed',
+    errorDetail?: string,
   ): Promise<void> {
-    this.pendingVoteLocks.delete(`${userId}:${electionId}`);
+    if (status === 'confirmed') {
+      // Igual que PgClient: al confirmarse, se borra la fila en vez de dejarla
+      // 'confirmed' — no hay razón para retener la relación user_id/candidate_id
+      // en vote_attempts una vez el voto ya está en nullifier_audit.
+      await this.db.exec(
+        'DELETE FROM vote_attempts WHERE user_id = ? AND election_id = ?',
+        [userId, electionId],
+      );
+    } else {
+      await this.db.exec(
+        `UPDATE vote_attempts
+         SET status = ?, completed_at = CURRENT_TIMESTAMP, error_detail = ?
+         WHERE user_id = ? AND election_id = ?`,
+        [status, errorDetail ?? null, userId, electionId],
+      );
+    }
   }
 
   async hasPendingVoteLock(userId: number, electionId: number): Promise<boolean> {
-    return this.pendingVoteLocks.has(`${userId}:${electionId}`);
+    const row = await this.db.get<{ id: number }>(
+      "SELECT id FROM vote_attempts WHERE user_id = ? AND election_id = ? AND status = 'pending'",
+      [userId, electionId],
+    );
+    return !!row;
   }
 
   /**

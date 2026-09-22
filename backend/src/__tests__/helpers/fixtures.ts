@@ -8,6 +8,7 @@
  *
  * Patrón extraído de security-fixes.test.ts, que ya lo hacía bien.
  */
+import crypto from 'crypto';
 import request from 'supertest';
 import { app } from '../../app.js';
 import { getDatabase } from '../../config/database.js';
@@ -106,19 +107,27 @@ export async function createFixtureElection(opts: {
   candidates?: string[];
   startTime?: number;
   endTime?: number;
+  /** Sal efímera de la elección. Por defecto se genera una, igual que hace
+   * POST /admin/elections en producción. Pasar `null` explícitamente crea una
+   * elección sin sal (comportamiento legacy), para probar ese camino aparte. */
+  ephemeralSalt?: string | null;
 } = {}): Promise<number> {
   const db = getDatabase();
   const now = Math.floor(Date.now() / 1000);
+  const ephemeralSalt = opts.ephemeralSalt === null
+    ? null
+    : opts.ephemeralSalt ?? crypto.randomBytes(32).toString('hex');
   const result = await db.exec(
     `INSERT INTO elections
-       (election_id_blockchain, name, description, start_time, end_time, is_active)
-     VALUES (?, ?, ?, ?, ?, 1)`,
+       (election_id_blockchain, name, description, start_time, end_time, is_active, ephemeral_salt)
+     VALUES (?, ?, ?, ?, ?, 1, ?)`,
     [
       opts.blockchainId ?? Math.floor(Math.random() * 1_000_000) + 9_000_000,
       opts.name ?? `Fixture Election ${uniqueSuffix()}`,
       opts.description ?? 'Created by test fixtures',
       opts.startTime ?? now - 3600,
       opts.endTime ?? now + 3600,
+      ephemeralSalt,
     ]
   );
 

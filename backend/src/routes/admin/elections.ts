@@ -4,6 +4,7 @@
  * Parte de la partición de admin.ts (SCRUM-13) — ver admin/index.ts.
  */
 import express, { Request, Response } from "express";
+import crypto from "crypto";
 import { z } from "zod";
 import { getDbClient, isUniqueViolation, withTransaction, type DbClient } from "../../db/index.js";
 import { requireAdmin } from "../../middleware/auth.js";
@@ -153,12 +154,13 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
       // election_id_blockchain = 0 mientras está 'pending': los ids del contrato
       // empiezan en 1, así que 0 nunca apunta a una elección real. El definitivo
       // lo escribe la sincronización con el id del evento ElectionCreated.
+      const ephemeralSalt = crypto.randomBytes(32).toString('hex');
       const inserted = await tx.exec(
         `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active,
-                                banner_color, target_type, target_description, voter_role, chain_status)
-         VALUES (0, ?, ?, ?, ?, TRUE, ?, ?, ?, ?, 'pending')`,
+                                banner_color, target_type, target_description, voter_role, chain_status, ephemeral_salt)
+         VALUES (0, ?, ?, ?, ?, TRUE, ?, ?, ?, ?, 'pending', ?)`,
         [name, description, start_time, end_time,
-         banner_color || '#1E3A5F', target_type, target_description || null, voter_role]
+         banner_color || '#1E3A5F', target_type, target_description || null, voter_role, ephemeralSalt]
       );
       const newId = inserted.lastID;
 

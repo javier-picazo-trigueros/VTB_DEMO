@@ -13,6 +13,7 @@ import net from "node:net";
 import { processEmailQueue } from "./services/email/queue.js";
 import { sendCensusInvitation, sendElectionOpen, sendElectionClose } from "./services/email/index.js";
 import { formatError } from "./utils/errors.js";
+import { destroyExpiredElectionSalts } from "./services/electionSalt.js";
 
 const PORT = Number(process.env.PORT || 3001);
 
@@ -239,6 +240,15 @@ async function start() {
         // sin esperarla: aquí se reintentan las que fallaron o se quedaron a medias.
         syncElectionsToBlockchain().catch(err =>
           console.error('[chain-sync-job] error:', formatError(err)),
+        );
+        // No hay acción explícita de "cerrar y certificar": una elección se
+        // considera cerrada por end_time/is_active. Se reintenta en cada pasada
+        // porque una elección con un voto todavía 'pending' en vote_attempts no
+        // destruye su sal hasta que ese intento se resuelva (ver electionSalt.ts).
+        destroyExpiredElectionSalts(getDbClient()).then(n => {
+          if (n > 0) console.log(`[election-salt] ${n} sal(es) efímera(s) destruida(s)`);
+        }).catch(err =>
+          console.error('[election-salt] error:', formatError(err)),
         );
       }, FIVE_MIN);
 
