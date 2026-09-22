@@ -49,8 +49,8 @@ async function createTestElection(): Promise<{ electionId: number; candidateId: 
   const db = getDatabase();
   const elResult = await db.exec(
     `INSERT INTO elections
-       (election_id_blockchain, name, description, start_time, end_time, is_active)
-     VALUES (9999, 'Test Election', 'CI test', ?, ?, 1)`,
+       (election_id_blockchain, name, description, start_time, end_time, is_active, chain_status)
+     VALUES (9999, 'Test Election', 'CI test', ?, ?, 1, 'synced')`,
     [NOW() - 3600, NOW() + 3600],
   );
   const electionId = elResult.lastID;

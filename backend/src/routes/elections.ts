@@ -882,14 +882,16 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       //
       // El puerto envía y espera el recibo. Los errores de ethers suben sin
       // envolver: el catch de abajo los clasifica por subcadena y por `code`.
-      const { txHash, blockNumber } = await port.castVote(
+      const { txHash, blockNumber, status: chainTxStatus } = await port.castVote(
         election.election_id_blockchain,
         nullifier,
         Number(candidato.position),
         targetContract,
       );
 
-      console.log(`Vote registered in transaction: ${txHash}`);
+      const isPendingConfirmation = chainTxStatus === 'pending_confirmation' || blockNumber === null;
+
+      console.log(`Vote registered in transaction: ${txHash} (status: ${chainTxStatus ?? 'confirmed'})`);
 
       // Record audit entry. Only mark vote_attempts as 'confirmed' if this INSERT
       // succeeds. If it fails, the row stays 'pending' so cleanupStaleVoteAttempts
@@ -938,9 +940,13 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
 
       res.json({
         success: true,
+        status: isPendingConfirmation ? 'pending_confirmation' : 'confirmed',
+        pendingConfirmation: isPendingConfirmation,
         txHash,
         blockNumber,
-        message: "Voto registrado exitosamente en blockchain",
+        message: isPendingConfirmation
+          ? "Voto enviado a la blockchain, en proceso de confirmación"
+          : "Voto registrado exitosamente en blockchain",
         voting: {
           nullifier: nullifier,
           electionId: election.election_id_blockchain,

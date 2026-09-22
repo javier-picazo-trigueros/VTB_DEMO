@@ -41,6 +41,7 @@ export interface VoteReceipt {
   txHash: string;
   blockNumber: number | null;
   candidatePosition?: number | null;
+  status?: 'confirmed' | 'pending_confirmation';
 }
 
 /** Resultado de buscar un voto en la cadena. */
@@ -61,6 +62,9 @@ export const VOTE_ABI = [
 
 /** Ventana de bloques por consulta de logs: los proveedores limitan el rango. */
 const BLOCK_WINDOW = 45_000;
+
+/** Timeout por defecto para tx.wait() (12 segundos < 15s del cliente). */
+const DEFAULT_WAIT_TIMEOUT_MS = Number(process.env.TX_WAIT_TIMEOUT_MS || 12_000);
 
 export interface VotePort {
   readonly contractAddress?: string;
@@ -108,6 +112,91 @@ export function setVotePortForTesting(port: VotePort | null): void {
   testPort = port;
 }
 
+// ── Gestión del Relayer (Singleton + Cola de Nonce) ─────────────────────────
+
+interface RelayerInstance {
+  provider: ethers.JsonRpcProvider;
+  wallet: ethers.Wallet;
+  queue: Promise<any>;
+  currentNonce: number | null;
+}
+
+let activeRelayer: RelayerInstance | null = null;
+let activeRelayerKey: string | null = null;
+
+export function resetRelayerForTesting(): void {
+  activeRelayer = null;
+  activeRelayerKey = null;
+}
+
+function getRelayer(rpcUrl: string, privateKey: string): RelayerInstance {
+  const key = `${rpcUrl}:${privateKey}`;
+  if (activeRelayer && activeRelayerKey === key) {
+    return activeRelayer;
+  }
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const wallet = new ethers.Wallet(privateKey, provider);
+  activeRelayer = {
+    provider,
+    wallet,
+    queue: Promise.resolve(),
+    currentNonce: null,
+  };
+  activeRelayerKey = key;
+  return activeRelayer;
+}
+
+async function sendRelayerTx<T>(
+  relayer: RelayerInstance,
+  operation: (wallet: ethers.Wallet, nonce: number) => Promise<T>,
+): Promise<T> {
+  const execute = async () => {
+    let nonce: number;
+    try {
+      const pendingNonce = await relayer.wallet.getNonce('pending');
+      if (relayer.currentNonce === null || pendingNonce > relayer.currentNonce) {
+        relayer.currentNonce = pendingNonce;
+      }
+      nonce = relayer.currentNonce;
+      relayer.currentNonce = nonce + 1;
+    } catch (err) {
+      relayer.currentNonce = null;
+      throw err;
+    }
+
+    try {
+      return await operation(relayer.wallet, nonce);
+    } catch (err) {
+      relayer.currentNonce = null;
+      throw err;
+    }
+  };
+
+  const currentOp = relayer.queue.then(execute, execute);
+  relayer.queue = currentOp.catch(() => {});
+  return currentOp;
+}
+
+async function waitForReceiptWithTimeout(
+  tx: { wait: () => Promise<any> },
+  timeoutMs: number,
+): Promise<{ receipt: any; timedOut: boolean }> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<{ receipt: null; timedOut: true }>((resolve) => {
+    timer = setTimeout(() => resolve({ receipt: null, timedOut: true }), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([
+      tx.wait().then((receipt: any) => ({ receipt, timedOut: false as const })),
+      timeoutPromise,
+    ]);
+    return result;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 // ── Puerto real ─────────────────────────────────────────────────────────────
 
 /**
@@ -124,36 +213,106 @@ async function bloqueInicial(contract: ethers.Contract): Promise<number> {
   return Number(await contract.deploymentBlock());
 }
 
-function createVotePort(cfg: {
+export interface CreateVotePortOptions {
   rpcUrl: string;
   contractAddress: string;
   privateKey: string;
-}): VotePort {
-  const provider = new ethers.JsonRpcProvider(cfg.rpcUrl);
-  const wallet = new ethers.Wallet(cfg.privateKey, provider);
-  const contract = new ethers.Contract(cfg.contractAddress, [...VOTE_ABI], wallet);
-  const lectura = new ethers.Contract(cfg.contractAddress, [...VOTE_ABI], provider);
+  waitTimeoutMs?: number;
+  mockContract?: any;
+  mockInitialNonce?: number;
+}
+
+export function createVotePort(cfg: CreateVotePortOptions): VotePort {
+  const waitTimeout = cfg.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;
+
+  if (cfg.mockContract) {
+    let mockNonce = cfg.mockInitialNonce ?? 0;
+    let mockQueue = Promise.resolve();
+
+    return {
+      contractAddress: cfg.contractAddress,
+      async castVote(onChainElectionId, nullifier, candidateId, contractAddress) {
+        const execute = async () => {
+          const nonce = mockNonce++;
+          return await cfg.mockContract.castVote(
+            onChainElectionId,
+            nullifier,
+            candidateId,
+            { nonce },
+          );
+        };
+        const currentOp = mockQueue.then(execute, execute);
+        mockQueue = currentOp.catch(() => {});
+        const tx = await currentOp;
+
+        const result = await waitForReceiptWithTimeout(tx, waitTimeout);
+        if (result.timedOut) {
+          return {
+            txHash: tx.hash,
+            blockNumber: null,
+            status: 'pending_confirmation',
+          };
+        }
+        return {
+          txHash: tx.hash,
+          blockNumber: result.receipt?.blockNumber ?? null,
+          status: 'confirmed',
+        };
+      },
+
+      async findVote(nullifierHash, onChainElectionId, contractAddress) {
+        return { estado: 'no-esta' };
+      },
+
+      async getTally(onChainElectionId, contractAddress) {
+        return [0, 0];
+      },
+    };
+  }
+
+  const relayer = getRelayer(cfg.rpcUrl, cfg.privateKey);
+  const contract = new ethers.Contract(cfg.contractAddress, [...VOTE_ABI], relayer.wallet);
+  const lectura = new ethers.Contract(cfg.contractAddress, [...VOTE_ABI], relayer.provider);
 
   return {
     contractAddress: cfg.contractAddress,
     async castVote(onChainElectionId, nullifier, candidateId, contractAddress) {
       const target = contractAddress && contractAddress.trim() ? contractAddress.trim() : cfg.contractAddress;
-      const activeContract = target.toLowerCase() !== cfg.contractAddress.toLowerCase()
-        ? new ethers.Contract(target, [...VOTE_ABI], wallet)
-        : contract;
-      const tx = await activeContract.castVote(onChainElectionId, nullifier, candidateId);
-      const receipt = await tx.wait();
-      return { txHash: tx.hash as string, blockNumber: receipt?.blockNumber ?? null };
+      const isTargetDefault = target.toLowerCase() === cfg.contractAddress.toLowerCase();
+
+      // Serializamos el envío asegurando nonce secuencial desde la cuenta del relayer
+      const tx = await sendRelayerTx(relayer, async (wallet, nonce) => {
+        const activeContract = isTargetDefault
+          ? contract
+          : new ethers.Contract(target, [...VOTE_ABI], wallet);
+        return await activeContract.castVote(onChainElectionId, nullifier, candidateId, { nonce });
+      });
+
+      // Esperar recibo con timeout explícito (12s < 15s del cliente)
+      const waitResult = await waitForReceiptWithTimeout(tx, waitTimeout);
+      if (waitResult.timedOut) {
+        return {
+          txHash: tx.hash as string,
+          blockNumber: null,
+          status: 'pending_confirmation',
+        };
+      }
+
+      return {
+        txHash: tx.hash as string,
+        blockNumber: waitResult.receipt?.blockNumber ?? null,
+        status: 'confirmed',
+      };
     },
 
     async findVote(nullifierHash, onChainElectionId, contractAddress) {
       try {
         const target = contractAddress && contractAddress.trim() ? contractAddress.trim() : cfg.contractAddress;
         const activeLectura = target.toLowerCase() !== cfg.contractAddress.toLowerCase()
-          ? new ethers.Contract(target, [...VOTE_ABI], provider)
+          ? new ethers.Contract(target, [...VOTE_ABI], relayer.provider)
           : lectura;
         const desde = await bloqueInicial(activeLectura);
-        const hasta = await provider.getBlockNumber();
+        const hasta = await relayer.provider.getBlockNumber();
         const filtro = activeLectura.filters.VoteCast(onChainElectionId ?? null, nullifierHash);
 
         for (let inicio = desde; inicio <= hasta; inicio += BLOCK_WINDOW) {
@@ -191,7 +350,7 @@ function createVotePort(cfg: {
     async getTally(onChainElectionId, contractAddress) {
       const target = contractAddress && contractAddress.trim() ? contractAddress.trim() : cfg.contractAddress;
       const activeLectura = target.toLowerCase() !== cfg.contractAddress.toLowerCase()
-        ? new ethers.Contract(target, [...VOTE_ABI], provider)
+        ? new ethers.Contract(target, [...VOTE_ABI], relayer.provider)
         : lectura;
       const tally: bigint[] = await activeLectura.getTally(onChainElectionId);
       return tally.map(Number);
@@ -201,9 +360,6 @@ function createVotePort(cfg: {
 
 /**
  * Puerto listo para usar, o `null` si no hay cadena configurada.
- *
- * No se cachea: PRIVATE_KEY y RPC_URL pueden cambiar entre peticiones en los
- * tests, y construir un JsonRpcProvider no hace E/S.
  */
 export function getVotePort(contractAddress?: string | null): VotePort | null {
   if (testPort) return testPort;
@@ -212,3 +368,4 @@ export function getVotePort(contractAddress?: string | null): VotePort | null {
   const target = contractAddress && contractAddress.trim() ? contractAddress.trim() : cfg.contractAddress;
   return createVotePort({ ...cfg, contractAddress: target });
 }
+

@@ -145,15 +145,25 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         </motion.div>
       </div>
       <h2 className="text-center text-xl font-bold text-slate-900 dark:text-white mb-1">
-        {t("votingBooth.voteRegistered")}
+        {txData.pendingConfirmation
+          ? (t("votingBooth.pendingConfirmationTitle") || "Voto en Proceso")
+          : t("votingBooth.voteRegistered")}
       </h2>
       <p className="text-center text-sm text-slate-500 dark:text-slate-400 mb-5">
-        {t("votingBooth.transactionHash")}
+        {txData.pendingConfirmation
+          ? (t("votingBooth.pendingConfirmationSubtitle") || "Transacción enviada a la blockchain")
+          : t("votingBooth.transactionHash")}
       </p>
 
       {txData.isDemo && (
         <div className="mb-3 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
           🔵 {t("votingBooth.receiptDemoBadge")}
+        </div>
+      )}
+
+      {txData.pendingConfirmation && (
+        <div className="mb-3 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-medium">
+          {t("votingBooth.pendingConfirmationBadge") || "🟡 En proceso de confirmación en blockchain"}
         </div>
       )}
 
@@ -169,7 +179,7 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         {copied ? t("results.copied") : t("votingBooth.copyTxHash")}
       </button>
 
-      {!txData.isDemo && txData.txHash && explorerUrl && txData.blockNumber !== null ? (
+      {!txData.isDemo && txData.txHash && explorerUrl && (txData.blockNumber !== null || txData.pendingConfirmation) ? (
         <a
           href={`${explorerUrl.replace(/\/$/, "")}/tx/${txData.txHash}`}
           target="_blank"
@@ -178,6 +188,12 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         >
           {t("votingBooth.viewExplorer")}
         </a>
+      ) : null}
+
+      {txData.pendingConfirmation ? (
+        <p className="text-center text-xs text-amber-600 dark:text-amber-400 mb-3 px-2">
+          {t("votingBooth.pendingConfirmationNote") || "Tu voto ha sido enviado a la red Ethereum y está en proceso de inclusión en un bloque. Puedes seguir la confirmación en el explorador."}
+        </p>
       ) : !txData.isDemo && txData.blockNumber === null ? (
         <p className="text-center text-xs text-amber-600 dark:text-amber-400 mb-3 px-2">
           {t("votingBooth.localDemoVote")}
@@ -550,7 +566,13 @@ export const VotingBoothContent = () => {
       const response = await voteRequest;
       await new Promise(r => setTimeout(r, 600));
 
-      setTxData({ txHash: response.data.txHash, blockNumber: response.data.blockNumber ?? null, isDemo: response.data.isDemo === true });
+      const isPending = response.data?.pendingConfirmation === true || response.data?.status === 'pending_confirmation';
+      setTxData({
+        txHash: response.data.txHash,
+        blockNumber: response.data.blockNumber ?? null,
+        isDemo: response.data.isDemo === true,
+        pendingConfirmation: isPending,
+      });
       setVoteStatus("success");
       setSelectedCandidate(null);
     } catch (err) {
