@@ -121,4 +121,35 @@ describe('Punto 3: Detección y resolución de transacciones atascadas del relay
       }),
     );
   });
+
+  it('utiliza speedup como acción por defecto y nunca ejecuta cancel automáticamente', async () => {
+    const mockSend = vi.fn(async (txReq: any) => ({
+      hash: '0xdefault_speedup_hash',
+      nonce: txReq.nonce,
+    }));
+
+    const mockProvider = {
+      getFeeData: vi.fn(async () => ({
+        maxFeePerGas: 1000000000n,
+        maxPriorityFeePerGas: 100000000n,
+      })),
+    };
+
+    const mockWallet = {
+      address: '0x1111111111111111111111111111111111111111',
+      provider: mockProvider,
+      sendTransaction: mockSend,
+    } as unknown as ethers.Wallet;
+
+    // Llamada sin especificar type en opciones
+    await replaceStuckRelayerTx(mockWallet, 8);
+
+    // No debe ser cancel (0 ETH a sí mismo)
+    expect(mockSend).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        value: 0,
+        to: '0x1111111111111111111111111111111111111111',
+      }),
+    );
+  });
 });

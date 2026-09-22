@@ -159,7 +159,9 @@ export async function replaceStuckRelayerTx(
   nonce: number,
   options?: ReplaceStuckTxOptions,
 ): Promise<ethers.TransactionResponse> {
-  const action = options?.type ?? 'cancel';
+  // 'speedup' es SIEMPRE la opción por defecto para no anular votos legítimos.
+  // 'cancel' sustituye la transacción por 0 ETH y NUNCA se ejecuta automáticamente.
+  const action = options?.type ?? 'speedup';
   const bumpPercent = options?.gasBumpPercentage ?? 20;
 
   const feeData = await wallet.provider!.getFeeData();
@@ -364,7 +366,7 @@ export function createVotePort(cfg: CreateVotePortOptions): VotePort {
         };
       },
 
-      async resolveStuckNonce(stuckNonce: number, _action: 'cancel' | 'speedup' = 'cancel') {
+      async resolveStuckNonce(stuckNonce: number, _action: 'cancel' | 'speedup' = 'speedup') {
         return { txHash: '0xmock_resolved_' + stuckNonce };
       },
     };
@@ -460,7 +462,7 @@ export function createVotePort(cfg: CreateVotePortOptions): VotePort {
       return checkRelayerNonceStatus(relayer.wallet);
     },
 
-    async resolveStuckNonce(stuckNonce: number, action: 'cancel' | 'speedup' = 'cancel') {
+    async resolveStuckNonce(stuckNonce: number, action: 'cancel' | 'speedup' = 'speedup') {
       const tx = await replaceStuckRelayerTx(relayer.wallet, stuckNonce, { type: action });
       relayer.currentNonce = null;
       return { txHash: tx.hash };
