@@ -312,4 +312,29 @@ describe('register-vote en una elección que aún no está en blockchain', () =>
     expect(res.body.code).toBe('ELECTION_NOT_ON_CHAIN');
     expect(await count('SELECT COUNT(*) AS n FROM nullifier_audit WHERE user_id = ?', [user.id])).toBe(0);
   });
+
+  it('una cuenta demo también recibe 503 ELECTION_NOT_ON_CHAIN si la elección no está en blockchain', async () => {
+    const user = await createFixtureUser({ email: `demo-${Date.now()}@vtb.demo` });
+    const electionId = await createFixtureElection({
+      name: `Sin cadena demo ${Date.now()}`,
+      candidates: ['Única'],
+    });
+    await db.exec("UPDATE elections SET chain_status = 'pending' WHERE id = ?", [electionId]);
+    const candidate = await db.get<{ id: number }>(
+      'SELECT id FROM candidates WHERE election_id = ?',
+      [electionId],
+    );
+    await db.exec('INSERT INTO election_voters (election_id, user_id) VALUES (?, ?)', [electionId, user.id]);
+
+    const { agent, csrf } = await loginAsFixture(user.email, user.password);
+    const res = await agent.post('/api/elections/register-vote').set('X-CSRF-Token', csrf).send({
+      electionId,
+      voteHash: '0x' + 'ab'.repeat(32),
+      candidateId: candidate!.id,
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('ELECTION_NOT_ON_CHAIN');
+    expect(await count('SELECT COUNT(*) AS n FROM nullifier_audit WHERE user_id = ?', [user.id])).toBe(0);
+  });
 });

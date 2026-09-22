@@ -799,6 +799,21 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'Ya has votado en esta elección' });
     }
 
+    // La elección tiene que estar registrada en el contrato. Mientras no lo esté,
+    // election_id_blockchain no es fiable (antes de la migración 008 salía de una
+    // renumeración que apuntaba a OTRAS elecciones del contrato) y el voto se
+    // registraría en la elección equivocada. La sincronización corre sola en
+    // segundo plano: basta con reintentar en unos minutos.
+    // Esta regla aplica a TODO EL MUNDO (503), cuentas de demostración incluidas.
+    if (election.chain_status !== 'synced') {
+      return res.status(503).json({
+        error: "Esta elección aún no está registrada en blockchain",
+        details: "Se está registrando en segundo plano. Inténtalo de nuevo en unos minutos.",
+        code: "ELECTION_NOT_ON_CHAIN",
+        chainStatus: election.chain_status,
+      });
+    }
+
     // Check if this is a vtb.demo account — use synthetic fallback immediately
     const isDemo = decoded.email?.endsWith('@vtb.demo');
 
@@ -821,20 +836,6 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         isDemo: true,
         verifiable: false,
         message: 'Voto de demostración registrado. No está en la blockchain y no es verificable desde fuera.',
-      });
-    }
-
-    // La elección tiene que estar registrada en el contrato. Mientras no lo esté,
-    // election_id_blockchain no es fiable (antes de la migración 008 salía de una
-    // renumeración que apuntaba a OTRAS elecciones del contrato) y el voto se
-    // registraría en la elección equivocada. La sincronización corre sola en
-    // segundo plano: basta con reintentar en unos minutos.
-    if (election.chain_status !== 'synced') {
-      return res.status(503).json({
-        error: "Esta elección aún no está registrada en blockchain",
-        details: "Se está registrando en segundo plano. Inténtalo de nuevo en unos minutos.",
-        code: "ELECTION_NOT_ON_CHAIN",
-        chainStatus: election.chain_status,
       });
     }
 
