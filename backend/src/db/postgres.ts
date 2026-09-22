@@ -405,9 +405,9 @@ export class PgClient implements DbClient {
           // Fallo definitivo: 'no-esta' tras consultar la cadena
           await this.pool.query(
             `UPDATE vote_attempts
-             SET status = $1, completed_at = NOW()
+             SET status = $1, completed_at = NOW(), error_detail = $3
              WHERE id = $2`,
-            ['failed', attempt.id],
+            ['failed', attempt.id, 'Transacción no encontrada en blockchain o revertida'],
           );
         }
       } catch (err) {
