@@ -11,6 +11,7 @@ import QRCode from 'react-qr-code';
 import { Navbar } from '../components/Navbar';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/apiClient';
+import { getPdfVerificationText } from '../utils/pdfVerification';
 
 const EXPLORER_URL = import.meta.env.VITE_EXPLORER_URL || '';
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -283,18 +284,25 @@ const ElectionResults = () => {
 
       // ── Footer ───────────────────────────────────────────────
       const pageCount = pdf.getNumberOfPages();
+      const verificationStatus = getPdfVerificationText(results);
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
         pdf.setFontSize(7);
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(150, 150, 150);
         pdf.text(
-          `VTB — Vote Through Blockchain  |  All votes verified on Ethereum  |  Page ${i} of ${pageCount}`,
+          `VTB — Vote Through Blockchain  |  ${verificationStatus}  |  Pág. ${i} de ${pageCount}`,
           margin, 293
         );
         if (results?.onChainVerified) {
           pdf.setTextColor(16, 185, 129);
           pdf.text('Verified on-chain', pageWidth - margin - 35, 293);
+        } else if (results?.verificacion?.estado === 'parcial') {
+          pdf.setTextColor(217, 119, 6);
+          pdf.text('Verificación parcial', pageWidth - margin - 45, 293);
+        } else if (results?.verificacion?.estado === 'discrepancia') {
+          pdf.setTextColor(220, 38, 38);
+          pdf.text('Discrepancia', pageWidth - margin - 35, 293);
         }
       }
 
