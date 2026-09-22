@@ -101,6 +101,91 @@ export interface VotePort {
 
   /** Recuento por candidato que mantiene el contrato. `tally[i]` = candidato i. */
   getTally(onChainElectionId: number, contractAddress?: string | null): Promise<number[]>;
+
+  /** Estado actual de congestión y nonces del relayer */
+  getNonceStatus?(): Promise<RelayerNonceStatus>;
+
+  /** Desatasca un nonce en el relayer ('cancel' enviando 0 ETH a sí mismo o 'speedup') */
+  resolveStuckNonce?(stuckNonce: number, action?: 'cancel' | 'speedup'): Promise<{ txHash: string }>;
+}
+
+export interface RelayerNonceStatus {
+  latestNonce: number;
+  pendingNonce: number;
+  inFlightCount: number;
+  isCongested: boolean;
+}
+
+export interface ReplaceStuckTxOptions {
+  type?: 'cancel' | 'speedup';
+  to?: string;
+  data?: string;
+  gasBumpPercentage?: number;
+}
+
+/**
+ * Comprueba el desfase de nonces entre el estado confirmado en cadena ('latest')
+ * y el mempool ('pending'). Si pendingNonce > latestNonce y supera el umbral,
+ * indica transacciones atascadas en cola bloqueando envíos posteriores.
+ */
+export async function checkRelayerNonceStatus(
+  wallet: ethers.Wallet,
+  congestedThreshold: number = 3,
+): Promise<RelayerNonceStatus> {
+  const [latestNonce, pendingNonce] = await Promise.all([
+    wallet.getNonce('latest'),
+    wallet.getNonce('pending'),
+  ]);
+  const inFlightCount = Math.max(0, pendingNonce - latestNonce);
+  return {
+    latestNonce,
+    pendingNonce,
+    inFlightCount,
+    isCongested: inFlightCount >= congestedThreshold,
+  };
+}
+
+/**
+ * Desatasca una transacción bloqueada emitiendo una nueva transacción con el MISMO nonce
+ * y gas sustancialmente mayor (EIP-1559 replacement rule: ≥10-20% bump).
+ *
+ * - 'cancel': 0 ETH a la propia dirección del relayer para liberar el slot inmediatamente.
+ * - 'speedup': reenvío con los mismos datos pero con tarifa aumentada para forzar inclusión.
+ */
+export async function replaceStuckRelayerTx(
+  wallet: ethers.Wallet,
+  nonce: number,
+  options?: ReplaceStuckTxOptions,
+): Promise<ethers.TransactionResponse> {
+  const action = options?.type ?? 'cancel';
+  const bumpPercent = options?.gasBumpPercentage ?? 20;
+
+  const feeData = await wallet.provider!.getFeeData();
+  const bump = (val: bigint | null | undefined) => {
+    if (val === null || val === undefined) return undefined;
+    return (val * BigInt(100 + bumpPercent)) / 100n;
+  };
+
+  const maxFeePerGas = bump(feeData.maxFeePerGas);
+  const maxPriorityFeePerGas = bump(feeData.maxPriorityFeePerGas);
+
+  if (action === 'cancel') {
+    return await wallet.sendTransaction({
+      to: wallet.address,
+      value: 0,
+      nonce,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    });
+  } else {
+    return await wallet.sendTransaction({
+      to: options?.to,
+      data: options?.data ?? '0x',
+      nonce,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    });
+  }
 }
 
 // ── Doble para tests ────────────────────────────────────────────────────────
@@ -267,6 +352,19 @@ export function createVotePort(cfg: CreateVotePortOptions): VotePort {
       async getTally(onChainElectionId, contractAddress) {
         return [0, 0];
       },
+
+      async getNonceStatus() {
+        return {
+          latestNonce: mockNonce,
+          pendingNonce: mockNonce,
+          inFlightCount: 0,
+          isCongested: false,
+        };
+      },
+
+      async resolveStuckNonce(stuckNonce: number, _action: 'cancel' | 'speedup' = 'cancel') {
+        return { txHash: '0xmock_resolved_' + stuckNonce };
+      },
     };
   }
 
@@ -354,6 +452,16 @@ export function createVotePort(cfg: CreateVotePortOptions): VotePort {
         : lectura;
       const tally: bigint[] = await activeLectura.getTally(onChainElectionId);
       return tally.map(Number);
+    },
+
+    async getNonceStatus() {
+      return checkRelayerNonceStatus(relayer.wallet);
+    },
+
+    async resolveStuckNonce(stuckNonce: number, action: 'cancel' | 'speedup' = 'cancel') {
+      const tx = await replaceStuckRelayerTx(relayer.wallet, stuckNonce, { type: action });
+      relayer.currentNonce = null;
+      return { txHash: tx.hash };
     },
   };
 }
