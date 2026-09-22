@@ -365,15 +365,10 @@ export class PgClient implements DbClient {
         if (onChain) {
           // Reconstruir la fila de nullifier_audit y confirmar el intento dentro de la MISMA transacción.
           await this.transaction(async (tx) => {
-            await tx.exec(
-              `UPDATE vote_attempts
-               SET status = ?, completed_at = NOW()
-               WHERE id = ?`,
-              ['confirmed', attempt.id],
-            );
-
-            // Contrastar el candidato del evento con la tabla candidates
+            // Contrastar el candidato del evento con la tabla candidates y detectar discrepancias
             let finalCandidateId = attempt.candidate_id;
+            let discrepancyDetail: string | null = null;
+
             if (onChain.candidatePosition != null) {
               const matched = await tx.get<{ id: number }>(
                 'SELECT id FROM candidates WHERE election_id = ? AND position = ?',
@@ -381,8 +376,22 @@ export class PgClient implements DbClient {
               );
               if (matched) {
                 finalCandidateId = matched.id;
+                if (attempt.candidate_id != null && attempt.candidate_id !== matched.id) {
+                  discrepancyDetail = `DISCREPANCY: candidato on-chain (${matched.id}) no coincide con intento (${attempt.candidate_id})`;
+                  console.warn(`[cleanup] intento ${attempt.id}: ${discrepancyDetail}`);
+                }
+              } else {
+                discrepancyDetail = `DISCREPANCY: posición on-chain (${onChain.candidatePosition}) no encontrada en candidatos de elección ${attempt.election_id}`;
+                console.warn(`[cleanup] intento ${attempt.id}: ${discrepancyDetail}`);
               }
             }
+
+            await tx.exec(
+              `UPDATE vote_attempts
+               SET status = $1, completed_at = NOW(), error_detail = $3
+               WHERE id = $2`,
+              ['confirmed', attempt.id, discrepancyDetail],
+            );
 
             await tx.exec(
               `INSERT INTO nullifier_audit
