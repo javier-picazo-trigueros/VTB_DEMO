@@ -981,10 +981,12 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         `electionId=${electionId}`,
       );
 
-      // Liberar cerrojo: permite reintentar si la tx falló
+      // Liberar cerrojo: permite reintentar si la tx falló. Mismo saneado que el
+      // log de arriba — blockchainError.message crudo puede traer la URL del RPC
+      // con su API key, y quedaría en la base en vez de solo en el log del server.
       await db.releaseVoteLock(
         decoded.userId, electionId, 'failed',
-        String(blockchainError.message ?? blockchainError),
+        formatError(blockchainError),
       ).catch(() => {});
 
       // Graceful fallback: election not yet registered on-chain (seeded elections)

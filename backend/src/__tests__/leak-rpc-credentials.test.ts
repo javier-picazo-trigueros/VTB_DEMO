@@ -87,6 +87,17 @@ describe('Punto 17: No devolver rpcUrl ni mensajes de error de blockchain que fi
       expect(res.status).toBe(500);
       expect(JSON.stringify(res.body)).not.toContain(SECRET_RPC_KEY);
       expect(res.body.details).not.toContain(SECRET_RPC_KEY);
+
+      // El fallo también libera el cerrojo con releaseVoteLock(..., 'failed', detalle),
+      // que persiste ese detalle en vote_attempts.error_detail. Antes era
+      // blockchainError.message crudo — la clave quedaba en la base aunque nunca
+      // se devolviera por HTTP.
+      const attempt = await db.get<{ error_detail: string | null }>(
+        'SELECT error_detail FROM vote_attempts WHERE user_id = ? AND election_id = ?',
+        [user.id, electionId],
+      );
+      expect(attempt?.error_detail).toBeTruthy();
+      expect(attempt?.error_detail).not.toContain(SECRET_RPC_KEY);
     });
   });
 });
