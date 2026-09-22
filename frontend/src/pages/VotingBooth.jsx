@@ -158,13 +158,15 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
 
       {txData.isDemo && (
         <div className="mb-3 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
-          🔵 {t("votingBooth.receiptDemoBadge")}
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+          {t("votingBooth.receiptDemoBadge")}
         </div>
       )}
 
       {txData.pendingConfirmation && (
         <div className="mb-3 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-medium">
-          {t("votingBooth.pendingConfirmationBadge") || "🟡 En proceso de confirmación en blockchain"}
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+          {t("votingBooth.pendingConfirmationBadge") || "En proceso de confirmación en blockchain"}
         </div>
       )}
 
