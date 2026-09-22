@@ -48,14 +48,10 @@ function createDiscrepancyMockPg(
       return { rows: match ? [match] : [], rowCount: match ? 1 : 0 };
     }
 
-    if (/UPDATE vote_attempts/i.test(sql) && /confirmed/i.test(String(params[0]))) {
-      const id = Number(params[1]);
-      const att = attempts.find(a => a.id === id);
-      if (att) {
-        att.status = 'confirmed';
-        // error_detail puede ser params[2] en consultas posicionales
-        att.error_detail = params[2] ? String(params[2]) : null;
-      }
+    if (/DELETE FROM vote_attempts/i.test(sql)) {
+      const id = Number(params[0]);
+      const idx = attempts.findIndex(a => a.id === id);
+      if (idx !== -1) attempts.splice(idx, 1);
       return { rows: [], rowCount: 1 };
     }
 
@@ -89,7 +85,7 @@ function createDiscrepancyMockPg(
 }
 
 describe('Punto 4: Detección y registro de discrepancia de candidato en recuperación', () => {
-  it('registra discrepancia explícita en vote_attempts.error_detail cuando el candidato on-chain difiere del intento', async () => {
+  it('registra discrepancia explícita por consola cuando el candidato on-chain difiere del intento y elimina vote_attempts', async () => {
     // Intento registró candidate_id=10
     const { client, attempts, auditRows } = createDiscrepancyMockPg({
       id: 50,
@@ -110,15 +106,12 @@ describe('Punto 4: Detección y registro de discrepancia de candidato en recuper
 
     await client.cleanupStaleVoteAttempts(checkOnChain);
 
-    expect(attempts[0].status).toBe('confirmed');
-    // Debe haber registrado discrepancia explícita en error_detail
-    expect(attempts[0].error_detail).toMatch(/DISCREPANC/i);
-    expect(attempts[0].error_detail).toContain('20');
-    expect(attempts[0].error_detail).toContain('10');
+    // El intento se elimina de vote_attempts al confirmarse para no retener la relación persona-voto
+    expect(attempts).toHaveLength(0);
 
-    // Debe haber emitido advertencia por consola
+    // Debe haber emitido advertencia por consola con la discrepancia
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/DISCREPANC/i),
+      expect.stringMatching(/DISCREPANC.*candidato on-chain \(20\) no coincide con intento \(10\)/i),
     );
 
     // nullifier_audit debe contener el candidato verificado on-chain (20)
@@ -127,9 +120,9 @@ describe('Punto 4: Detección y registro de discrepancia de candidato en recuper
     warnSpy.mockRestore();
   });
 
-  it('no registra discrepancia si el candidato on-chain coincide con el del intento', async () => {
+  it('no emite advertencia de discrepancia si el candidato on-chain coincide con el del intento', async () => {
     // Intento registró candidate_id=10
-    const { client, attempts } = createDiscrepancyMockPg({
+    const { client, attempts, auditRows } = createDiscrepancyMockPg({
       id: 51,
       user_id: 201,
       election_id: 1,
@@ -137,6 +130,8 @@ describe('Punto 4: Detección y registro de discrepancia de candidato en recuper
       candidate_id: 10,
       status: 'pending',
     });
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     // Evento on-chain indica candidatePosition: 0 (mapea a candidate_id=10, coincide)
     const checkOnChain = vi.fn(async (): Promise<BusquedaDeVoto> => ({
@@ -146,7 +141,11 @@ describe('Punto 4: Detección y registro de discrepancia de candidato en recuper
 
     await client.cleanupStaleVoteAttempts(checkOnChain);
 
-    expect(attempts[0].status).toBe('confirmed');
-    expect(attempts[0].error_detail).toBeNull();
+    // Intento eliminado al confirmarse
+    expect(attempts).toHaveLength(0);
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(auditRows[0].candidate_id).toBe(10);
+
+    warnSpy.mockRestore();
   });
 });

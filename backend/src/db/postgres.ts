@@ -122,6 +122,14 @@ class PgTransactionClient implements DbClient {
     nullifierHash: string,
     candidateId: number | null,
   ): Promise<void> {
+    const yaVoto = await this.client.query(
+      `SELECT id FROM nullifier_audit WHERE user_id = $1 AND election_id = $2 LIMIT 1`,
+      [userId, electionId],
+    );
+    if ((yaVoto.rowCount ?? 0) > 0) {
+      throw new VoteConflictError('Ya has votado en esta elección');
+    }
+
     const res = await this.client.query(
       `INSERT INTO vote_attempts (user_id, election_id, status, nullifier_hash, candidate_id)
        VALUES ($1, $2, 'pending', $3, $4)
@@ -144,12 +152,19 @@ class PgTransactionClient implements DbClient {
     status: 'confirmed' | 'failed',
     errorDetail?: string,
   ): Promise<void> {
-    await this.client.query(
-      `UPDATE vote_attempts
-       SET status = $3, completed_at = NOW(), error_detail = $4
-       WHERE user_id = $1 AND election_id = $2`,
-      [userId, electionId, status, errorDetail ?? null],
-    );
+    if (status === 'confirmed') {
+      await this.client.query(
+        `DELETE FROM vote_attempts WHERE user_id = $1 AND election_id = $2`,
+        [userId, electionId],
+      );
+    } else {
+      await this.client.query(
+        `UPDATE vote_attempts
+         SET status = $3, completed_at = NOW(), error_detail = $4
+         WHERE user_id = $1 AND election_id = $2`,
+        [userId, electionId, status, errorDetail ?? null],
+      );
+    }
   }
 
   async hasPendingVoteLock(userId: number, electionId: number): Promise<boolean> {
@@ -238,6 +253,14 @@ export class PgClient implements DbClient {
     nullifierHash: string,
     candidateId: number | null,
   ): Promise<void> {
+    const yaVoto = await this.pool.query(
+      `SELECT id FROM nullifier_audit WHERE user_id = $1 AND election_id = $2 LIMIT 1`,
+      [userId, electionId],
+    );
+    if ((yaVoto.rowCount ?? 0) > 0) {
+      throw new VoteConflictError('Ya has votado en esta elección');
+    }
+
     const res = await this.pool.query(
       `INSERT INTO vote_attempts (user_id, election_id, status, nullifier_hash, candidate_id)
        VALUES ($1, $2, 'pending', $3, $4)
@@ -260,12 +283,21 @@ export class PgClient implements DbClient {
     status: 'confirmed' | 'failed',
     errorDetail?: string,
   ): Promise<void> {
-    await this.pool.query(
-      `UPDATE vote_attempts
-       SET status = $3, completed_at = NOW(), error_detail = $4
-       WHERE user_id = $1 AND election_id = $2`,
-      [userId, electionId, status, errorDetail ?? null],
-    );
+    if (status === 'confirmed') {
+      // El voto se ha confirmado: se elimina la fila de vote_attempts para no retener
+      // la relación entre user_id y candidate_id.
+      await this.pool.query(
+        `DELETE FROM vote_attempts WHERE user_id = $1 AND election_id = $2`,
+        [userId, electionId],
+      );
+    } else {
+      await this.pool.query(
+        `UPDATE vote_attempts
+         SET status = $3, completed_at = NOW(), error_detail = $4
+         WHERE user_id = $1 AND election_id = $2`,
+        [userId, electionId, status, errorDetail ?? null],
+      );
+    }
   }
 
   async hasPendingVoteLock(userId: number, electionId: number): Promise<boolean> {
@@ -386,11 +418,10 @@ export class PgClient implements DbClient {
               }
             }
 
+            // Voto confirmado en blockchain: se elimina el intento para no conservar vinculación
             await tx.exec(
-              `UPDATE vote_attempts
-               SET status = $1, completed_at = NOW(), error_detail = $3
-               WHERE id = $2`,
-              ['confirmed', attempt.id, discrepancyDetail],
+              `DELETE FROM vote_attempts WHERE id = $1`,
+              [attempt.id],
             );
 
             await tx.exec(

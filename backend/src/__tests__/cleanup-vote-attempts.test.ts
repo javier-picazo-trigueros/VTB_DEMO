@@ -65,11 +65,12 @@ function poolFalso(pendientes: IntentoPendiente[], candidatos: Array<{ id: numbe
     end: async () => {},
   };
 
-  const escrituras = () => consultas.filter(c => /UPDATE|INSERT/i.test(c.sql));
+  const escrituras = () => consultas.filter(c => /UPDATE|INSERT|DELETE/i.test(c.sql));
   const actualizaciones = () => consultas.filter(c => /UPDATE vote_attempts/i.test(c.sql));
+  const eliminaciones = () => consultas.filter(c => /DELETE FROM vote_attempts/i.test(c.sql));
   const inserciones = () => consultas.filter(c => /INSERT INTO nullifier_audit/i.test(c.sql));
 
-  return { pool, consultas, escrituras, actualizaciones, inserciones };
+  return { pool, consultas, escrituras, actualizaciones, eliminaciones, inserciones };
 }
 
 const clienteCon = (pool: PoolLike) => new PgClient('postgresql://no-se-conecta', pool);
@@ -92,7 +93,7 @@ describe('cleanupStaleVoteAttempts', () => {
   });
 
   it('si el voto está en la cadena, lo confirma e inserta la auditoría en la misma transacción con vote_source=chain', async () => {
-    const { pool, consultas, actualizaciones, inserciones } = poolFalso(
+    const { pool, consultas, eliminaciones, inserciones } = poolFalso(
       [intento({ candidate_id: 7 })],
       [{ id: 99, position: 2 }]
     );
@@ -108,8 +109,9 @@ describe('cleanupStaleVoteAttempts', () => {
     expect(sqlCommands).toContain('BEGIN');
     expect(sqlCommands).toContain('COMMIT');
 
-    expect(actualizaciones()).toHaveLength(1);
-    expect(actualizaciones()[0].params[0]).toBe('confirmed');
+    // El intento confirmado se elimina de vote_attempts para no retener la relación persona-voto
+    expect(eliminaciones()).toHaveLength(1);
+    expect(eliminaciones()[0].params[0]).toBe(1);
 
     expect(inserciones()).toHaveLength(1);
     expect(inserciones()[0].sql).toMatch(/vote_source/);
@@ -130,13 +132,11 @@ describe('cleanupStaleVoteAttempts', () => {
   });
 
   it('con varios intentos, solo se deja pendiente el que no obtuvo respuesta o nonce sigue libre', async () => {
-    // El caso realista: el nodo responde a unos y a otros no.
-    const { pool, actualizaciones } = poolFalso([
+    const { pool, actualizaciones, eliminaciones } = poolFalso([
       intento({ id: 1, nullifier_hash: '0xa' }),
       intento({ id: 2, nullifier_hash: '0xb' }),
       intento({ id: 3, nullifier_hash: '0xc' }),
     ]);
-
     const checkOnChain = vi.fn(async (n: string): Promise<BusquedaDeVoto> => {
       if (n === '0xa') return { estado: 'encontrado', recibo: { txHash: '0xtx', blockNumber: 1 } };
       if (n === '0xb') return { estado: 'sin-respuesta', motivo: 'timeout' };
@@ -146,8 +146,12 @@ describe('cleanupStaleVoteAttempts', () => {
     await clienteCon(pool).cleanupStaleVoteAttempts(checkOnChain);
 
     expect(checkOnChain).toHaveBeenCalledTimes(3);
-    const tocados = actualizaciones().map(c => c.params[1]);
-    expect(tocados).toEqual([1, 3]);
+    const tocados = [
+      ...actualizaciones().map(c => c.params[1]),
+      ...eliminaciones().map(c => c.params[0]),
+    ];
+    expect(tocados).toContain(1);
+    expect(tocados).toContain(3);
     expect(tocados).not.toContain(2);
   });
 

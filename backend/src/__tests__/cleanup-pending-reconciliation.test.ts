@@ -39,12 +39,12 @@ function createMockPg(initialAttempts: AttemptRow[]) {
       return { rows: [{ id: 10, position: 0 }], rowCount: 1 };
     }
 
-    // 3. UPDATE vote_attempts to confirmed
-    if (/UPDATE vote_attempts/i.test(sql) && /confirmed/i.test(String(params[0]))) {
-      const id = Number(params[1]);
-      const att = attempts.find(a => a.id === id);
-      if (att) {
-        att.status = 'confirmed';
+    // 3. DELETE FROM vote_attempts (confirmed)
+    if (/DELETE FROM vote_attempts/i.test(sql)) {
+      const id = Number(params[0]);
+      const idx = attempts.findIndex(a => a.id === id);
+      if (idx !== -1) {
+        attempts.splice(idx, 1);
       }
       return { rows: [], rowCount: 1 };
     }
@@ -72,6 +72,14 @@ function createMockPg(initialAttempts: AttemptRow[]) {
         vote_source: params[7],
       });
       return { rows: [], rowCount: 1 };
+    }
+
+    // 5b. SELECT id FROM nullifier_audit (check if already voted)
+    if (/SELECT id FROM nullifier_audit WHERE user_id/i.test(sql)) {
+      const userId = Number(params[0]);
+      const electionId = Number(params[1]);
+      const found = auditRows.some(a => Number(a.user_id) === userId && Number(a.election_id) === electionId);
+      return { rows: found ? [{ id: 1 }] : [], rowCount: found ? 1 : 0 };
     }
 
     // 6. acquireVoteLock simulation (INSERT ... ON CONFLICT ... DO UPDATE ... WHERE status='failed')
@@ -151,7 +159,7 @@ describe('Punto 2: Reconciliación de votos pendientes (cleanupStaleVoteAttempts
 
     await client.cleanupStaleVoteAttempts(checkOnChain);
 
-    expect(attempts[0].status).toBe('confirmed');
+    expect(attempts).toHaveLength(0); // Borrado de vote_attempts al confirmarse para no retener vinculación
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0].tx_hash).toBe('0xmined123');
     expect(auditRows[0].block_number).toBe(9999);
