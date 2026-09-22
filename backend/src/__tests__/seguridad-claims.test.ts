@@ -46,4 +46,9 @@ describe('Punto 14: Corrección de afirmaciones y garantías en SEGURIDAD.md', (
   it('aclara que la auditoría externa solo verifica lo que el contrato aceptó', () => {
     expect(content).toMatch(/solo puede\s+(contar|verificar)\s+lo que el contrato acept[oó]/i);
   });
+
+  it('afirma con precisión que no se conserva la correspondencia tras el cierre pero el operador la conoce al procesar', () => {
+    expect(content).toMatch(/la base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elecci[oó]n,\s*pero el operador la conoce en el momento de procesar el voto/i);
+    expect(content).not.toMatch(/\bvoto an[oó]nimo\b/i);
+  });
 });

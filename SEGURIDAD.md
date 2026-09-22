@@ -54,10 +54,7 @@ Además, la base de datos de la aplicación guarda hoy, en la misma fila, el ide
 del votante y su elección. Conociendo el momento del voto y los registros del servidor,
 el operador puede correlacionar votantes y votos emitidos.
 
-En términos prácticos: el voto está protegido frente a un observador casual externo,
-pero **no frente a quien administra el sistema** ni frente a quien acceda a los registros
-del servidor. VTB, tal y como está hoy, no puede describirse como voto secreto ni como
-voto anónimo.
+En términos prácticos: la base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero el operador la conoce en el momento de procesar el voto.
 
 **Sobre Semaphore, ZK y consultas no secretas:**
 No hay ningún plan en marcha ni desarrollo activo para integrar Semaphore o pruebas
@@ -199,7 +196,7 @@ revisado en septiembre de 2026 para corregir las garantías de seguridad y el mo
 
 Debe entenderse que el sistema proporciona registro inmutable y recuento público de lo
 aceptado por el contrato, bajo un esquema de seudonimización apto para consultas no secretas.
-**El apartado 2.1 sigue plenamente vigente: el voto no es anónimo frente a quien opera el sistema.**
+**El apartado 2.1 sigue plenamente vigente: la base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero el operador la conoce en el momento de procesar el voto.**
 
 Los defectos concretos que sustentan lo dicho aquí están detallados en
 `AUDITORIA_BLOCKCHAIN.md`.
