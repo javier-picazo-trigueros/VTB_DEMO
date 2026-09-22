@@ -535,7 +535,7 @@ router.get("/:id/results", async (req: Request, res: Response) => {
       (election.chain_contract_address ?? '').toLowerCase() === contractAddress;
 
     let verificacion: {
-      estado: 'coincide' | 'discrepancia' | 'sin-respuesta' | 'no-aplica';
+      estado: 'coincide' | 'parcial' | 'discrepancia' | 'sin-respuesta' | 'no-aplica';
       detalle: string;
       recuentoCadena?: number[];
       recuentoBase?: number[];
@@ -548,10 +548,10 @@ router.get("/:id/results", async (req: Request, res: Response) => {
       votosNoVerificables: votosDemo,
     };
 
-    const port = enEsteContrato ? getVotePort() : null;
+    const port = enEsteContrato ? getVotePort(election.chain_contract_address) : null;
     if (port) {
       try {
-        const recuentoCadena = await port.getTally(Number(election.election_id_blockchain));
+        const recuentoCadena = await port.getTally(Number(election.election_id_blockchain), election.chain_contract_address);
         const recuentoBase = recuentoCadena.map((_, posicion) =>
           Number(recuentoBaseEnCadena.find(r => Number(r.position) === posicion)?.votes ?? 0),
         );
@@ -559,15 +559,33 @@ router.get("/:id/results", async (req: Request, res: Response) => {
           recuentoCadena.length === recuentoBase.length &&
           recuentoCadena.every((v, i) => v === recuentoBase[i]);
 
-        verificacion = {
-          estado: coincide ? 'coincide' : 'discrepancia',
-          detalle: coincide
-            ? 'El recuento de la cadena coincide con el de la base, candidato a candidato.'
-            : 'El recuento de la cadena NO coincide con el de la base. Es un defecto: no dé el resultado por bueno.',
-          recuentoCadena,
-          recuentoBase,
-          votosNoVerificables: votosDemo,
-        };
+        if (coincide) {
+          if (votosDemo > 0) {
+            verificacion = {
+              estado: 'parcial',
+              detalle: `El recuento de la cadena coincide con los votos en blockchain, pero el total incluye ${votosDemo} voto(s) no verificables (demo o legacy).`,
+              recuentoCadena,
+              recuentoBase,
+              votosNoVerificables: votosDemo,
+            };
+          } else {
+            verificacion = {
+              estado: 'coincide',
+              detalle: 'El recuento de la cadena coincide con el de la base, candidato a candidato (100% verificado).',
+              recuentoCadena,
+              recuentoBase,
+              votosNoVerificables: 0,
+            };
+          }
+        } else {
+          verificacion = {
+            estado: 'discrepancia',
+            detalle: 'El recuento de la cadena NO coincide con el de la base. Es un defecto: no dé el resultado por bueno.',
+            recuentoCadena,
+            recuentoBase,
+            votosNoVerificables: votosDemo,
+          };
+        }
       } catch (err) {
         console.warn('No se ha podido leer el recuento de la cadena:', formatError(err));
         verificacion = {
@@ -593,8 +611,8 @@ router.get("/:id/results", async (req: Request, res: Response) => {
       participationRate: totalVoterCount > 0
         ? Math.round((realTotalVotes / totalVoterCount) * 1000) / 10
         : 0,
-      // Verificado = los dos recuentos coinciden. Nada más cuenta como verificado.
-      onChainVerified: verificacion.estado === 'coincide',
+      // Verificado = coincide y NINGÚN voto no verificable en el total visible
+      onChainVerified: verificacion.estado === 'coincide' && verificacion.votosNoVerificables === 0,
       verificacion,
     });
 

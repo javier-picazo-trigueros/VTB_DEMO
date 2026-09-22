@@ -394,7 +394,35 @@ const ElectionResults = () => {
                 }`}>
                   {election?.status === 'active' ? `🟢 ${t('results.liveElection')}` : `⏹ ${t('results.electionClosed')}`}
                 </span>
-                {results.onChainVerified && (
+                {results.verificacion ? (
+                  <>
+                    {results.verificacion.estado === 'coincide' && results.onChainVerified && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-medium" title={results.verificacion.detalle}>
+                        ✓ {t('results.onChainVerified') || 'Verificado on-chain'} (100%)
+                      </span>
+                    )}
+                    {results.verificacion.estado === 'parcial' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs font-medium" title={results.verificacion.detalle}>
+                        ⚠️ Parcial ({results.verificacion.votosNoVerificables} votos no en cadena)
+                      </span>
+                    )}
+                    {results.verificacion.estado === 'discrepancia' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 rounded-full text-xs font-medium" title={results.verificacion.detalle}>
+                        ⚠️ Discrepancia con blockchain
+                      </span>
+                    )}
+                    {results.verificacion.estado === 'sin-respuesta' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full text-xs font-medium" title={results.verificacion.detalle}>
+                        ⏳ Sin respuesta de blockchain
+                      </span>
+                    )}
+                    {results.verificacion.estado === 'no-aplica' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full text-xs font-medium" title={results.verificacion.detalle}>
+                        ⚪ No registrada en blockchain
+                      </span>
+                    )}
+                  </>
+                ) : results.onChainVerified && (
                   <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
                     ✓ {t('results.onChainVerified')}
                   </span>

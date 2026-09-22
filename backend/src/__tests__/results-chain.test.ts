@@ -179,7 +179,10 @@ describe('/results contrastado con la cadena', () => {
 
     const res = await resultados(electionId);
 
-    expect(res.body.verificacion.estado).toBe('coincide');
+    // Con votos demo/legacy no verificados en cadena, onChainVerified no puede ser true
+    // y el estado debe ser 'parcial'.
+    expect(res.body.onChainVerified).toBe(false);
+    expect(res.body.verificacion.estado).toBe('parcial');
     expect(res.body.verificacion.votosNoVerificables).toBe(2);
     // El total que se muestra sí los incluye: son votos emitidos.
     expect(res.body.totalVotes).toBe(4);
