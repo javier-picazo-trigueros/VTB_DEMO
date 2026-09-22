@@ -33,4 +33,11 @@ describe('Punto 12: Eliminación de afirmaciones falsas en i18n/config.ts', () =
   it('no instruye al usuario a correr npx hardhat node en producción', () => {
     expect(content).not.toMatch(/npx hardhat node/i);
   });
+
+  it('precisa en español e inglés que en la cadena no figura nombre ni correo y que el operador conserva la correspondencia', () => {
+    expect(content).toMatch(/no figura nombre ni correo/i);
+    expect(content).toMatch(/no name or email appears on-chain/i);
+    expect(content).toMatch(/operador del sistema conserva la correspondencia entre votante y voto/i);
+    expect(content).toMatch(/system operator retains the correspondence between voter and vote/i);
+  });
 });
