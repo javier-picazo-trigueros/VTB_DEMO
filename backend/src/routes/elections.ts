@@ -1005,7 +1005,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       if (blockchainError.code === "INVALID_ARGUMENT") {
         res.status(400).json({
           error: "Datos inválidos para blockchain",
-          details: blockchainError.message,
+          details: "Parámetros inválidos para la transacción blockchain",
         });
       } else if (
         blockchainError.message?.includes("already voted") ||
@@ -1018,7 +1018,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       } else {
         res.status(500).json({
           error: "Error al registrar voto en blockchain",
-          details: blockchainError.message,
+          details: "No se pudo registrar el voto en la red blockchain. Por favor, inténtalo de nuevo.",
         });
       }
     }

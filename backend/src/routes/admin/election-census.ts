@@ -286,7 +286,6 @@ router.get("/blockchain-status", requireAdmin, async (req: Request, res: Respons
       connected: false,
       reason: "CONTRACT_ADDRESS not configured",
       contractAddress: null,
-      rpcUrl,
       explorerUrl,
     });
     return;
@@ -303,7 +302,6 @@ router.get("/blockchain-status", requireAdmin, async (req: Request, res: Respons
     res.json({
       connected: true,
       contractAddress,
-      rpcUrl,
       explorerUrl,
       chainId: network.chainId.toString(),
       blockNumber,
@@ -311,13 +309,10 @@ router.get("/blockchain-status", requireAdmin, async (req: Request, res: Respons
     });
   } catch (err: any) {
     console.warn("blockchain-status check failed:", formatError(err));
-    // NOTA (P1-15, HIGH sin tocar): `reason` sigue enviando err.message crudo
-    // al cliente. El saneado de A1 cubre el log, no esta respuesta.
     res.json({
       connected: false,
-      reason: err.message || "Could not connect to blockchain node",
+      reason: "Could not connect to blockchain node",
       contractAddress,
-      rpcUrl,
       explorerUrl,
     });
   }
