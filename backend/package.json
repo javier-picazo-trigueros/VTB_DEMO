@@ -11,6 +11,7 @@
         "seed": "tsx src/scripts/seedDatabase.ts",
         "seed:reset": "tsx src/scripts/seedDatabase.ts --reset",
         "sync-blockchain": "node --loader ts-node/esm src/scripts/syncElections.ts",
+        "resolve-stuck-nonce": "tsx src/scripts/resolveStuckNonce.ts",
         "typecheck": "tsc --noEmit",
         "lint": "eslint src",
         "lint:fix": "eslint src --fix",
