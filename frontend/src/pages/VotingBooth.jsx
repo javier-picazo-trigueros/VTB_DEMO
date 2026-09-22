@@ -64,11 +64,10 @@ const getEligibilityMessage = (reason, t) => {
 // ---------------------------------------------------------------------------
 const VoteProgressModal = ({ status, t }) => {
   const steps = [
-    { key: "proof", label: t("votingBooth.calculateProof"), sub: t("votingBooth.proofSub") },
     { key: "sending", label: t("votingBooth.sendingVote"), sub: t("votingBooth.sendingSub") },
     { key: "confirming", label: t("votingBooth.confirmingTx"), sub: t("votingBooth.confirmingSub") },
   ];
-  const current = steps.find(s => s.key === status);
+  const current = steps.find(s => s.key === status) || steps[0];
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -356,7 +355,7 @@ export const VotingBoothContent = () => {
   const [eligibilityError, setEligibilityError] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [voteCount, setVoteCount] = useState(0);
-  const [voteStatus, setVoteStatus] = useState(null); // null | 'proof' | 'sending' | 'confirming' | 'success' | 'error'
+  const [voteStatus, setVoteStatus] = useState(null); // null | 'sending' | 'confirming' | 'success' | 'error'
   const [txData, setTxData] = useState(null);
   const [voteError, setVoteError] = useState(null);
   const [alreadyVoted, setAlreadyVoted] = useState(false);
@@ -551,23 +550,17 @@ export const VotingBoothContent = () => {
 
     try {
       setVoteError(null);
-      setVoteStatus("proof");
-      await new Promise(r => setTimeout(r, 800));
-
-      const voteHash = ethers.keccak256(
-        ethers.toUtf8Bytes(`${selectedCandidate}-${Date.now()}-${Math.random()}`)
-      );
-
       setVoteStatus("sending");
-      const voteRequest = api.post(
-        '/api/elections/register-vote',
-        { electionId: parseInt(electionId), voteHash, candidateId: selectedCandidate },
-      );
 
-      await new Promise(r => setTimeout(r, 250));
-      setVoteStatus("confirming");
-      const response = await voteRequest;
-      await new Promise(r => setTimeout(r, 600));
+      const confirmTimer = setTimeout(() => {
+        setVoteStatus("confirming");
+      }, 300);
+
+      const response = await api.post(
+        '/api/elections/register-vote',
+        { electionId: parseInt(electionId), candidateId: selectedCandidate },
+      );
+      clearTimeout(confirmTimer);
 
       const isPending = response.data?.pendingConfirmation === true || response.data?.status === 'pending_confirmation';
       setTxData({
@@ -667,7 +660,7 @@ export const VotingBoothContent = () => {
     );
   }
 
-  const inProgress = ["proof", "sending", "confirming"].includes(voteStatus);
+  const inProgress = ["sending", "confirming"].includes(voteStatus);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
