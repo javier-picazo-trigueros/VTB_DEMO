@@ -144,15 +144,12 @@ describe('Punto 9: Concurrencia de relayer y timeout de confirmación', () => {
     expect(res.body.txHash).toBe(fakeHash);
     expect(res.body.blockNumber).toBeNull();
 
-    // Comprobar que en nullifier_audit se guardó el tx_hash y vote_source='chain'
+    // En estado intermedio (pending_confirmation), nullifier_audit NO debe tener fila aún
     const auditRows = await db.run<{ tx_hash: string; block_number: number | null; vote_source: string }>(
       'SELECT tx_hash, block_number, vote_source FROM nullifier_audit WHERE election_id = ? AND user_id = ?',
       [electionId, user.id],
     );
-    expect(auditRows).toHaveLength(1);
-    expect(auditRows[0].tx_hash).toBe(fakeHash);
-    expect(auditRows[0].block_number).toBeNull();
-    expect(auditRows[0].vote_source).toBe('chain');
+    expect(auditRows).toHaveLength(0);
 
     // Comprobar que un segundo intento de voto devuelve 409 (no permite doble voto)
     const res2 = await agent

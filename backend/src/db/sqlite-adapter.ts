@@ -31,6 +31,9 @@ export class SqliteAdapter implements DbClient {
   /** Profundidad actual, para que una transacción anidada reutilice la de fuera. */
   private txDepth = 0;
 
+  /** Cerrojos de voto en memoria para SQLite (single-writer) */
+  private pendingVoteLocks = new Set<string>();
+
   constructor(private db: Database) {}
 
   run<T>(sql: string, params: unknown[] = []): Promise<T[]> {
@@ -54,21 +57,30 @@ export class SqliteAdapter implements DbClient {
     _nullifierHash: string,
     _candidateId: number | null,
   ): Promise<void> {
+    const key = `${userId}:${electionId}`;
+    if (this.pendingVoteLocks.has(key)) {
+      throw new VoteConflictError('Ya has votado o hay un voto en curso');
+    }
     // SQLite legacy: check nullifier_audit directly (pre-blockchain check)
     const existing = await this.db.get<{ id: number }>(
       'SELECT id FROM nullifier_audit WHERE user_id = ? AND election_id = ?',
       [userId, electionId],
     );
     if (existing) throw new VoteConflictError('Ya has votado en esta elección');
+    this.pendingVoteLocks.add(key);
   }
 
   async releaseVoteLock(
-    _userId: number,
-    _electionId: number,
+    userId: number,
+    electionId: number,
     _status: 'confirmed' | 'failed',
     _errorDetail?: string,
   ): Promise<void> {
-    // No-op en SQLite — sin tabla vote_attempts
+    this.pendingVoteLocks.delete(`${userId}:${electionId}`);
+  }
+
+  async hasPendingVoteLock(userId: number, electionId: number): Promise<boolean> {
+    return this.pendingVoteLocks.has(`${userId}:${electionId}`);
   }
 
   /**

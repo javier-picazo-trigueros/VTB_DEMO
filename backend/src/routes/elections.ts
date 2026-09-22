@@ -376,7 +376,16 @@ router.get("/:id/eligibility", requireAuth, async (req: Request, res: Response) 
       return;
     }
 
-    // 4. Verificar que NO ha votado ya (en nullifier_audit)
+    // 4. Verificar si hay un voto en curso (estado 'pending')
+    if (db.hasPendingVoteLock) {
+      const isPending = await db.hasPendingVoteLock(userId, election.id);
+      if (isPending) {
+        res.json({ eligible: false, reason: 'vote_in_progress' });
+        return;
+      }
+    }
+
+    // 5. Verificar que NO ha votado ya (en nullifier_audit)
     const alreadyVoted = await db.get<{ id: number; tx_hash: string | null; block_number: number | null }>(
       "SELECT id, tx_hash, block_number FROM nullifier_audit WHERE user_id = ? AND election_id = ?",
       [userId, election.id]
@@ -893,50 +902,52 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
 
       console.log(`Vote registered in transaction: ${txHash} (status: ${chainTxStatus ?? 'confirmed'})`);
 
-      // Record audit entry. Only mark vote_attempts as 'confirmed' if this INSERT
-      // succeeds. If it fails, the row stays 'pending' so cleanupStaleVoteAttempts
-      // can reconstruct the full nullifier_audit row from the VoteCast event.
-      let auditInserted = false;
-      try {
-        await db.exec(
-          `INSERT INTO nullifier_audit
-             (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, vote_source)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'chain')`,
-          [
-            decoded.userId,
-            electionId,
-            nullifier,
-            String(candidateId),
-            txHash,
-            blockNumber,
-            candidateId,
-          ]
-        );
-        auditInserted = true;
-      } catch (auditError) {
-        console.error('AUDIT INSERT FAILED after successful blockchain tx:', txHash, 'userId:', decoded.userId);
-        console.error(auditError);
-      }
+      // Si la transacción está pendiente de confirmación (timeout de tx.wait()),
+      // NO se inserta en nullifier_audit ni se marca confirmed. El cerrojo queda
+      // en 'pending' para que el job de reconciliación lo resuelva cuando se mine.
+      if (!isPendingConfirmation) {
+        let auditInserted = false;
+        try {
+          await db.exec(
+            `INSERT INTO nullifier_audit
+               (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, vote_source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'chain')`,
+            [
+              decoded.userId,
+              electionId,
+              nullifier,
+              String(candidateId),
+              txHash,
+              blockNumber,
+              candidateId,
+            ]
+          );
+          auditInserted = true;
+        } catch (auditError) {
+          console.error('AUDIT INSERT FAILED after successful blockchain tx:', txHash, 'userId:', decoded.userId);
+          console.error(auditError);
+        }
 
-      if (auditInserted) {
-        // Marcar el intento como confirmado (PG: actualiza vote_attempts; SQLite: no-op)
-        await db.releaseVoteLock(decoded.userId, electionId, 'confirmed').catch(() => {});
+        if (auditInserted) {
+          // Marcar el intento como confirmado (PG: actualiza vote_attempts; SQLite: libera cerrojo en memoria)
+          await db.releaseVoteLock(decoded.userId, electionId, 'confirmed').catch(() => {});
 
-        // Confirmación por email (fire-and-forget, no bloquea la respuesta)
-        if (!decoded.email?.endsWith('@vtb.demo')) {
-          const explorerBase = process.env.EXPLORER_URL;
-          sendVoteConfirmation({
-            to:           decoded.email,
-            name:         voter!.name ?? decoded.email,
-            electionName: election.name,
-            txHash:       txHash,
-            votedAt:      new Date(),
-            explorerUrl:  explorerBase ? `${explorerBase}/tx/${txHash}` : undefined,
-          });
+          // Confirmación por email (fire-and-forget, no bloquea la respuesta)
+          if (!decoded.email?.endsWith('@vtb.demo')) {
+            const explorerBase = process.env.EXPLORER_URL;
+            sendVoteConfirmation({
+              to:           decoded.email,
+              name:         voter!.name ?? decoded.email,
+              electionName: election.name,
+              txHash:       txHash,
+              votedAt:      new Date(),
+              explorerUrl:  explorerBase ? `${explorerBase}/tx/${txHash}` : undefined,
+            });
+          }
         }
       }
-      // Si auditInserted=false, vote_attempts queda 'pending' para que el
-      // job de limpieza lo recupere desde el evento on-chain.
+      // Si isPendingConfirmation=true (o auditInserted=false), el cerrojo queda
+      // 'pending' para que el job de limpieza lo resuelva/reconcilie desde el evento on-chain.
 
       res.json({
         success: true,

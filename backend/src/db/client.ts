@@ -49,6 +49,9 @@ export interface DbClient {
     errorDetail?: string,
   ): Promise<void>;
 
+  /** Comprueba si hay un intento de voto en curso (estado 'pending') */
+  hasPendingVoteLock?(userId: number, electionId: number): Promise<boolean>;
+
   /** Ejecuta varias operaciones en una sola transacción atómica. No-op tx en SQLite. */
   transaction<T>(fn: (tx: DbClient) => Promise<T>): Promise<T>;
 

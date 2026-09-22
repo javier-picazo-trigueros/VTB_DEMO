@@ -52,10 +52,11 @@ const calculateTimeAgo = (timestamp, t) => {
 };
 
 const getEligibilityMessage = (reason, t) => {
-  if (reason === "not_eligible") return t("errors.notInCensus");
-  if (reason === "not_active") return t("errors.electionNotActive");
-  if (reason === "not_found") return t("errors.electionNotFound");
-  return t("errors.unauthorizedToVote");
+  if (reason === "vote_in_progress") return t("votingBooth.voteInProgress", "Tu voto está en proceso de confirmación en la blockchain.");
+  if (reason === "not_eligible") return t("votingBooth.notInCensus", "No estás registrado en el censo de esta elección.");
+  if (reason === "not_active") return t("votingBooth.electionNotActive", "La elección no está activa.");
+  if (reason === "not_found") return t("votingBooth.electionNotFound", "Elección no encontrada.");
+  return t("votingBooth.unauthorizedToVote", "No estás autorizado para votar en esta elección.");
 };
 
 // ---------------------------------------------------------------------------

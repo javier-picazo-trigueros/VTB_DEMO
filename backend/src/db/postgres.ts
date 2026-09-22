@@ -152,6 +152,14 @@ class PgTransactionClient implements DbClient {
     );
   }
 
+  async hasPendingVoteLock(userId: number, electionId: number): Promise<boolean> {
+    const res = await this.client.query(
+      `SELECT id FROM vote_attempts WHERE user_id = $1 AND election_id = $2 AND status = 'pending'`,
+      [userId, electionId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
   // Las operaciones dentro de un callback de transaction() ya están en la tx.
   // Anidar transacciones no está soportado; ejecutamos el fn directamente.
   async transaction<T>(fn: (tx: DbClient) => Promise<T>): Promise<T> {
@@ -258,6 +266,14 @@ export class PgClient implements DbClient {
        WHERE user_id = $1 AND election_id = $2`,
       [userId, electionId, status, errorDetail ?? null],
     );
+  }
+
+  async hasPendingVoteLock(userId: number, electionId: number): Promise<boolean> {
+    const res = await this.pool.query(
+      `SELECT id FROM vote_attempts WHERE user_id = $1 AND election_id = $2 AND status = 'pending'`,
+      [userId, electionId],
+    );
+    return (res.rowCount ?? 0) > 0;
   }
 
   async transaction<T>(fn: (tx: DbClient) => Promise<T>): Promise<T> {

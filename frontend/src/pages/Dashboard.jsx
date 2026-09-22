@@ -51,7 +51,8 @@ const ElectionRow = ({ election, eligibility, index, navigate }) => {
   const status = getRealStatus(election);
   const isReallyActive = status === 'active';
   const alreadyVoted = eligibility?.reason === 'already_voted';
-  const canVote = isReallyActive && !alreadyVoted;
+  const voteInProgress = eligibility?.reason === 'vote_in_progress';
+  const canVote = isReallyActive && !alreadyVoted && !voteInProgress;
 
   const formatDate = (ts) =>
     ts ? new Date(ts * 1000).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -82,6 +83,12 @@ const ElectionRow = ({ election, eligibility, index, navigate }) => {
               {t('dashboard.voted')}
             </span>
           )}
+          {voteInProgress && (
+            <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex-shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              {t('dashboard.inProgress', 'En proceso')}
+            </span>
+          )}
         </div>
         {election.description && (
           <p className="text-xs text-slate-400 truncate mt-0.5 hidden sm:block">{election.description}</p>
@@ -110,12 +117,20 @@ const ElectionRow = ({ election, eligibility, index, navigate }) => {
           className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
             alreadyVoted
               ? 'bg-emerald-100 text-emerald-700 cursor-default'
+              : voteInProgress
+              ? 'bg-amber-100 text-amber-700 cursor-default'
               : canVote
               ? 'bg-brand-600 hover:bg-brand-700 text-white'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed'
           }`}
         >
-          {alreadyVoted ? t('dashboard.voted') : canVote ? t('dashboard.vote') : t('dashboard.closed')}
+          {alreadyVoted
+            ? t('dashboard.voted')
+            : voteInProgress
+            ? t('dashboard.inProgress', 'En proceso')
+            : canVote
+            ? t('dashboard.vote')
+            : t('dashboard.closed')}
         </button>
         <button
           onClick={() => navigate(`/results/${election.id}`)}
