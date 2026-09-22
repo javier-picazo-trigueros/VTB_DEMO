@@ -47,7 +47,9 @@ export interface VoteReceipt {
 /** Resultado de buscar un voto en la cadena. */
 export type BusquedaDeVoto =
   | { estado: "encontrado"; recibo: VoteReceipt }
-  | { estado: "no-esta" }
+  | { estado: "revertido"; txHash?: string; motivo?: string }
+  | { estado: "reemplazado"; nonceConsumido?: number; motivo?: string }
+  | { estado: "no-esta"; definitivo?: boolean; motivo?: string }
   /** El nodo no ha respondido. NO significa que el voto no exista (BC-24). */
   | { estado: "sin-respuesta"; motivo: string };
 

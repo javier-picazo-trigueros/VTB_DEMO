@@ -119,17 +119,17 @@ describe('cleanupStaleVoteAttempts', () => {
     expect(inserciones()[0].params).toContain(99);
   });
 
-  it('si el voto no está en la cadena, lo marca fallido y no inventa una fila', async () => {
+  it('si el voto se revierte o es reemplazado en la cadena, lo marca fallido y no inventa una fila', async () => {
     const { pool, actualizaciones, inserciones } = poolFalso([intento()]);
 
-    await clienteCon(pool).cleanupStaleVoteAttempts(respuesta({ estado: 'no-esta' }));
+    await clienteCon(pool).cleanupStaleVoteAttempts(respuesta({ estado: 'revertido' }));
 
     expect(actualizaciones()).toHaveLength(1);
     expect(actualizaciones()[0].params[0]).toBe('failed');
     expect(inserciones()).toEqual([]);
   });
 
-  it('con varios intentos, solo se deja pendiente el que no obtuvo respuesta', async () => {
+  it('con varios intentos, solo se deja pendiente el que no obtuvo respuesta o nonce sigue libre', async () => {
     // El caso realista: el nodo responde a unos y a otros no.
     const { pool, actualizaciones } = poolFalso([
       intento({ id: 1, nullifier_hash: '0xa' }),
@@ -140,7 +140,7 @@ describe('cleanupStaleVoteAttempts', () => {
     const checkOnChain = vi.fn(async (n: string): Promise<BusquedaDeVoto> => {
       if (n === '0xa') return { estado: 'encontrado', recibo: { txHash: '0xtx', blockNumber: 1 } };
       if (n === '0xb') return { estado: 'sin-respuesta', motivo: 'timeout' };
-      return { estado: 'no-esta' };
+      return { estado: 'reemplazado' };
     });
 
     await clienteCon(pool).cleanupStaleVoteAttempts(checkOnChain);
@@ -160,7 +160,7 @@ describe('cleanupStaleVoteAttempts', () => {
 
     const checkOnChain = vi.fn(async (n: string): Promise<BusquedaDeVoto> => {
       if (n === '0xa') throw new Error('algo revienta al consultar');
-      return { estado: 'no-esta' };
+      return { estado: 'revertido' };
     });
 
     await clienteCon(pool).cleanupStaleVoteAttempts(checkOnChain);

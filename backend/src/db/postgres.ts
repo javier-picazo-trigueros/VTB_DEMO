@@ -345,7 +345,7 @@ export class PgClient implements DbClient {
                 attempt.chain_contract_address ?? null,
               )
             : await checkOnChain(attempt.nullifier_hash)
-          : { estado: 'no-esta' };
+          : { estado: 'no-esta', definitivo: true, motivo: 'Intento sin nullifier_hash' };
 
         // BC-24: si el nodo no ha respondido, NO sabemos si el voto está en la
         // cadena. Antes esto se trataba igual que "no está" y el intento se
@@ -410,13 +410,32 @@ export class PgClient implements DbClient {
               ],
             );
           });
-        } else {
-          // Fallo definitivo: 'no-esta' tras consultar la cadena
+        } else if (
+          respuesta.estado === 'revertido' ||
+          respuesta.estado === 'reemplazado' ||
+          (respuesta.estado === 'no-esta' && respuesta.definitivo === true)
+        ) {
+          // Fallo definitivo: solo si hay recibo con status 0 (revertida),
+          // si el nonce ya lo consumió otra transacción (reemplazada), o
+          // si se ha determinado descarte definitivo.
+          const errorDetail =
+            respuesta.estado === 'revertido'
+              ? (respuesta.motivo ? `Transacción revertida en blockchain (status 0): ${respuesta.motivo}` : 'Transacción revertida en blockchain (status 0)')
+              : respuesta.estado === 'reemplazado'
+              ? (respuesta.motivo ? `Transacción reemplazada en blockchain (nonce consumido): ${respuesta.motivo}` : 'Transacción reemplazada en blockchain (nonce consumido)')
+              : (respuesta.motivo ?? 'Transacción descartada definitivamente');
+
           await this.pool.query(
             `UPDATE vote_attempts
              SET status = $1, completed_at = NOW(), error_detail = $3
              WHERE id = $2`,
-            ['failed', attempt.id, 'Transacción no encontrada en blockchain o revertida'],
+            ['failed', attempt.id, errorDetail],
+          );
+        } else {
+          // Simplemente no se encuentra y el nonce sigue libre (puede estar en mempool o el RPC ir con retraso):
+          // NO se marca failed: debe permanecer en 'pending' para reintentar la reconciliación.
+          console.warn(
+            `[cleanup] intento ${attempt.id}: transacción no encontrada pero el nonce sigue libre o no está consumido; se mantiene en 'pending'`,
           );
         }
       } catch (err) {

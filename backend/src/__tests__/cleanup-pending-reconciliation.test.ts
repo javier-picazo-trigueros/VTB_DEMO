@@ -165,7 +165,7 @@ describe('Punto 2: Reconciliación de votos pendientes (cleanupStaleVoteAttempts
     await expect(client.acquireVoteLock(101, 5, '0xnew', 10)).rejects.toThrow(VoteConflictError);
   });
 
-  it('marca el intento como failed si la tx se revierte o desaparece, permitiendo al usuario votar de nuevo', async () => {
+  it('Caso 1 (revertida): marca el intento como failed con detalle si hay recibo con status 0', async () => {
     const { client, attempts, auditRows } = createMockPg([
       {
         id: 43,
@@ -178,21 +178,79 @@ describe('Punto 2: Reconciliación de votos pendientes (cleanupStaleVoteAttempts
     ]);
 
     const checkOnChain = vi.fn(async (): Promise<BusquedaDeVoto> => ({
-      estado: 'no-esta',
+      estado: 'revertido',
+      motivo: 'execution reverted (status 0)',
     }));
 
     await client.cleanupStaleVoteAttempts(checkOnChain);
 
     expect(attempts[0].status).toBe('failed');
-    expect(attempts[0].error_detail).toMatch(/no encontrada|revertida/i);
+    expect(attempts[0].error_detail).toMatch(/revertida/i);
     expect(auditRows).toHaveLength(0);
 
-    // No hay cerrojo pendiente
-    const hasLock = await client.hasPendingVoteLock(102, 5);
-    expect(hasLock).toBe(false);
-
-    // Ahora el usuario PUEDE volver a votar: acquireVoteLock debe tener éxito (reactiva a pending)
+    // Permite reintento al quedar en failed
     await expect(client.acquireVoteLock(102, 5, '0xnullifier102_retry', 10)).resolves.not.toThrow();
     expect(attempts[0].status).toBe('pending');
+  });
+
+  it('Caso 2 (reemplazada): marca el intento como failed con detalle si el nonce ya lo consumió otra tx', async () => {
+    const { client, attempts, auditRows } = createMockPg([
+      {
+        id: 44,
+        user_id: 103,
+        election_id: 5,
+        nullifier_hash: '0xnullifier103',
+        candidate_id: 10,
+        status: 'pending',
+      },
+    ]);
+
+    const checkOnChain = vi.fn(async (): Promise<BusquedaDeVoto> => ({
+      estado: 'reemplazado',
+      motivo: 'nonce consumido por otra transaccion',
+    }));
+
+    await client.cleanupStaleVoteAttempts(checkOnChain);
+
+    expect(attempts[0].status).toBe('failed');
+    expect(attempts[0].error_detail).toMatch(/reemplazada|nonce/i);
+    expect(auditRows).toHaveLength(0);
+
+    // Permite reintento al quedar en failed
+    await expect(client.acquireVoteLock(103, 5, '0xnullifier103_retry', 10)).resolves.not.toThrow();
+    expect(attempts[0].status).toBe('pending');
+  });
+
+  it('Caso 3 (no encontrada pero nonce sigue libre): DEBE SEGUIR EN PENDING (mempool o RPC con retraso)', async () => {
+    const { client, attempts, auditRows, queryLogs } = createMockPg([
+      {
+        id: 45,
+        user_id: 104,
+        election_id: 5,
+        nullifier_hash: '0xnullifier104',
+        candidate_id: 10,
+        status: 'pending',
+      },
+    ]);
+
+    const checkOnChain = vi.fn(async (): Promise<BusquedaDeVoto> => ({
+      estado: 'no-esta',
+      definitivo: false,
+    }));
+
+    await client.cleanupStaleVoteAttempts(checkOnChain);
+
+    // NO debe marcarse como failed; debe permanecer en 'pending'
+    expect(attempts[0].status).toBe('pending');
+    expect(attempts[0].error_detail).toBeFalsy();
+    expect(auditRows).toHaveLength(0);
+
+    // El cerrojo sigue activo como pendiente
+    const hasLock = await client.hasPendingVoteLock(104, 5);
+    expect(hasLock).toBe(true);
+
+    // No debe haber ninguna query de UPDATE vote_attempts SET status='failed'
+    const failedUpdates = queryLogs.filter(q => /UPDATE vote_attempts/i.test(q.sql) && /failed/i.test(String(q.params[0])));
+    expect(failedUpdates).toHaveLength(0);
   });
 });
