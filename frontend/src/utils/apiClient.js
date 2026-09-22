@@ -12,22 +12,14 @@
  */
 
 import axios from 'axios';
+import { getCsrfToken, SAFE_METHODS } from './csrf.js';
 
 // Con proxy de mismo origen bajo prefijo dedicado (/backend en local y en Vercel),
 // las rutas de la API no colisionan nunca con las páginas del frontend (/admin, /auth/set-password).
 const API_URL = import.meta.env.VITE_API_URL || '/backend';
 
-// ── CSRF helper ───────────────────────────────────────────────────────────────
-// The backend sets vtb_csrf as a non-httpOnly cookie so JS can read it.
-export const getCsrfToken = () => {
-  if (typeof document === 'undefined') return '';
-  const entry = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('vtb_csrf='));
-  return entry ? decodeURIComponent(entry.split('=')[1]) : '';
-};
-
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+// Re-exportado por compatibilidad: la lógica vive en csrf.js (ver ese fichero).
+export { getCsrfToken };
 
 // ── Axios instance ────────────────────────────────────────────────────────────
 export const api = axios.create({

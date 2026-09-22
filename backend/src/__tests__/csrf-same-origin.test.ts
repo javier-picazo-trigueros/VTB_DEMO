@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cookieOpts } from '../routes/auth.js';
+import { getCsrfToken, SAFE_METHODS } from '../../../frontend/src/utils/csrf.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,40 +49,37 @@ describe('BLOQUE 0 — Same-origin reverse proxy, cookie policy and CSRF propaga
     expect(content).not.toMatch(/http:\/\/localhost:3001/);
   });
 
-  it('5. CSRF extraction helper extracts token correctly from cookie string and attaches to mutating requests', () => {
-    const extractCsrf = (cookieString: string): string => {
-      const entry = cookieString
-        .split('; ')
-        .find(row => row.startsWith('vtb_csrf='));
-      return entry ? decodeURIComponent(entry.split('=')[1]) : '';
+  describe('5. getCsrfToken() real (frontend/src/utils/csrf.js) — no una reimplementación', () => {
+    const originalDocument = (globalThis as { document?: unknown }).document;
+
+    afterEach(() => {
+      (globalThis as { document?: unknown }).document = originalDocument;
+    });
+
+    const withCookie = (cookie: string, fn: () => void) => {
+      (globalThis as { document?: { cookie: string } }).document = { cookie };
+      fn();
     };
 
-    const cookieStr = 'other=xyz; vtb_csrf=secret-csrf-token-12345; session=abc';
-    const token = extractCsrf(cookieStr);
-    expect(token).toBe('secret-csrf-token-12345');
+    it('lee el token del cookie vtb_csrf real (no un extractor propio del test)', () => {
+      withCookie('other=xyz; vtb_csrf=secret-csrf-token-12345; session=abc', () => {
+        expect(getCsrfToken()).toBe('secret-csrf-token-12345');
+      });
+    });
 
-    // Safe methods must not carry CSRF, mutating methods must
-    const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-    const getHeadersForRequest = (method: string, cookie: string) => {
-      const headers: Record<string, string> = {};
-      if (!SAFE_METHODS.has(method.toUpperCase())) {
-        headers['X-CSRF-Token'] = extractCsrf(cookie);
+    it('devuelve cadena vacía sin cookie vtb_csrf', () => {
+      withCookie('other=xyz; session=abc', () => {
+        expect(getCsrfToken()).toBe('');
+      });
+    });
+
+    it('SAFE_METHODS real: los métodos seguros no llevan CSRF, los mutantes sí', () => {
+      expect(SAFE_METHODS.has('GET')).toBe(true);
+      expect(SAFE_METHODS.has('HEAD')).toBe(true);
+      expect(SAFE_METHODS.has('OPTIONS')).toBe(true);
+      for (const mutante of ['POST', 'PUT', 'DELETE', 'PATCH']) {
+        expect(SAFE_METHODS.has(mutante)).toBe(false);
       }
-      return headers;
-    };
-
-    expect(getHeadersForRequest('GET', cookieStr)).toEqual({});
-    expect(getHeadersForRequest('POST', cookieStr)).toEqual({
-      'X-CSRF-Token': 'secret-csrf-token-12345',
-    });
-    expect(getHeadersForRequest('PUT', cookieStr)).toEqual({
-      'X-CSRF-Token': 'secret-csrf-token-12345',
-    });
-    expect(getHeadersForRequest('DELETE', cookieStr)).toEqual({
-      'X-CSRF-Token': 'secret-csrf-token-12345',
-    });
-    expect(getHeadersForRequest('PATCH', cookieStr)).toEqual({
-      'X-CSRF-Token': 'secret-csrf-token-12345',
     });
   });
 
