@@ -52,9 +52,13 @@ const config: HardhatUserConfig = {
   },
 
   etherscan: {
-    apiKey: {
-      sepolia: process.env.ETHERSCAN_API_KEY || "",
-    },
+    // Un único api key de etherscan.io = API v2 (multi-cadena). Un objeto por
+    // red (formato anterior) activa el v1, que Etherscan deprecó — daba el
+    // aviso "You are using a deprecated V1 endpoint, switch to Etherscan API V2".
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
+  },
+  sourcify: {
+    enabled: true,
   },
 
   paths: {
