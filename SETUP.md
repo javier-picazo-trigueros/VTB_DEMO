@@ -43,15 +43,20 @@ para tener la app funcionando con las cuentas de demo.
 | Opción | Cuándo usarla | Por qué |
 |---|---|---|
 | **SQLite local** (`backend/vtb.db`) | Siempre, para el día a día | Cero configuración. La base es solo tuya: puedes hacer `seed:reset`, importar CSVs y votar sin afectar a nadie |
-| **Supabase del proyecto** (`pxqejrptikoqoaokoqaq`) | **No para desarrollar.** Solo para verificar algo concreto, avisando antes | Es la base del despliegue. Lo que hagas ahí (un `seed:reset`, una importación, un voto) lo ve todo el mundo, y exige compartir la contraseña de la base |
-| **Tu propio PostgreSQL** (un proyecto gratuito de Supabase o Docker) | Si necesitas probar algo específico de PostgreSQL | Mismo motor que producción, sin riesgo para datos compartidos. Ver [Si usas PostgreSQL](#si-usas-postgresql) |
+| **Supabase del proyecto** (`pxqejrptikoqoaokoqaq`) | **Nunca para desarrollar. Es PRODUCCIÓN.** | Es la base real del despliegue, con datos y votos reales. Ni se consulta "para verificar algo" sin avisar antes en el equipo |
+| **Tu propio PostgreSQL** (un proyecto gratuito de Supabase o Docker) | Si necesitas probar algo específico de PostgreSQL | Mismo motor que producción, sin riesgo para datos compartidos ni para producción. Ver [Si usas PostgreSQL](#si-usas-postgresql) |
 
-Reglas si alguna vez usas la base compartida:
+**Producción y desarrollo son proyectos de Supabase distintos, con secretos distintos** (`JWT_SECRET`, `NULLIFIER_SECRET`, contraseñas del seed). El `.env` local de cada desarrollador nunca apunta a la `DATABASE_URL` de producción — ni siquiera un momento para probar algo.
+
+Como red de seguridad adicional (no como sustituto de lo anterior), `npm run seed` y `npm run seed:reset` se niegan a ejecutarse salvo que **las dos** condiciones se cumplan a la vez:
+- `NODE_ENV` no sea `production`.
+- `ALLOW_SEED_RESET=true` esté puesto explícitamente en el `.env` de ese entorno. No tiene valor por defecto: sin ella, el seed no se ejecuta en ningún caso, tenga o no datos la base.
+
+Reglas si alguna vez hace falta tocar la base de producción directamente (no vía seed):
 
 - La `DATABASE_URL` se pasa por un canal privado. Nunca en git, en un issue ni en un chat público.
-- **Nunca** `npm run seed:reset` ni `npm run migrate:down` contra ella.
-- Las migraciones las aplica una sola persona, avisando. Las 8 actuales ya están
-  aplicadas (16-sep-2026).
+- **Nunca** `npm run seed`, `npm run seed:reset` ni `npm run migrate:down` contra ella.
+- Las migraciones las aplica una sola persona, avisando.
 - `npm test` es seguro: los tests usan siempre SQLite en memoria, aunque tu `.env`
   apunte a PostgreSQL.
 
@@ -208,6 +213,7 @@ marcadas con 🔒 son secretas y no se comparten ni se suben a git.
 | `SEED_DEMO_ADMIN_PASSWORD` 🔒 | **Sí** | Contraseña de `admin@vtb.demo`. La usan el seed y el botón «Entrar como Administrador» |
 | `SEED_DEMO_SUPERADMIN_PASSWORD` 🔒 | **Sí** | Contraseña de `superadmin@vtb.demo` |
 | `SEED_DEMO_STUDENT_PASSWORD` 🔒 | **Sí** para el botón «Entrar como Votante» | Contraseña de `student@vtb.demo` y `student2@vtb.demo`. El seed aún siembra `demo123` si la dejas vacía, pero `demo-login` ya no tiene ese valor por defecto |
+| `ALLOW_SEED_RESET` | **Sí**, para poder sembrar: `true` | Sin ella (o con `NODE_ENV=production`), `npm run seed` y `npm run seed:reset` se niegan a tocar nada, tenga o no datos la base. Nunca la pongas en el `.env` de producción |
 | `DEMO_LOGIN_ENABLED` | Solo en local: `true` | Habilita `POST /auth/demo-login`. **Sin ella la ruta devuelve 404.** Concede sesión sin credenciales del cliente: nunca la definas en un despliegue público |
 | `RPC_URL` | No para cuentas demo | Nodo Ethereum (Sepolia vía Alchemy/Infura, o Hardhat local) |
 | `CONTRACT_ADDRESS` | No para cuentas demo | Dirección del contrato `ElectionRegistry` |

@@ -50,6 +50,19 @@ valores que están en el repositorio público.
 Y nunca se pone como comando de arranque en Render: borraría el censo y
 los votos en cada despliegue.
 
+Además, `seed` y `seed:reset` exigen `NODE_ENV` distinto de `production`
+**y** `ALLOW_SEED_RESET=true` puesta a mano — sin esa variable, no se
+ejecutan en ningún caso, tenga o no datos la base. Es una red de
+seguridad aparte de mirar si la base está vacía: una base recién
+migrada en producción tiene 0 usuarios, y solo con la comprobación
+antigua eso bastaba para sembrarla igual.
+
+### Producción y desarrollo son proyectos de Supabase distintos
+
+Con secretos distintos (`JWT_SECRET`, `NULLIFIER_SECRET`, contraseñas
+del seed). El `.env` local de cada desarrollador nunca apunta a la
+`DATABASE_URL` de producción, ni para comprobar algo puntual.
+
 ### No meter datos personales en la cadena
 
 Solo hashes y compromisos. Es lo que hace defendible el proyecto ante
