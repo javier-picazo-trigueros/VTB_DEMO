@@ -45,6 +45,15 @@ export const Navbar = () => {
 
   const changeLanguage = (lng) => {
     i18n.changeLanguage(lng);
+    // Guardado explícito: i18next-browser-languagedetector ya no cachea solo
+    // (config.ts pone caches: []), así que el único sitio donde el idioma se
+    // persiste es aquí, en la elección activa del usuario — nunca por detectar
+    // el navegador en una visita nueva.
+    try {
+      localStorage.setItem('i18nextLng', lng);
+    } catch {
+      // almacenamiento no disponible — el cambio sigue aplicándose en esta sesión
+    }
     setLangOpen(false);
   };
 

@@ -30,16 +30,26 @@ const getInitialTheme = () => {
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(getInitialTheme);
 
-  // Aplicar clase al DOM
+  // Aplicar clase al DOM. Sin guardar aquí: si no hay elección previa,
+  // getInitialTheme() recalcula desde prefers-color-scheme en cada visita en
+  // vez de fijarla — el sistema puede cambiar de tema sin que eso cuente como
+  // una elección del usuario. Solo toggleTheme() (acción explícita) persiste.
   useEffect(() => {
     const html = document.documentElement;
     html.classList.toggle("dark", theme === "dark");
     html.style.colorScheme = theme;
-    localStorage.setItem("vtb-theme", theme);
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    setTheme((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      try {
+        localStorage.setItem("vtb-theme", next);
+      } catch {
+        // almacenamiento no disponible — el cambio sigue aplicándose en esta sesión
+      }
+      return next;
+    });
   };
 
   return (

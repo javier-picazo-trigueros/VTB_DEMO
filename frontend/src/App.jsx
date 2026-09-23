@@ -9,7 +9,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
-import { CookieBanner } from './components/CookieBanner'
 import { NotFound } from './pages/NotFound'
 
 // Páginas
@@ -139,7 +138,6 @@ const AppContent = () => {
       {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
-    <CookieBanner />
     </>
   )
 }

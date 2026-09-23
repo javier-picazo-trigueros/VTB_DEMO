@@ -1286,9 +1286,13 @@ i18n.use(LanguageDetector).use(initReactI18next).init({
   interpolation: {
     escapeValue: false,
   },
+  // Sin detección automática del navegador (htmlTag/navigator) ni caché
+  // automática: solo se restaura una elección ya guardada explícitamente
+  // (Navbar.jsx, changeLanguage). Sin eleccion previa, initialLanguage ya
+  // cae a "es" arriba, no al idioma del navegador.
   detection: {
-    order: ["localStorage", "htmlTag", "navigator"],
-    caches: ["localStorage"],
+    order: ["localStorage"],
+    caches: [],
   },
 });
 
