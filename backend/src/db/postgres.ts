@@ -240,9 +240,12 @@ export class PgClient implements DbClient {
   constructor(connectionString: string, pool?: PoolLike) {
     this.pool = pool ?? new Pool({
       connectionString,
+      // El pooler de sesión de Supabase lleva un certificado de una CA pública
+      // (comprobado en vivo contra el proyecto real): rejectUnauthorized: true
+      // verifica de verdad sin necesitar un CA bundle propio.
       ssl:
         process.env.NODE_ENV === 'production'
-          ? { rejectUnauthorized: false }
+          ? { rejectUnauthorized: true }
           : undefined,
     });
   }
