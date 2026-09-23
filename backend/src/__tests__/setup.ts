@@ -28,6 +28,9 @@ process.env.HMAC_SECRET = 'test_hmac_secret';
 process.env.NULLIFIER_SECRET = 'test_nullifier_secret';
 process.env.DATABASE_PATH = ':memory:';
 process.env.CORS_ORIGINS = 'http://localhost:5173';
+// seedDatabase.ts exige esto explícitamente además de NODE_ENV !== 'production'
+// (seed-reset.test.ts llama a runSeed() de verdad); ver seedBloqueadoPorEntorno().
+process.env.ALLOW_SEED_RESET = 'true';
 
 // A4: el seed ya no tiene contraseñas por defecto para cuentas privilegiadas.
 // Se definen aquí explícitamente en lugar de dar al seed una vía de escape por

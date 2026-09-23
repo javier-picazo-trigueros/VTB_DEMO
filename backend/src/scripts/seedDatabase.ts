@@ -472,7 +472,38 @@ const RESET_TABLES_PG_ONLY = ['vote_attempts'];
 
 export type SeedOutcome = 'seeded' | 'aborted' | 'reset-and-seeded';
 
+/**
+ * Cerrojo explícito, independiente de si la base está vacía o no.
+ *
+ * NODE_ENV=production basta para bloquear, pero no basta con exigir SOLO eso:
+ * un .env mal configurado (o simplemente no tener NODE_ENV definida) dejaría
+ * pasar el seed igual. ALLOW_SEED_RESET=true tiene que estar puesto a mano,
+ * en cada entorno donde de verdad se quiera sembrar — no tiene valor por
+ * defecto que lo deje pasar. Pensado para el día que desarrollo y producción
+ * usen bases de Supabase distintas: sembrar la de desarrollo sigue exigiendo
+ * ese "sí, quiero" explícito en su .env, no un accidente de qué DATABASE_URL
+ * quedó puesta.
+ */
+function seedBloqueadoPorEntorno(): string | null {
+  if (process.env.NODE_ENV === 'production') {
+    return 'NODE_ENV=production: el seed nunca se ejecuta contra producción, tenga o no datos.';
+  }
+  if (process.env.ALLOW_SEED_RESET !== 'true') {
+    return 'Falta ALLOW_SEED_RESET=true en el entorno. Sin ella, el seed no se ejecuta en ningún caso.';
+  }
+  return null;
+}
+
 export async function runSeed(opts: { reset: boolean }): Promise<SeedOutcome> {
+  const motivo = seedBloqueadoPorEntorno();
+  if (motivo) {
+    console.error('');
+    console.error('⛔ Seed bloqueado por seguridad: no se ha tocado nada.');
+    console.error(`   ${motivo}`);
+    console.error('');
+    return 'aborted';
+  }
+
   await ensureSchema();
   const db = getDbClient();
 
