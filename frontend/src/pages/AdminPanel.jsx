@@ -1272,6 +1272,10 @@ export const AdminPanel = () => {
                           required
                           className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                         />
+                        <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
+                          <span aria-hidden="true">⚠️</span>
+                          <span>Este nombre se publica para siempre en una cadena de bloques pública (Ethereum) y no se puede borrar ni corregir después. No pongas nombres, apellidos ni ningún otro dato personal.</span>
+                        </p>
                       </div>
 
                       <div>
@@ -2327,6 +2331,10 @@ export const AdminPanel = () => {
                   onChange={e => setEditingElection(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
+                <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
+                  <span aria-hidden="true">⚠️</span>
+                  <span>El nombre original ya puede estar publicado para siempre en una cadena de bloques pública. Cambiarlo aquí no lo corrige allí, y no debe contener datos personales.</span>
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Descripción</label>
