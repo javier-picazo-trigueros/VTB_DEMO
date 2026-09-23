@@ -1273,25 +1273,42 @@ const resources = {
   },
 };
 
+const SUPPORTED_LANGUAGES = ["es", "en"];
+
+/** Idioma del navegador entre los soportados, o "es" si no hay ninguno. Solo
+ *  lee navigator.languages — nunca escribe nada. */
+function detectBrowserLanguage() {
+  if (typeof navigator === "undefined") return "es";
+  const candidates = navigator.languages?.length ? navigator.languages : [navigator.language];
+  for (const lang of candidates) {
+    const base = lang?.split("-")[0]?.toLowerCase();
+    if (base && SUPPORTED_LANGUAGES.includes(base)) return base;
+  }
+  return "es";
+}
+
+// Con elección ya guardada (el usuario la cambió activamente alguna vez),
+// se restaura. Sin ella, se lee el idioma del navegador para esta visita —
+// leerlo no lo guarda; solo Navbar.jsx (changeLanguage) escribe en
+// localStorage, y únicamente cuando el usuario elige un idioma en el selector.
 const initialLanguage =
   typeof window !== "undefined"
-    ? localStorage.getItem("i18nextLng") || "es"
+    ? localStorage.getItem("i18nextLng") || detectBrowserLanguage()
     : "es";
 
 i18n.use(LanguageDetector).use(initReactI18next).init({
   resources,
   lng: initialLanguage,
   fallbackLng: "es",
-  supportedLngs: ["es", "en"],
+  supportedLngs: SUPPORTED_LANGUAGES,
   interpolation: {
     escapeValue: false,
   },
-  // Sin detección automática del navegador (htmlTag/navigator) ni caché
-  // automática: solo se restaura una elección ya guardada explícitamente
-  // (Navbar.jsx, changeLanguage). Sin eleccion previa, initialLanguage ya
-  // cae a "es" arriba, no al idioma del navegador.
+  // caches: [] es lo que importa — el detector puede leer localStorage o
+  // navigator, pero nunca escribe solo. lng ya lo fija initialLanguage arriba;
+  // esto es red de seguridad si algún día se quita ese prop explícito.
   detection: {
-    order: ["localStorage"],
+    order: ["localStorage", "navigator"],
     caches: [],
   },
 });
