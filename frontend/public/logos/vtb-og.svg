@@ -21,5 +21,5 @@
 
   <!-- Bottom rule -->
   <rect x="100" y="500" width="1000" height="1" fill="#2572A0" opacity="0.4"/>
-  <text x="100" y="540" font-family="'IBM Plex Mono', monospace" font-size="16" fill="#6EA9CE">vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app</text>
+  <text x="100" y="540" font-family="'IBM Plex Mono', monospace" font-size="16" fill="#6EA9CE">vtb-frontend-three.vercel.app</text>
 </svg>

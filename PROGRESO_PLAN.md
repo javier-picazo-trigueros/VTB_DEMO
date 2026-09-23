@@ -60,7 +60,7 @@ está hecho.**
 |---|---|---|
 | Integrar Resend (invitación, confirmación, recuperación, avisos) | ✅ Hecho | El servicio ya existía; Javier conectó las páginas que faltaban (`3f49b875`) — antes los enlaces daban 404. **`9f50ea44`** (yo) — la *invitación al censo* solo salía desde una de las dos rutas de importación: `/admin/users/import` creaba cuentas sin enviar nada. **`b337371c`** (yo) — los *avisos de apertura y cierre* apuntaban a rutas inexistentes (`/elections/:id`) y caían en el 404; ahora hay un test que compara los enlaces emitidos contra las rutas de `App.jsx`. Esta línea del plan no estaba realmente cerrada hasta aquí |
 | SPF, DKIM, DMARC | ❌ Pendiente | Planificado: `SCRUM-27`, Sprint 3 |
-| Dominio propio con certificado | ❌ Pendiente | Sigue en `vtb-frontend-git-main-....vercel.app`. Planificado: `SCRUM-27`, Sprint 3 |
+| Dominio propio con certificado | ❌ Pendiente | Sigue en `vtb-frontend-three.vercel.app` (dominio de producción de Vercel, no un dominio propio). Planificado: `SCRUM-27`, Sprint 3 |
 | Monitorización y alertas | ❌ Pendiente | Solo `console.log`. Planificado: `SCRUM-26`, Sprint 3 |
 
 ---

@@ -7,7 +7,7 @@ This file covers the minimum steps to run VTB locally. For a full guide see [REA
 The app is deployed and ready to use:
 
 ```
-https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app
+https://vtb-frontend-three.vercel.app
 ```
 
 > **Cold start:** The Render backend (free tier) sleeps after 15 minutes of inactivity.

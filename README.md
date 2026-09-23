@@ -65,9 +65,9 @@ Stack: React 18 · Vite 6 · Tailwind CSS 3 · framer-motion
 
 | Service | URL |
 |---|---|
-| Frontend | https://vtb-frontend-git-main-javier-picazo-trigueros-projects.vercel.app |
+| Frontend | https://vtb-frontend-three.vercel.app |
 | Backend | https://vtb-backend-4emv.onrender.com |
-| Sepolia contract | https://sepolia.etherscan.io/address/0x92110ea2a133567a0d6237e8991Fff336cd70778 |
+| Sepolia contract | https://sepolia.etherscan.io/address/0x124759Cc8bb31AAD866930dCd3caE6f148e4F607 |
 
 Render free-tier backends can sleep after inactivity. The first request after a
 sleep may take 30-40 seconds.
@@ -309,7 +309,7 @@ For Sepolia voting, set `backend/.env` to your real relayer values:
 
 ```env
 RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
-CONTRACT_ADDRESS=0x92110ea2a133567a0d6237e8991Fff336cd70778
+CONTRACT_ADDRESS=0x124759Cc8bb31AAD866930dCd3caE6f148e4F607
 PRIVATE_KEY=0xYOUR_SEPOLIA_RELAYER_PRIVATE_KEY
 EXPLORER_URL=https://sepolia.etherscan.io
 ```
@@ -440,7 +440,7 @@ Open http://localhost:3000.
    DATABASE_PATH=./vtb.db           # or remove if using PostgreSQL
    CORS_ORIGINS=https://your-frontend.vercel.app
    RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<YOUR_KEY>
-   CONTRACT_ADDRESS=0x92110ea2a133567a0d6237e8991Fff336cd70778
+   CONTRACT_ADDRESS=0x124759Cc8bb31AAD866930dCd3caE6f148e4F607
    PRIVATE_KEY=0x<RELAYER_PRIVATE_KEY>
    EXPLORER_URL=https://sepolia.etherscan.io
    ```
@@ -461,7 +461,7 @@ Open http://localhost:3000.
    ```
    VITE_API_URL=https://<your-render-backend>.onrender.com
    VITE_EXPLORER_URL=https://sepolia.etherscan.io
-   VITE_CONTRACT_ADDRESS=0x92110ea2a133567a0d6237e8991Fff336cd70778
+   VITE_CONTRACT_ADDRESS=0x124759Cc8bb31AAD866930dCd3caE6f148e4F607
    ```
 
 5. Deploy. Vercel will rebuild on every push to `main`.
@@ -633,7 +633,7 @@ SQLite elections on the configured blockchain.
 Only Sepolia transactions are visible on Etherscan. Check:
 
 - `backend/.env` uses a Sepolia `RPC_URL`
-- `CONTRACT_ADDRESS=0x92110ea2a133567a0d6237e8991Fff336cd70778`
+- `CONTRACT_ADDRESS=0x124759Cc8bb31AAD866930dCd3caE6f148e4F607`
 - `EXPLORER_URL=https://sepolia.etherscan.io`
 - the relayer `PRIVATE_KEY` has Sepolia ETH
 - the account is not `@vtb.demo`
