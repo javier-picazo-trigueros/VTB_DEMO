@@ -111,17 +111,12 @@ function FeatureRow({ text, included }) {
   );
 }
 
+const CONTACT_EMAIL = '[RELLENAR: email de contacto]';
+
 export function Pricing() {
   const navigate = useNavigate();
   const [demoOpen, setDemoOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
-  const [formState, setFormState] = useState({ name: '', institution: '', email: '', size: '', message: '' });
-  const [formSent, setFormSent] = useState(false);
-
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
-    setFormSent(true);
-  };
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
@@ -274,115 +269,26 @@ export function Pricing() {
         </motion.div>
       </section>
 
-      {/* Register Institution Form */}
+      {/* Register Institution */}
       <section id="contact-form" className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
+          className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm p-8 text-center"
         >
-          <h2 className="text-3xl font-bold text-center text-slate-900 dark:text-white mb-3">
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-3">
             Register your institution
           </h2>
-          <p className="text-center text-slate-600 dark:text-slate-400 mb-8">
+          <p className="text-slate-600 dark:text-slate-400 mb-8">
             Tell us about your organization and we'll set up a custom demo tailored to your needs.
           </p>
-
-          {formSent ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-8 text-center"
-            >
-              <div className="text-5xl mb-4">🎉</div>
-              <h3 className="text-xl font-bold text-emerald-700 dark:text-emerald-300 mb-2">
-                Request received!
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 text-sm">
-                We'll be in touch within 24 hours to set up your institutional demo.
-              </p>
-            </motion.div>
-          ) : (
-            <form
-              onSubmit={handleFormSubmit}
-              className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm p-8 space-y-5"
-            >
-              <div className="grid sm:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Your name</label>
-                  <input
-                    required
-                    type="text"
-                    value={formState.name}
-                    onChange={e => setFormState(p => ({ ...p, name: e.target.value }))}
-                    placeholder="María García"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Institution</label>
-                  <input
-                    required
-                    type="text"
-                    value={formState.institution}
-                    onChange={e => setFormState(p => ({ ...p, institution: e.target.value }))}
-                    placeholder="Universidad de Madrid"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Institutional email</label>
-                  <input
-                    required
-                    type="email"
-                    value={formState.email}
-                    onChange={e => setFormState(p => ({ ...p, email: e.target.value }))}
-                    placeholder="you@universidad.es"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Number of users</label>
-                  <select
-                    value={formState.size}
-                    onChange={e => setFormState(p => ({ ...p, size: e.target.value }))}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="">Select range</option>
-                    <option>1 – 500</option>
-                    <option>500 – 2,000</option>
-                    <option>2,000 – 10,000</option>
-                    <option>10,000+</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tell us about your use case</label>
-                <textarea
-                  rows={3}
-                  value={formState.message}
-                  onChange={e => setFormState(p => ({ ...p, message: e.target.value }))}
-                  placeholder="Student elections, faculty governance, budget referendums..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-lg shadow-blue-600/20"
-              >
-                📩 Request Institution Demo
-              </button>
-
-              <p className="text-center text-xs text-slate-400 dark:text-slate-500">
-                We respond within 24 hours · No commitment required
-              </p>
-            </form>
-          )}
+          <a
+            href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Institution demo request — VTB')}`}
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-lg shadow-blue-600/20"
+          >
+            {CONTACT_EMAIL}
+          </a>
         </motion.div>
       </section>
 
