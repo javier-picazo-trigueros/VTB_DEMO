@@ -7,7 +7,7 @@
   "ownerAddress": "0x878059b91D846B2BC153fe96ee6DFb68fA9E9d6b",
   "relayerAddress": "0x5D73CB4895b15E535901A15C980d7A990C4bD572",
   "deploymentTime": "2026-09-17T13:50:53.097Z",
-  "verified": false,
+  "verified": true,
   "explorerUrl": "https://sepolia.etherscan.io",
   "frontendConfig": {
     "VITE_CONTRACT_ADDRESS": "0x124759Cc8bb31AAD866930dCd3caE6f148e4F607",
