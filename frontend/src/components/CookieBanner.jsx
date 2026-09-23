@@ -48,7 +48,10 @@ export function CookieBanner() {
     { key: 'vtb_refresh (httpOnly cookie)', desc: t('cookies.items.refresh'), required: true },
     { key: 'vtb_csrf (cookie)',             desc: t('cookies.items.csrf'),    required: true },
     { key: 'vtb-tour-done-{user}',          desc: t('cookies.items.tour'),    required: false },
-    { key: 'vtb-cookie-consent',            desc: t('cookies.items.consent'), required: false },
+    // Necesaria de verdad: sin ella el banner no puede recordar la elección
+    // del usuario y volvería a preguntar en cada visita. Antes decía "optional",
+    // que era la etiqueta contraria a lo que hace.
+    { key: 'vtb-cookie-consent',            desc: t('cookies.items.consent'), required: true },
     { key: 'i18nextLng',                    desc: t('cookies.items.lang'),    required: false },
   ];
 
