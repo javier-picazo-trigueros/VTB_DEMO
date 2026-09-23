@@ -57,8 +57,15 @@ const config: HardhatUserConfig = {
     // aviso "You are using a deprecated V1 endpoint, switch to Etherscan API V2".
     apiKey: process.env.ETHERSCAN_API_KEY || "",
   },
+  // Desactivado: el apiUrl por defecto del plugin (sourcify.dev/server) da
+  // 404 en verify() — internal/sourcify.js hace POST directo a esa URL, pero
+  // según su propia documentacion el endpoint es "${apiUrl}/verify"; cambiarlo
+  // rompe isVerified(), que sí trata apiUrl como base. Bug del propio paquete
+  // (@nomicfoundation/hardhat-verify@2.1.3), no de esta configuración.
+  // Etherscan ya verifica el contrato; no vale la pena un error conocido en
+  // cada verificación por un extra que no hace falta.
   sourcify: {
-    enabled: true,
+    enabled: false,
   },
 
   paths: {
