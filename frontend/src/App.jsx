@@ -9,6 +9,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
+import { Footer } from './components/Footer'
 import { NotFound } from './pages/NotFound'
 
 // Páginas
@@ -26,6 +27,11 @@ import { Transparency } from './pages/Transparency'
 import { Pricing } from './pages/Pricing'
 import { ForgotPassword } from './pages/ForgotPassword'
 import { ResetPassword } from './pages/ResetPassword'
+import { PrivacyPolicy } from './pages/legal/PrivacyPolicy'
+import { LegalNotice } from './pages/legal/LegalNotice'
+import { TermsOfService } from './pages/legal/TermsOfService'
+import { CookiePolicy } from './pages/legal/CookiePolicy'
+import { AccessibilityStatement } from './pages/legal/AccessibilityStatement'
 
 const API_URL = import.meta.env.VITE_API_URL || '/backend'
 
@@ -110,6 +116,11 @@ const AppContent = () => {
       <Route path="/transparency" element={<Transparency />} />
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/results/:id" element={<ElectionResults />} />
+      <Route path="/legal/privacidad" element={<PrivacyPolicy />} />
+      <Route path="/legal/aviso-legal" element={<LegalNotice />} />
+      <Route path="/legal/terminos" element={<TermsOfService />} />
+      <Route path="/legal/cookies" element={<CookiePolicy />} />
+      <Route path="/legal/accesibilidad" element={<AccessibilityStatement />} />
       
       {/* Rutas protegidas (votante) */}
       <Route
@@ -138,6 +149,7 @@ const AppContent = () => {
       {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    <Footer />
     </>
   )
 }

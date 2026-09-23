@@ -424,10 +424,6 @@ export function Pricing() {
         </div>
       </section>
 
-      {/* Footer strip */}
-      <div className="border-t border-slate-200 dark:border-slate-800 py-6 text-center text-xs text-slate-400 dark:text-slate-600">
-        © 2025 VTB · Vote Through Blockchain · Universidad Francisco de Vitoria
-      </div>
     </div>
   );
 }
