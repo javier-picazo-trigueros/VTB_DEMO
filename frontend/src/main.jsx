@@ -11,6 +11,12 @@ import App from './App.jsx'
 import './index.css'
 import './i18n/config'
 import { ThemeProvider } from './context/ThemeContext'
+import { clearLegacyStorageKeys } from './utils/auth.js'
+
+// Antes de la migración a cookies httpOnly, la sesión se guardaba en
+// localStorage (email y nombre incluidos). Un navegador que no haya vuelto a
+// pasar por /login desde entonces todavía podría tenerlas.
+clearLegacyStorageKeys()
 
 ReactDOM.createRoot(document.getElementById('app')).render(
   <React.StrictMode>
