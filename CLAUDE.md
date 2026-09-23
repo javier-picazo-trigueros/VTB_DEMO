@@ -57,11 +57,14 @@ seguridad aparte de mirar si la base está vacía: una base recién
 migrada en producción tiene 0 usuarios, y solo con la comprobación
 antigua eso bastaba para sembrarla igual.
 
-### Producción y desarrollo son proyectos de Supabase distintos
+### Desarrollo es SQLite local, no un segundo Supabase
 
-Con secretos distintos (`JWT_SECRET`, `NULLIFIER_SECRET`, contraseñas
-del seed). El `.env` local de cada desarrollador nunca apunta a la
-`DATABASE_URL` de producción, ni para comprobar algo puntual.
+El único proyecto de Supabase que existe es producción. Para
+desarrollar se usa SQLite (`DB_CLIENT=sqlite`, el valor por defecto).
+Si alguna vez hace falta PostgreSQL en local es un proyecto propio y
+aparte, con sus propios secretos (`JWT_SECRET`, `NULLIFIER_SECRET`,
+contraseñas del seed) — nunca los de producción. El `.env` local no
+apunta a la `DATABASE_URL` de producción bajo ningún concepto.
 
 ### No meter datos personales en la cadena
 

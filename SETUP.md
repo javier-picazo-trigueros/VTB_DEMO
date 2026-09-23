@@ -46,7 +46,7 @@ para tener la app funcionando con las cuentas de demo.
 | **Supabase del proyecto** (`pxqejrptikoqoaokoqaq`) | **Nunca para desarrollar. Es PRODUCCIÓN.** | Es la base real del despliegue, con datos y votos reales. Ni se consulta "para verificar algo" sin avisar antes en el equipo |
 | **Tu propio PostgreSQL** (un proyecto gratuito de Supabase o Docker) | Si necesitas probar algo específico de PostgreSQL | Mismo motor que producción, sin riesgo para datos compartidos ni para producción. Ver [Si usas PostgreSQL](#si-usas-postgresql) |
 
-**Producción y desarrollo son proyectos de Supabase distintos, con secretos distintos** (`JWT_SECRET`, `NULLIFIER_SECRET`, contraseñas del seed). El `.env` local de cada desarrollador nunca apunta a la `DATABASE_URL` de producción — ni siquiera un momento para probar algo.
+**Desarrollo es SQLite local — no hay un segundo proyecto de Supabase "de desarrollo".** El único Supabase del proyecto es producción. Si alguna vez hace falta PostgreSQL en local, es un proyecto propio y aparte (ver [Si usas PostgreSQL](#si-usas-postgresql)), nunca el de producción, y con secretos propios (`JWT_SECRET`, `NULLIFIER_SECRET`, contraseñas del seed) — nunca los de producción. El `.env` local no apunta a la `DATABASE_URL` de producción bajo ningún concepto, ni siquiera un momento para probar algo.
 
 Como red de seguridad adicional (no como sustituto de lo anterior), `npm run seed` y `npm run seed:reset` se niegan a ejecutarse salvo que **las dos** condiciones se cumplan a la vez:
 - `NODE_ENV` no sea `production`.
