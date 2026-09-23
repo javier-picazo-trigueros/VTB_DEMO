@@ -58,15 +58,35 @@ function direccionDeEntorno(nombre: string, obligatoria: boolean): string | null
 async function main() {
   const ficheroDespliegue = path.join(__dirname, "..", "deployments", `${network.name}.json`);
 
-  const contractAddress =
-    (process.env.CONTRACT_ADDRESS || "").trim() ||
-    (fs.existsSync(ficheroDespliegue)
-      ? JSON.parse(fs.readFileSync(ficheroDespliegue, "utf8")).contractAddress
-      : "");
+  // El fichero de despliegue es la fuente de verdad para ESTA red: lo escribe
+  // deploy.ts y lo mantiene al día este mismo script. CONTRACT_ADDRESS del
+  // entorno solo se usa si el fichero no existe (primer despliegue). Antes el
+  // env var ganaba siempre — un blockchain/.env con la dirección de otra red
+  // (p. ej. la de Hardhat local, de probar en local) pisaba en silencio la
+  // dirección real de sepolia.json sin ningún aviso. Pasó de verdad: por eso
+  // ahora, si las dos existen y no coinciden, se para en vez de elegir sola.
+  const infoDespliegue = fs.existsSync(ficheroDespliegue)
+    ? JSON.parse(fs.readFileSync(ficheroDespliegue, "utf8"))
+    : null;
+  const direccionEntorno = (process.env.CONTRACT_ADDRESS || "").trim();
+  const contractAddress = infoDespliegue?.contractAddress || direccionEntorno;
 
   if (!contractAddress) {
     throw new Error(
       `No hay dirección de contrato: defina CONTRACT_ADDRESS o cree ${ficheroDespliegue}.`,
+    );
+  }
+
+  if (
+    infoDespliegue?.contractAddress &&
+    direccionEntorno &&
+    direccionEntorno.toLowerCase() !== infoDespliegue.contractAddress.toLowerCase()
+  ) {
+    throw new Error(
+      `CONTRACT_ADDRESS del entorno (${direccionEntorno}) no coincide con ` +
+      `${ficheroDespliegue} (${infoDespliegue.contractAddress}) para la red "${network.name}".\n` +
+      `  No se adivina cuál es la correcta: borra CONTRACT_ADDRESS del .env si el ` +
+      `fichero de despliegue ya es correcto, o corrígelo si no lo es.`,
     );
   }
 
