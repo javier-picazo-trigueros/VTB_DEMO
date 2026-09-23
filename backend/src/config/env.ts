@@ -40,7 +40,6 @@ export const env = {
   // ── Auth ─────────────────────────────────────────────────────────────────
   JWT_SECRET:        req('JWT_SECRET',        'dev-jwt-secret-not-for-prod'),
   NULLIFIER_SECRET:  req('NULLIFIER_SECRET',  'dev-nullifier-secret-not-for-prod'),
-  HMAC_SECRET:       req('HMAC_SECRET',       'dev-hmac-secret-not-for-prod'),
   CSRF_SECRET:       process.env.CSRF_SECRET ?? null,  // derivado de JWT_SECRET si no está
 
   // ── Base de datos ─────────────────────────────────────────────────────────

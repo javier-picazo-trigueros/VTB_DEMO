@@ -15,7 +15,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 
 const TRACKED_KEYS = [
-  'NODE_ENV', 'JWT_SECRET', 'NULLIFIER_SECRET', 'HMAC_SECRET',
+  'NODE_ENV', 'JWT_SECRET', 'NULLIFIER_SECRET',
   'CORS_ORIGINS', 'DB_CLIENT', 'DATABASE_URL',
 ] as const;
 type TrackedKey = typeof TRACKED_KEYS[number];
@@ -59,7 +59,7 @@ describe('config/env — validación de arranque (SCRUM-14)', () => {
   it('no aborta en desarrollo aunque falten todas', async () => {
     const mod = await loadEnv({
       NODE_ENV: 'development',
-      JWT_SECRET: '', NULLIFIER_SECRET: '', HMAC_SECRET: '', CORS_ORIGINS: '',
+      JWT_SECRET: '', NULLIFIER_SECRET: '', CORS_ORIGINS: '',
     });
     expect(mod.env.CORS_ORIGINS).toEqual([]);
   });
