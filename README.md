@@ -56,8 +56,8 @@ flowchart LR
 5. Blockchain rejects any second call with the same nullifier
 
 ```
-Stack: React 18 · Vite 6 · Tailwind CSS 3 · framer-motion
-       Express 4.22 · TypeScript · SQLite (dev/test) · PostgreSQL (prod)
+Stack: React 19 · Vite 8 · Tailwind CSS 3 · framer-motion
+       Express 5 · TypeScript · SQLite (dev/test) · PostgreSQL (prod)
        ethers.js 6 · Hardhat · Solidity 0.8 · Sepolia testnet
 ```
 
