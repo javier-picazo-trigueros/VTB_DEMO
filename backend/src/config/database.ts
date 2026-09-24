@@ -220,6 +220,10 @@ export class Database {
     await this.exec("ALTER TABLE elections ADD COLUMN voter_role TEXT DEFAULT 'student'").catch(() => {});
     await this.exec("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT 0").catch(() => {});
     await this.exec("ALTER TABLE users ADD COLUMN deleted_at DATETIME DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN terms_version TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN terms_accepted_at DATETIME DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE registration_requests ADD COLUMN terms_version TEXT DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE registration_requests ADD COLUMN terms_accepted_at DATETIME DEFAULT NULL").catch(() => {});
 
     await this.exec(`
       CREATE TABLE IF NOT EXISTS refresh_tokens (

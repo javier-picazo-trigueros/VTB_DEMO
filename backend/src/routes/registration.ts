@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import { getDbClient, isUniqueViolation, withTransaction } from "../db/index.js";
 import { hashPassword } from "../utils/auth.js";
+import { CURRENT_TERMS_VERSION } from "../config/legal.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -26,6 +27,16 @@ router.post("/request", async (req: Request, res: Response) => {
     if (!fullName?.trim() || !email?.trim() || !studentId?.trim() || !password?.trim()) {
       res.status(400).json({
         error: "Faltan campos obligatorios: nombre completo, email, identificador y contraseña",
+      });
+      return;
+    }
+
+    // Casilla de aceptación de términos y privacidad: obligatoria, sin marcar
+    // por defecto en el formulario. No basta con validarlo en el cliente —
+    // sin esto aquí, una petición hecha a mano se saltaría el requisito entero.
+    if (req.body.acceptedTerms !== true) {
+      res.status(400).json({
+        error: "Debes aceptar los Términos y Condiciones y la Política de Privacidad para registrarte",
       });
       return;
     }
@@ -82,9 +93,9 @@ router.post("/request", async (req: Request, res: Response) => {
       try {
         await withTransaction(async (tx) => {
           const inserted = await tx.exec(
-            `INSERT INTO users (email, password_hash, name, student_id, role, org_unit, school, degree, year, study_group, is_approved, is_eligible, created_at)
-             VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, TRUE, TRUE, CURRENT_TIMESTAMP)`,
-            [email, autoHash, whitelisted.full_name || fullName, whitelisted.student_id || studentId, orgUnit, school, degree, year, study_group]
+            `INSERT INTO users (email, password_hash, name, student_id, role, org_unit, school, degree, year, study_group, is_approved, is_eligible, terms_version, terms_accepted_at, created_at)
+             VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, TRUE, TRUE, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            [email, autoHash, whitelisted.full_name || fullName, whitelisted.student_id || studentId, orgUnit, school, degree, year, study_group, CURRENT_TERMS_VERSION]
           );
 
           // El id sale del propio INSERT (RETURNING id en PostgreSQL). Antes se
@@ -130,9 +141,9 @@ router.post("/request", async (req: Request, res: Response) => {
     const passwordHash = await hashPassword(password);
 
     await db.exec(
-      `INSERT INTO registration_requests (full_name, email, student_id, org_unit, school, degree, year, study_group, password_hash, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)`,
-      [fullName, email, studentId, orgUnit, school, degree, year, study_group, passwordHash]
+      `INSERT INTO registration_requests (full_name, email, student_id, org_unit, school, degree, year, study_group, password_hash, terms_version, terms_accepted_at, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'pending', CURRENT_TIMESTAMP)`,
+      [fullName, email, studentId, orgUnit, school, degree, year, study_group, passwordHash, CURRENT_TERMS_VERSION]
     );
 
     res.json({

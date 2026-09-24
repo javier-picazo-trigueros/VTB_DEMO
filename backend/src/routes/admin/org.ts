@@ -418,6 +418,8 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
       degree: string | null;
       year: number | null;
       study_group: string | null;
+      terms_version: string | null;
+      terms_accepted_at: string | Date | null;
     }>(
       "SELECT * FROM registration_requests WHERE id = ?",
       [id]
@@ -458,11 +460,12 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
       await withTransaction(async (tx) => {
         const insertResult = await tx.exec(
           `INSERT INTO users (email, password_hash, name, student_id, role, org_unit,
-                             school, degree, year, study_group,
+                             school, degree, year, study_group, terms_version, terms_accepted_at,
                              is_approved, approved_by, approved_at, is_eligible, must_change_password, created_at)
-           VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, TRUE, ?, CURRENT_TIMESTAMP, TRUE, ?, CURRENT_TIMESTAMP)`,
+           VALUES (?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, ?, ?, TRUE, ?, CURRENT_TIMESTAMP, TRUE, ?, CURRENT_TIMESTAMP)`,
           [request.email, passwordHash, request.full_name, request.student_id, orgUnit,
-           school || null, degree || null, year || null, study_group || null, req.user!.userId,
+           school || null, degree || null, year || null, study_group || null,
+           request.terms_version, request.terms_accepted_at, req.user!.userId,
            tempPassword !== null]
         );
 

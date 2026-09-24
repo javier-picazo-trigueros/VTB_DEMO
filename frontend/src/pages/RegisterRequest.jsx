@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
 import { api, apiFetch } from '../utils/apiClient'
@@ -29,6 +29,8 @@ export const RegisterRequest = () => {
     year: '',
     study_group: '',
   })
+  // Sin marcar por defecto, separada de cualquier otro campo/consentimiento.
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -88,6 +90,7 @@ export const RegisterRequest = () => {
     if (!formData.password) { setError('Password is required'); return false }
     if (formData.password.length < 6) { setError('Password must be at least 6 characters'); return false }
     if (formData.password !== formData.confirmPassword) { setError('Passwords do not match'); return false }
+    if (!acceptedTerms) { setError('You must accept the Terms and Privacy Policy to register'); return false }
     return true
   }
 
@@ -108,6 +111,7 @@ export const RegisterRequest = () => {
         degree: formData.degree || null,
         year: formData.year ? parseInt(formData.year) : null,
         study_group: formData.study_group || null,
+        acceptedTerms,
       })
 
       if (response.data.autoApproved) {
@@ -116,6 +120,7 @@ export const RegisterRequest = () => {
         setSubmitted(true)
       }
       setFormData({ fullName: '', email: '', studentId: '', password: '', confirmPassword: '', school: '', degree: '', year: '', study_group: '' })
+      setAcceptedTerms(false)
     } catch (err) {
       console.error('Registration error:', err)
       setError(err.response?.data?.error || 'Error submitting request')
@@ -327,9 +332,32 @@ export const RegisterRequest = () => {
                   </div>
                 </div>
 
+                {/* Casilla de aceptación: sin marcar por defecto, separada de cualquier
+                    otro campo o consentimiento. Validada también en el backend
+                    (registration.ts) — esto solo evita un envío que igualmente rebotaría. */}
+                <label className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => { setAcceptedTerms(e.target.checked); setError('') }}
+                    disabled={loading}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                  />
+                  <span>
+                    He leído y acepto los{' '}
+                    <Link to="/legal/terminos" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      Términos y Condiciones
+                    </Link>{' '}
+                    y la{' '}
+                    <Link to="/legal/privacidad" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      Política de Privacidad
+                    </Link>.
+                  </span>
+                </label>
+
                 <button
                   type="submit"
-                  disabled={loading || !formData.fullName || !formData.email || !formData.studentId || !formData.password}
+                  disabled={loading || !formData.fullName || !formData.email || !formData.studentId || !formData.password || !acceptedTerms}
                   className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading ? (
