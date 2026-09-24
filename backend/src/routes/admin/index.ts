@@ -9,6 +9,7 @@
  *   org.ts              — panorama general: dashboard, unidades, admins de dominio
  *   elections.ts        — una elección: crear, editar, imagen, candidatos, altas sueltas
  *   election-census.ts  — censo masivo, auditoría, estadísticas, avisos por correo
+ *   action-log.ts       — consulta del registro de acciones de administración (SCRUM-20)
  *
  * Cuatro ficheros de dominio y no los tres que nombraba el ticket original:
  * users+elections solos ya pasaban de 600 líneas (el propio criterio de
@@ -25,6 +26,7 @@ import usersRoutes from "./users.js";
 import orgRoutes from "./org.js";
 import electionsRoutes from "./elections.js";
 import electionCensusRoutes from "./election-census.js";
+import actionLogRoutes from "./action-log.js";
 
 const router = express.Router();
 
@@ -32,5 +34,6 @@ router.use(usersRoutes);
 router.use(orgRoutes);
 router.use(electionsRoutes);
 router.use(electionCensusRoutes);
+router.use(actionLogRoutes);
 
 export default router;

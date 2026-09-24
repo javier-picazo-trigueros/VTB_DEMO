@@ -19,6 +19,7 @@ import {
 import authRoutes from "./routes/auth.js";
 import electionRoutes from "./routes/elections.js";
 import adminRoutes from "./routes/admin/index.js";
+import { logAdminAction } from "./middleware/adminActionLog.js";
 import registrationRoutes from "./routes/registration.js";
 import organizationRoutes from "./routes/organizations.js";
 
@@ -323,6 +324,12 @@ app.get('/api/stats', async (req: any, res: Response) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
+// SCRUM-20: toda escritura de un administrador deja traza en admin_action_log.
+// Va delante de TODAS las rutas de administración — también de la de aquí
+// abajo, que vive fuera del router de /admin — para que una ruta nueva quede
+// registrada sin tener que acordarse de nada. Ver middleware/adminActionLog.ts.
+app.use(["/admin", "/api/admin"], logAdminAction);
 
 app.post('/api/admin/sync-blockchain', requireAdmin, async (req: any, res: Response) => {
   res.json({ message: 'Sincronización iniciada', status: 'running' });

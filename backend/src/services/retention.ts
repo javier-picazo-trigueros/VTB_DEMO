@@ -4,6 +4,7 @@
  *   - Historial de correos (email_log): 90 días desde que se encolaron.
  *   - Tokens de recuperación/invitación usados o caducados: 24 horas.
  *   - Cuenta de usuario dada de baja: anonimizada a los 30 días de la baja.
+ *   - Registro de acciones de administración (admin_action_log): 12 meses.
  *
  * nullifier_audit NO se toca aquí, a propósito: sigue sin plazo de
  * conservación — es un hueco de cumplimiento real, no algo que este fichero
@@ -21,6 +22,10 @@ const REJECTED_REQUESTS_RETENTION_DAYS = 30;
 const EMAIL_LOG_RETENTION_DAYS = 90;
 const USED_TOKENS_RETENTION_HOURS = 24;
 const DELETED_ACCOUNT_ANONYMIZE_DAYS = 30;
+// Guarda IP y quién hizo cada acción (SCRUM-20). Un año cubre el plazo de
+// impugnación de cualquier votación de un curso académico. Si se cambia, hay
+// que cambiar también la Política de Privacidad, sección 6.
+export const ADMIN_ACTION_LOG_RETENTION_DAYS = 365;
 
 function cutoffHoursAgo(hours: number): string {
   return new Date(Date.now() - hours * 60 * 60 * 1000)
@@ -97,11 +102,19 @@ export async function anonymizeDeletedAccounts(db: DbClient): Promise<number> {
   return anonimizadas;
 }
 
+/** Registro de acciones de administración de hace más de 12 meses. */
+export async function purgeOldAdminActionLog(db: DbClient): Promise<number> {
+  const cutoff = cutoffDaysAgo(ADMIN_ACTION_LOG_RETENTION_DAYS);
+  const res = await db.exec(`DELETE FROM admin_action_log WHERE created_at < ?`, [cutoff]);
+  return res.changes;
+}
+
 export interface RetentionSummary {
   rejectedRequestsPurged: number;
   emailLogPurged: number;
   authTokensPurged: number;
   accountsAnonymized: number;
+  adminActionLogPurged: number;
 }
 
 export async function runRetentionJobs(db: DbClient): Promise<RetentionSummary> {
@@ -110,5 +123,6 @@ export async function runRetentionJobs(db: DbClient): Promise<RetentionSummary> 
     emailLogPurged: await purgeOldEmailLog(db),
     authTokensPurged: await purgeExpiredAuthTokens(db),
     accountsAnonymized: await anonymizeDeletedAccounts(db),
+    adminActionLogPurged: await purgeOldAdminActionLog(db),
   };
 }

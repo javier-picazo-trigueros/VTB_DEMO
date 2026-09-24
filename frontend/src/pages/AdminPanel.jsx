@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import { api } from "../utils/apiClient";
 import { useAuth } from "../context/AuthContext";
+import { ActionLogTab } from "../components/ActionLogTab";
 
 /**
  * Clases completas y literales para los KPI de estadísticas.
@@ -39,6 +40,31 @@ const KPI_TONES = {
     label: 'text-purple-600 dark:text-purple-400',
   },
 };
+
+/**
+ * Botón de pestaña del panel. Vive fuera de AdminPanel a propósito: definido
+ * dentro, React lo trataba como un componente nuevo en cada render (y eslint
+ * lo marcaba en cada uso, react-hooks/static-components).
+ */
+function TabButton({ id, label, icon, badge, active, onSelect }) {
+  return (
+    <button
+      data-tour={id === "inbox" ? "requests-tab" : id === "stats" ? "stats-tab" : undefined}
+      onClick={() => onSelect(id)}
+      className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${active
+          ? "bg-emerald-500 text-white"
+          : "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+        }`}
+    >
+      {icon} {label}
+      {badge != null && (
+        <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
 
 export const AdminPanel = () => {
   const navigate = useNavigate();
@@ -643,24 +669,6 @@ export const AdminPanel = () => {
     }
   };
 
-  const Tab = ({ id, label, icon, badge }) => (
-    <button
-      data-tour={id === "inbox" ? "requests-tab" : id === "stats" ? "stats-tab" : undefined}
-      onClick={() => setActiveTab(id)}
-      className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${activeTab === id
-          ? "bg-emerald-500 text-white"
-          : "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
-        }`}
-    >
-      {icon} {label}
-      {badge != null && (
-        <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
-          {badge}
-        </span>
-      )}
-    </button>
-  );
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <OnboardingTour role={userRole} userId={user?.id} />
@@ -733,12 +741,13 @@ export const AdminPanel = () => {
 
         {/* Tabs */}
         <div className="mt-8 flex flex-wrap gap-3 mb-8">
-          <Tab id="dashboard" label={t("admin.dashboard")} icon="📊" />
-          <Tab id="inbox" label={t("admin.requests")} icon="📬" badge={pendingBadge > 0 ? pendingBadge : null} />
-          <Tab id="users" label={t("admin.users")} icon="👥" />
-          <Tab id="elections" label={t("admin.elections")} icon="🗳️" />
-          <Tab id="stats" label={t("admin.statistics")} icon="📈" />
-          <Tab id="audit" label={t("admin.audit")} icon="🔐" />
+          <TabButton id="dashboard" active={activeTab === "dashboard"} onSelect={setActiveTab} label={t("admin.dashboard")} icon="📊" />
+          <TabButton id="inbox" active={activeTab === "inbox"} onSelect={setActiveTab} label={t("admin.requests")} icon="📬" badge={pendingBadge > 0 ? pendingBadge : null} />
+          <TabButton id="users" active={activeTab === "users"} onSelect={setActiveTab} label={t("admin.users")} icon="👥" />
+          <TabButton id="elections" active={activeTab === "elections"} onSelect={setActiveTab} label={t("admin.elections")} icon="🗳️" />
+          <TabButton id="stats" active={activeTab === "stats"} onSelect={setActiveTab} label={t("admin.statistics")} icon="📈" />
+          <TabButton id="audit" active={activeTab === "audit"} onSelect={setActiveTab} label={t("admin.audit")} icon="🔐" />
+          <TabButton id="actions" active={activeTab === "actions"} onSelect={setActiveTab} label={t("admin.actionLogTab")} icon="📝" />
         </div>
 
         {/* Content */}
@@ -1800,6 +1809,9 @@ export const AdminPanel = () => {
               )}
 
               {/* Audit */}
+              {/* SCRUM-20: carga sus propios datos, ver components/ActionLogTab.jsx */}
+              {activeTab === "actions" && <ActionLogTab />}
+
               {activeTab === "audit" && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}

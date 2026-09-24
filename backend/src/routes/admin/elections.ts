@@ -295,6 +295,8 @@ router.post("/elections", requireAdmin, async (req: Request, res: Response) => {
       );
     }
 
+    // Para el registro de acciones (SCRUM-20): el alta no lleva id en la URL.
+    res.locals.auditEntityId = electionId;
     res.json({
       success: true,
       electionId,

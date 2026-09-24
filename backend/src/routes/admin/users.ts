@@ -192,6 +192,8 @@ router.post("/users", requireAdmin, async (req: Request, res: Response) => {
       return inserted.lastID;
     });
 
+    // Para el registro de acciones (SCRUM-20): el alta no lleva id en la URL.
+    res.locals.auditEntityId = userId;
     res.json({
       success: true,
       userId,

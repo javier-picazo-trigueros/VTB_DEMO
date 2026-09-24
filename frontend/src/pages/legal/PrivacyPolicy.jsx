@@ -41,6 +41,7 @@ export function PrivacyPolicy() {
           ['Candidato elegido, ligado a tu cuenta', 'Lo generas al votar', 'Registrar el voto y prevenir el doble voto (ver sección 4)'],
           ['Historial de correos enviados (destinatario, plantilla, asunto)', 'Se genera al enviarte invitaciones, confirmaciones o enlaces de recuperación', 'Poder reenviar y depurar incidencias de entrega'],
           ['Cookies de sesión', 'Se generan al iniciar sesión', 'Mantenerte identificado; seguridad (CSRF)'],
+          ['Solo si eres administrador: cada cambio que haces desde el panel (qué acción, sobre qué elemento, con qué resultado, cuándo y desde qué IP)', 'Se genera al usar el panel de administración, también si la acción se rechaza', 'Poder responder de quién creó, modificó o cerró cada elección si se impugna una votación'],
         ]}
       />
 
@@ -115,6 +116,7 @@ export function PrivacyPolicy() {
           ['Solicitudes de registro rechazadas', 'Se eliminan a los 30 días'],
           ['Historial de correos enviados (email_log)', 'Se elimina a los 90 días'],
           ['Cuenta de usuario dada de baja', 'Se anonimiza a los 30 días de la baja (nombre, email e identificador dejan de ser legibles)'],
+          ['Registro de acciones de administración (incluye la IP)', 'Se elimina a los 12 meses'],
           ['Registro de voto (nullifier_audit): usuario, elección y candidato en la misma fila', 'Sin plazo definido hoy — ver sección 4'],
         ]}
       />

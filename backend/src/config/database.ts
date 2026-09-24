@@ -355,6 +355,31 @@ export class Database {
       'CREATE INDEX IF NOT EXISTS idx_prt_hash ON password_reset_tokens(token_hash)'
     ).catch(() => {});
 
+    // ── SCRUM-20: registro de acciones de administración ─────────────────────
+    // Paridad con la migración 014 de PostgreSQL. Ver allí el porqué de cada
+    // columna, y middleware/adminActionLog.ts para quién la escribe.
+    await this.exec(`
+      CREATE TABLE IF NOT EXISTS admin_action_log (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        actor_user_id  INTEGER NOT NULL,
+        actor_role     TEXT NOT NULL,
+        actor_domain   TEXT DEFAULT NULL,
+        action         TEXT NOT NULL,
+        entity_type    TEXT DEFAULT NULL,
+        entity_id      TEXT DEFAULT NULL,
+        status_code    INTEGER NOT NULL,
+        ip             TEXT DEFAULT NULL,
+        created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    for (const ddl of [
+      'CREATE INDEX IF NOT EXISTS idx_admin_action_log_created ON admin_action_log(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_admin_action_log_entity ON admin_action_log(entity_type, entity_id)',
+      'CREATE INDEX IF NOT EXISTS idx_admin_action_log_domain ON admin_action_log(actor_domain)',
+    ]) {
+      await this.exec(ddl).catch(() => {});
+    }
+
     // ── P1-7: email_log no guarda tokens ─────────────────────────────────────
     // Los correos con enlace se encolan con template_data, sin cuerpo, y el
     // token se genera al enviar (services/email/queue.ts). Esto limpia lo que
