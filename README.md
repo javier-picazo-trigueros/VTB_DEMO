@@ -27,7 +27,7 @@ flowchart LR
 
     subgraph Render["Render (backend)"]
         E[Express API\nNode.js 20]
-        DB[(SQLite / Postgres)]
+        DB[(PostgreSQL\nSupabase)]
     end
 
     subgraph Chain["Ethereum Sepolia"]
