@@ -659,6 +659,67 @@ router.delete('/me', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @route GET /auth/me/export
+ * @desc  Portabilidad de datos (RGPD art. 20): descarga en JSON todo lo que
+ *        el sistema tiene identificado con esta cuenta.
+ *
+ *        Incluye la elección de voto de nullifier_audit a propósito: es un
+ *        dato personal sobre este usuario y esta ruta es una solicitud del
+ *        propio titular, no una consulta de terceros — no es la afirmación
+ *        de anonimato que el proyecto tiene prohibida (CLAUDE.md), es lo
+ *        contrario: mostrarle a la persona exactamente qué sabe de ella el
+ *        sistema.
+ */
+router.get('/me/export', requireAuth, async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  try {
+    const profile = await db.get<Record<string, unknown>>(
+      `SELECT id, email, name, student_id, role, admin_domain,
+              school, degree, year, study_group,
+              created_at, terms_version, terms_accepted_at
+         FROM users WHERE id = ?`,
+      [userId],
+    );
+    if (!profile) {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+
+    const votos = await db.run<Record<string, unknown>>(
+      `SELECT na.election_id, e.name AS election_name, na.candidate_id,
+              c.name AS candidate_name, na.vote_choice, na.tx_hash,
+              na.block_number, na.generated_at
+         FROM nullifier_audit na
+         LEFT JOIN elections e ON e.id = na.election_id
+         LEFT JOIN candidates c ON c.id = na.candidate_id
+        WHERE na.user_id = ?
+        ORDER BY na.generated_at ASC`,
+      [userId],
+    );
+
+    const censo = await db.run<Record<string, unknown>>(
+      `SELECT ev.election_id, e.name AS election_name, ev.added_at
+         FROM election_voters ev
+         LEFT JOIN elections e ON e.id = ev.election_id
+        WHERE ev.user_id = ?
+        ORDER BY ev.added_at ASC`,
+      [userId],
+    );
+
+    res.setHeader('Content-Disposition', `attachment; filename="vtb-datos-${userId}.json"`);
+    res.json({
+      exportado_en: new Date().toISOString(),
+      perfil: profile,
+      votos_emitidos: votos,
+      elecciones_censado: censo,
+    });
+  } catch (err: any) {
+    console.error('Error en GET /me/export:', formatError(err));
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ── Token refresh ─────────────────────────────────────────────────────────────
 
 /**

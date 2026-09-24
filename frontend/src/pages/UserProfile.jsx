@@ -47,6 +47,28 @@ export function UserProfile() {
     }
   };
 
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleExportData = async () => {
+    setExportLoading(true);
+    try {
+      const res = await api.get('/auth/me/export');
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vtb-datos-${profile?.id || 'cuenta'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'No se han podido descargar los datos.');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const loadProfile = async () => {
     setLoading(true);
     setError('');
@@ -571,6 +593,23 @@ export function UserProfile() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-4"
           >
+            <div className="bg-white rounded-lg shadow-sm border border-warm-200 p-6">
+              <h2 className="text-base font-semibold text-slate-900 mb-2">
+                Descargar mis datos
+              </h2>
+              <p className="text-sm text-slate-500 mb-4">
+                Descarga en un fichero JSON los datos que VTB tiene asociados a tu cuenta:
+                perfil, elecciones en las que estás censado y tus votos emitidos.
+              </p>
+              <button
+                onClick={handleExportData}
+                disabled={exportLoading}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded text-sm font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                {exportLoading ? 'Preparando descarga…' : 'Descargar mis datos (JSON)'}
+              </button>
+            </div>
+
             <div className="bg-white rounded-lg shadow-sm border border-red-200 p-6">
               <h2 className="text-base font-semibold text-red-700 mb-2">
                 Dar de baja mi cuenta
