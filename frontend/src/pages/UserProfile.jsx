@@ -24,9 +24,28 @@ export function UserProfile() {
 
   const [activity, setActivity] = useState([]);
 
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
   useEffect(() => {
     loadProfile();
   }, []);
+
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      const res = await api.delete('/auth/me', { data: { password: deletePassword } });
+      toast.success(res.data.message || 'Cuenta dada de baja');
+      setAuthUser(null);
+      navigate('/login');
+    } catch (err) {
+      setDeleteError(err.response?.data?.error || 'No se ha podido dar de baja la cuenta.');
+      setDeleteLoading(false);
+    }
+  };
 
   const loadProfile = async () => {
     setLoading(true);
@@ -136,6 +155,7 @@ export function UserProfile() {
     { id: 'profile', label: 'Perfil' },
     { id: 'security', label: 'Seguridad' },
     { id: 'activity', label: 'Actividad' },
+    { id: 'privacy', label: 'Privacidad' },
   ];
 
   if (loading) {
@@ -541,6 +561,71 @@ export function UserProfile() {
                 ))}
               </div>
             )}
+          </motion.div>
+        )}
+
+        {/* ── PRIVACY TAB ── */}
+        {activeTab === 'privacy' && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
+            <div className="bg-white rounded-lg shadow-sm border border-red-200 p-6">
+              <h2 className="text-base font-semibold text-red-700 mb-2">
+                Dar de baja mi cuenta
+              </h2>
+              <p className="text-sm text-slate-500 mb-4">
+                Tu cuenta dejará de poder usarse de inmediato. Tu nombre, email e
+                identificador se anonimizarán a los 30 días. Esto <strong>no</strong>{' '}
+                borra ni anonimiza los registros ya inscritos en la cadena de bloques
+                ni las filas de auditoría de voto (<code>nullifier_audit</code>): son
+                inmutables por diseño, para que el recuento siga siendo verificable.
+              </p>
+
+              {!deleteConfirming ? (
+                <button
+                  onClick={() => setDeleteConfirming(true)}
+                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded text-sm font-medium transition-colors"
+                >
+                  Dar de baja mi cuenta
+                </button>
+              ) : (
+                <div className="max-w-sm space-y-3">
+                  {deleteError && (
+                    <div className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
+                      {deleteError}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Confirma tu contraseña
+                    </label>
+                    <input
+                      type="password"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setDeleteConfirming(false); setDeletePassword(''); setDeleteError(''); }}
+                      className="px-4 py-2 border border-slate-200 text-slate-700 rounded text-sm hover:bg-slate-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={deleteLoading || !deletePassword}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded text-sm font-medium transition-colors"
+                    >
+                      {deleteLoading ? 'Dando de baja…' : 'Confirmar baja definitiva'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
       </div>

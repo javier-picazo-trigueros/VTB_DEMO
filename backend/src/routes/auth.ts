@@ -601,6 +601,64 @@ router.patch("/me/profile", requireAuth, async (req: Request, res: Response) => 
   }
 });
 
+/**
+ * @route DELETE /auth/me
+ * @desc  Baja de la propia cuenta (Política de Privacidad, sección 7:
+ *        derecho de supresión). Pide la contraseña actual, igual que
+ *        change-password, para que no baste con tener la sesión abierta.
+ *
+ *        Marca deleted_at (igual que el borrado que ya hacía un admin,
+ *        admin/users.ts) y revoca las sesiones. El borrado real de email,
+ *        nombre e identificador (anonimización) lo hace el job de
+ *        retención a los 30 días (services/retention.ts) — no aquí, para
+ *        no perder de golpe la posibilidad de recuperar la cuenta si hay
+ *        un intento de voto todavía en curso.
+ */
+router.delete('/me', requireAuth, async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const { password } = req.body;
+
+  if (!password) {
+    res.status(400).json({ error: 'Debes indicar tu contraseña para confirmar la baja' });
+    return;
+  }
+
+  try {
+    const user = await db.get<{ password_hash: string; deleted_at: string | null }>(
+      'SELECT password_hash, deleted_at FROM users WHERE id = ?',
+      [userId],
+    );
+    if (!user || user.deleted_at !== null) {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+
+    const isValid = await verifyPassword(password, user.password_hash);
+    if (!isValid) {
+      res.status(401).json({ error: 'La contraseña no es correcta' });
+      return;
+    }
+
+    await withTransaction(async (tx) => {
+      await tx.exec('UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [userId]);
+      await tx.exec('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?', [userId]);
+    });
+
+    const clearOpts = { httpOnly: true, secure: IS_PROD, sameSite: 'lax' as const, path: '/' };
+    res.clearCookie(COOKIE_NAME_ACCESS,  clearOpts);
+    res.clearCookie(COOKIE_NAME_REFRESH, clearOpts);
+    res.clearCookie(COOKIE_NAME_CSRF,    { path: '/' });
+
+    res.json({
+      success: true,
+      message: 'Tu cuenta se ha dado de baja. Los datos identificativos se anonimizarán en un plazo de 30 días.',
+    });
+  } catch (err: any) {
+    console.error('Error en DELETE /me:', formatError(err));
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ── Token refresh ─────────────────────────────────────────────────────────────
 
 /**
