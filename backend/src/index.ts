@@ -14,6 +14,7 @@ import { processEmailQueue } from "./services/email/queue.js";
 import { sendCensusInvitation, sendElectionOpen, sendElectionClose } from "./services/email/index.js";
 import { formatError } from "./utils/errors.js";
 import { destroyExpiredElectionSalts } from "./services/electionSalt.js";
+import { runRetentionJobs } from "./services/retention.js";
 
 const PORT = Number(process.env.PORT || 3001);
 
@@ -249,6 +250,13 @@ async function start() {
           if (n > 0) console.log(`[election-salt] ${n} sal(es) efímera(s) destruida(s)`);
         }).catch(err =>
           console.error('[election-salt] error:', formatError(err)),
+        );
+        // Plazos de conservación de la Política de Privacidad, sección 6.
+        runRetentionJobs(getDbClient()).then(r => {
+          const total = r.rejectedRequestsPurged + r.emailLogPurged + r.authTokensPurged + r.accountsAnonymized;
+          if (total > 0) console.log('[retention]', r);
+        }).catch(err =>
+          console.error('[retention] error:', formatError(err)),
         );
       }, FIVE_MIN);
 

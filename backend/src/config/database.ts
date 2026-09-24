@@ -224,6 +224,7 @@ export class Database {
     await this.exec("ALTER TABLE users ADD COLUMN terms_accepted_at DATETIME DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN terms_version TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN terms_accepted_at DATETIME DEFAULT NULL").catch(() => {});
+    await this.exec("ALTER TABLE users ADD COLUMN anonymized_at DATETIME DEFAULT NULL").catch(() => {});
 
     await this.exec(`
       CREATE TABLE IF NOT EXISTS refresh_tokens (
