@@ -31,9 +31,9 @@ está hecho.**
 |---|---|---|
 | Migrar SQLite → PostgreSQL (Supabase) | ✅ Hecho | Javier, `a79640ab` — confirmado: `getDatabase()` ya no se usa en ninguna ruta, todo pasa por `getDbClient()` |
 | Restricciones anti-doble-voto en la propia BD | ✅ Hecho | `UNIQUE (user_id, election_id)` en `vote_attempts` y `nullifier_audit`, migración inicial |
-| Migraciones versionadas | ✅ Hecho | `node-pg-migrate`, 8 migraciones aplicadas |
+| Migraciones versionadas | ✅ Hecho | `node-pg-migrate`, 14 migraciones. Las 009–013 son de Javier (contrato v2, sal de elección, seguimiento de tx, aceptación legal, retención); la 014 es mía (`d759944d`, registro de acciones) |
 | Copias de seguridad automáticas + prueba de restauración | ❌ Pendiente | Sin rastro en el repo ni en `DESPLIEGUE_RENDER.md` |
-| Separar entornos de desarrollo y producción | ⚠️ Parcial | SQLite local vs. PostgreSQL en Supabase compartido — no es lo mismo que dev/prod separados de verdad (la base de Supabase la comparten los dos) |
+| Separar entornos de desarrollo y producción | ✅ Hecho | Javier (`6f0c1cf2`, `bb3736a7`): desarrollo es SQLite local y el único Supabase es producción; `seed`/`seed:reset` exigen `NODE_ENV≠production` **y** `ALLOW_SEED_RESET=true`. Regla fijada en `CLAUDE.md` |
 
 *Fase asignada a Javier — fuera de mi parte del trabajo.*
 
@@ -45,10 +45,10 @@ está hecho.**
 |---|---|---|
 | JWT a cookies httpOnly + CSRF | ✅ Hecho | Ya estaba antes de este plan |
 | Rate limiting en login y voto | ✅ Hecho | Ya estaba antes de este plan |
-| Validar bien todo lo que entra por la API | ⚠️ Parcial | zod en la mayoría de rutas; 4 políticas de contraseña distintas sin unificar. Planificado: `SCRUM-21`, Sprint 2 |
+| Validar bien todo lo que entra por la API | ✅ Hecho | **`3f0b4469`** (yo, `SCRUM-21`) — eran cinco políticas de contraseña, no cuatro (el alta por administrador no tenía mínimo). Todas pasan por `utils/validation.ts`: 8–128 caracteres y email normalizado a minúsculas. El registro público deja de validar a mano. Se elimina `POST /auth/admin/register`, duplicada y con una comprobación de dominio más débil. Queda fuera: la enumeración de cuentas del registro público (ver `SPRINT_2_JAIME.md`) |
 | Cabeceras de seguridad (CSP, HSTS, CORS) | ✅ Hecho | Ya estaba antes de este plan |
 | Sacar la clave privada de las variables de entorno | ❌ Pendiente | Planificado: `SCRUM-25`, Sprint 3 |
-| Registro de auditoría de acciones de administrador | ❌ Pendiente | Planificado: `SCRUM-20`, Sprint 2 |
+| Registro de auditoría de acciones de administrador | ✅ Hecho | **`d759944d`** (yo, `SCRUM-20`) — tabla `admin_action_log`, middleware delante de todo `/admin`, pestaña en el panel filtrada por dominio y conservación de 12 meses publicada en la Política de Privacidad |
 | **Revisar el historial por si se coló alguna clave** | ✅ Hecho | **`6697396e`** (yo, hoy) — encontrada y documentada la clave de Alchemy filtrada; el resto del historial son placeholders |
 | Auditoría de dependencias automática | ✅ Hecho | **`b4a6ee6c`** (yo) — Dependabot semanal en los 3 `package.json` y las actions. **`ce12a9ca`** y **`30922c28`** (yo) — 0 vulnerabilidades en backend tras `npm audit fix` + subir `node-pg-migrate` 7→9 (probado end-to-end contra Postgres 17 en Docker; las 8 migraciones `.cjs` funcionan sin cambios) |
 
@@ -69,11 +69,11 @@ está hecho.**
 
 | Tarea del plan | Estado | Referencia |
 |---|---|---|
-| Política de privacidad, aviso legal, términos, cookies | ❌ Pendiente | Planificado: `SCRUM-28`, Sprint 4 |
+| Política de privacidad, aviso legal, términos, cookies | ⚠️ Parcial | Javier adelantó `SCRUM-28` (`fd3041b2`, `bdfced47`): las cinco páginas publicadas y la casilla de aceptación obligatoria con versión y fecha. Faltan los datos del responsable (`[RELLENAR]`) y la revisión de un abogado |
 | Registro de actividades de tratamiento (RGPD) | ❌ Pendiente | Planificado: `SCRUM-28`, Sprint 4 |
 | Contratos de encargado del tratamiento | ❌ Pendiente | No planificado todavía — es gestión, no código |
 | Auditoría de accesibilidad WCAG 2.1 AA | ❌ Pendiente | Planificado: `SCRUM-31`, Sprint 4 |
-| Derechos de acceso, rectificación y borrado | ❌ Pendiente | Planificado: `SCRUM-29`, Sprint 4 |
+| Derechos de acceso, rectificación y borrado | ⚠️ Parcial | Javier adelantó `SCRUM-29`: baja con anonimización a los 30 días (`580ea17f`), portabilidad en JSON (`df40be6d`) y jobs de conservación (`53fbacee`). `nullifier_audit` sigue sin plazo, lo que depende de `SCRUM-17` |
 
 ---
 
@@ -81,7 +81,7 @@ está hecho.**
 
 | Tarea del plan | Estado | Referencia |
 |---|---|---|
-| Multi-tenant sin fuga de datos entre instituciones | ❌ Pendiente | **Reverificado hoy tras el pull de Javier**: sigue sin existir ningún control de dominio en `PUT/PATCH /elections/:id`, `notify-open`, `notify-close`, etc. Planificado: `SCRUM-19`, Sprint 2 |
+| Multi-tenant sin fuga de datos entre instituciones | ✅ Hecho | Javier cerró mi `SCRUM-19` desde la auditoría 3: `aaa54be0` (diez rutas con `denyIfElectionOutOfScope`, 404 y no 403, 21 tests), `fd5fc710` (escalada de privilegios en `POST /admin/users`) y `363fecca` (unidades organizativas por dominio) |
 | Panel de administración con roles y permisos | ⚠️ Parcial | Roles admin/superadmin existen; sin permisos granulares |
 | Exportación de actas con sello de tiempo y tx | ❌ Pendiente | Hay exportación PDF, sin sello de tiempo ni referencia a la transacción. Planificado: `SCRUM-32`, Sprint 4 |
 | Página de verificación pública | ⚠️ Parcial | `Transparency.jsx` existe pero lee de la base de datos, no del contrato. Planificado: `SCRUM-32`, Sprint 4 |
@@ -124,6 +124,14 @@ constancia de que existen, para que no se confundan con progreso del plan:
   cliente, y `config/env.ts` (validación de entorno al arrancar) era código
   muerto sin ningún import. Ambos, hallazgos de `ESTADO.md` (puntos 7 y 8),
   no líneas del PDF.
+- **Javier, contrato v2** (`d21e6e1d` en adelante, ver `CAMBIOS_VERANO_2026.md`):
+  `castVote` lleva el candidato y `getTally()` permite recontar desde fuera
+  (`RECUENTO_INDEPENDIENTE.md`); `onChainVerified` compara los dos recuentos
+  candidato a candidato; ya no se inventan hashes para votos fuera de cadena
+  (503 `ELECTION_NOT_ON_CHAIN`), lo que cierra `SCRUM-18`.
+- **Javier, auditoría 3** (`AUDITORIA_SEGURIDAD_3.md`): cerró una crítica
+  (sesión de admin sin credenciales por `demo-login`) y tres altas, y rotó la
+  clave de Alchemy (`SCRUM-34`/`35`).
 - Javier: página de censo/CSV con filas fallidas visibles, sincronización de
   elecciones sin esperar a Sepolia, `/health` con comprobación real de BD —
   todo mejoras operativas fuera del alcance literal del PDF.
