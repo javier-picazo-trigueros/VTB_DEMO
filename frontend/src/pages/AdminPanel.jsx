@@ -2314,7 +2314,7 @@ export const AdminPanel = () => {
             className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg"
           >
             <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">✏️ Editar elección</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Editar elección</h2>
               <button
                 onClick={() => setEditingElection(null)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded"
