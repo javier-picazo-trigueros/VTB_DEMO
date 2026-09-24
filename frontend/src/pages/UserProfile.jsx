@@ -618,8 +618,8 @@ export function UserProfile() {
                 Tu cuenta dejará de poder usarse de inmediato. Tu nombre, email e
                 identificador se anonimizarán a los 30 días. Esto <strong>no</strong>{' '}
                 borra ni anonimiza los registros ya inscritos en la cadena de bloques
-                ni las filas de auditoría de voto (<code>nullifier_audit</code>): son
-                inmutables por diseño, para que el recuento siga siendo verificable.
+                ni el registro de tu participación en votaciones: son inmutables por
+                diseño, para que el recuento siga siendo verificable.
               </p>
 
               {!deleteConfirming ? (
