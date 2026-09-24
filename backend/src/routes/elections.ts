@@ -8,6 +8,7 @@ import { sendVoteConfirmation } from "../services/email/index.js";
 import { formatError } from "../utils/errors.js";
 import { isChainConfigured } from "../scripts/syncElections.js";
 import { getVotePort } from "../services/voteChain.js";
+import { isElectionInScopeFor } from "./admin/shared.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -418,6 +419,27 @@ router.get("/:id/eligibility", requireAuth, async (req: Request, res: Response) 
 });
 
 /**
+ * ¿Quien pregunta administra esta elección? (SCRUM-16)
+ *
+ * La ruta de resultados es pública, así que la sesión es opcional: se lee la
+ * cookie si viene y se confirma el rol contra la base, igual que requireAdmin
+ * (un token de admin degradado a estudiante no cuenta). El alcance es el
+ * mismo que en el panel: isElectionInScopeFor, de admin/shared.ts.
+ */
+async function viewerAdministersElection(req: Request, electionId: number): Promise<boolean> {
+  const raw = (req as { cookies?: Record<string, string> }).cookies?.[COOKIE_NAME_ACCESS];
+  if (typeof raw !== "string" || !raw) return false;
+  const decoded = verifyToken(raw);
+  if (!decoded?.userId) return false;
+  const viewer = await db.get<{ role: string; admin_domain: string | null }>(
+    "SELECT role, admin_domain FROM users WHERE id = ? AND deleted_at IS NULL",
+    [decoded.userId],
+  );
+  if (!viewer) return false;
+  return isElectionInScopeFor(viewer.role, viewer.admin_domain, electionId);
+}
+
+/**
  * @route GET /elections/:id/results (BLOQUE 3.2)
  * @desc Obtiene resultados de una eleccin con participacin
  * @protected Requiere JWT vlido (voters y admins)
@@ -455,6 +477,23 @@ router.get("/:id/results", async (req: Request, res: Response) => {
     const status = election.is_active && now >= election.start_time && now <= election.end_time 
       ? 'active' 
       : (now < election.start_time ? 'pending' : 'closed');
+
+    // ── ¿Se puede enseñar el reparto por candidato? (SCRUM-16) ─────────────
+    //
+    // Solo cuando ha pasado la fecha de fin, o a quien administra esta
+    // elección. Antes esta ruta, pública y sin sesión, daba el recuento en vivo
+    // durante toda la votación: la interfaz lo ocultaba, pero bastaba con abrir
+    // la URL (M-1 de AUDITORIA_SEGURIDAD_3.md).
+    //
+    // La referencia es end_time y NO `status`: `status` sale 'closed' también
+    // cuando un administrador oculta la elección (is_active = false) a mitad de
+    // plazo, y eso destaparía el recuento con la votación todavía abierta.
+    //
+    // Esto no hace secreto el recuento: con el contrato v2 cada VoteCast lleva
+    // el candidato y es legible en la cadena (ver SEGURIDAD.md). Lo que evita
+    // es que consultarlo sea tan fácil como abrir una URL.
+    const tallyPublic = now > election.end_time;
+    const tallyVisible = tallyPublic || await viewerAdministersElection(req, election.id);
 
     // Obtener total de votantes asignados
     const voterCount = await db.get<{ count: number }>(
@@ -605,6 +644,21 @@ router.get("/:id/results", async (req: Request, res: Response) => {
       }
     }
 
+    // Con el recuento oculto se quitan TODAS las cifras por candidato: los
+    // votos y porcentajes de cada uno, y también los dos vectores del
+    // contraste con la cadena, que son el mismo reparto con otra forma. Lo
+    // agregado (total, participación y si la verificación cuadra) se queda.
+    const candidatesOut = tallyVisible
+      ? candidatesWithVotes
+      : candidates.map(c => ({ id: c.id, name: c.name, description: c.description || '' }));
+    const verificacionOut = tallyVisible
+      ? verificacion
+      : {
+          estado: verificacion.estado,
+          detalle: verificacion.detalle,
+          votosNoVerificables: verificacion.votosNoVerificables,
+        };
+
     res.json({
       election: {
         id: election.id,
@@ -615,14 +669,17 @@ router.get("/:id/results", async (req: Request, res: Response) => {
         endDate: new Date(election.end_time * 1000).toISOString(),
         totalVoters: totalVoterCount,
       },
-      candidates: candidatesWithVotes,
+      candidates: candidatesOut,
+      // true mientras no se publique el reparto; tallyPublishedAt dice cuándo.
+      tallyHidden: !tallyVisible,
+      tallyPublishedAt: new Date(election.end_time * 1000).toISOString(),
       totalVotes: realTotalVotes,
       participationRate: totalVoterCount > 0
         ? Math.round((realTotalVotes / totalVoterCount) * 1000) / 10
         : 0,
       // Verificado = coincide y NINGÚN voto no verificable en el total visible
       onChainVerified: verificacion.estado === 'coincide' && verificacion.votosNoVerificables === 0,
-      verificacion,
+      verificacion: verificacionOut,
     });
 
   } catch (error) {
@@ -1053,8 +1110,11 @@ router.get("/:electionId/vote-feed", async (req: Request, res: Response) => {
       endpoint: `/ws/elections/${electionId}/votes`,
       events: {
         VoteCast: {
-          nullifier: "Hash anónimo del votante",
-          voteHash: "Hash cifrado del voto",
+          // Sin la palabra "anónimo": el backend conoce la correspondencia
+          // entre votante y voto (ver CLAUDE.md). Y con el contrato v2 el
+          // evento lleva el candidato en claro, no un hash del voto.
+          nullifier: "Nullifier: evita el doble voto y no lleva nombre ni email en la cadena",
+          candidateId: "Posición del candidato en la papeleta, en claro",
           timestamp: "Momento del registro",
           txHash: "Hash de transacción blockchain",
         },

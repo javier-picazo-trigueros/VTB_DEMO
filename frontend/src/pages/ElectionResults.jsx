@@ -164,8 +164,18 @@ const ElectionResults = () => {
       pdf.text('Candidate Results', margin, y);
       y += 7;
 
-      const candidates = results?.candidates || [];
+      // SCRUM-16: sin reparto publicado, el PDF no lo inventa. Antes se podía
+      // exportar con la votación abierta y salía el recuento en vivo.
+      const candidates = results?.tallyHidden ? [] : (results?.candidates || []);
       const totalVotes = results?.totalVotes || 0;
+
+      if (results?.tallyHidden) {
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(71, 85, 105);
+        pdf.text('Per-candidate results are published after the scheduled end of the election.', margin, y);
+        y += 8;
+      }
 
       candidates.forEach((c, i) => {
         if (y > 260) {
@@ -534,12 +544,17 @@ const ElectionResults = () => {
         {/* RESULTS TAB */}
         {activeTab === 'results' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            {election?.status === 'active' ? (
+            {/* SCRUM-16: el servidor ya no manda el reparto antes de la fecha de fin
+                (tallyHidden). Se mira también status por si llega de una versión
+                anterior del backend. */}
+            {(election?.status === 'active' || results?.tallyHidden) ? (
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-8 text-center">
                 <div className="max-w-lg mx-auto space-y-4">
                   <div className="text-4xl">🗳️</div>
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-                    {t('results.activeNoticeTitle') || 'Votación en curso'}
+                    {election?.status === 'active'
+                      ? (t('results.activeNoticeTitle') || 'Votación en curso')
+                      : t('results.tallyHiddenTitle')}
                   </h3>
                   <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                     {t('results.activeNoticeDesc') || 'Mientras la elección está activa, la interfaz muestra únicamente los datos de participación para evitar el voto estratégico. El reparto de votos por candidato estará disponible una vez cerrada la votación.'}

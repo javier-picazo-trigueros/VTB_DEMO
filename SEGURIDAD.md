@@ -90,7 +90,27 @@ incluido el reparto por candidato. No hace falta ser votante ni tener cuenta.
 No existe forma de impedirlo: lo que se escribe en una cadena pública es legible
 por definición, y ninguna medida en nuestra aplicación puede ocultarlo.
 
-**Medida en la interfaz y límites:** mientras la elección está activa, la interfaz web de VTB (`/results`) muestra únicamente la participación global y oculta el desglose y gráficos por candidato para mitigar el voto estratégico. Sin embargo, debe quedar completamente claro que **esto NO oculta el escrutinio**: los votos quedan registrados en tiempo real con su candidato en la cadena pública, de modo que está en la cadena y cualquiera puede leerlo conectándose a un nodo RPC o inspeccionando los eventos `VoteCast` del contrato.
+**Medida en VTB y límites.** Mientras no ha pasado la fecha de cierre prevista,
+VTB no publica el reparto por candidato por ninguna vía propia:
+
+- La interfaz web (`/results`) muestra solo la participación global.
+- El servidor tampoco lo envía: `GET /elections/:id/results` devuelve el total
+  de votos y la participación, pero ninguna cifra por candidato (`SCRUM-16`).
+  Antes la interfaz lo ocultaba y el servidor lo seguía enviando a cualquiera,
+  sin cuenta, con solo abrir la dirección.
+- El PDF de resultados no incluye el reparto hasta entonces.
+- La excepción son los administradores de la institución que convoca y los
+  superadministradores de la plataforma, que lo ven en vivo desde el panel.
+
+La referencia es la fecha de cierre, no el estado: ocultar una elección a mitad
+de plazo no publica el recuento.
+
+Debe quedar completamente claro que **esto NO oculta el escrutinio**: los votos
+quedan registrados en tiempo real con su candidato en la cadena pública, de modo
+que está en la cadena y cualquiera puede leerlo conectándose a un nodo RPC o
+inspeccionando los eventos `VoteCast` del contrato. La medida hace que consultar
+el recuento parcial exija saber leer un contrato, en lugar de abrir una página;
+no lo convierte en secreto.
 
 **Lo que esto puede provocar**, y que la literatura electoral documenta:
 

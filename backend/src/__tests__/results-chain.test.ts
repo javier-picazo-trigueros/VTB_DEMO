@@ -53,9 +53,15 @@ function puertoConRecuento(tally: number[] | (() => never)) {
  * @param reparto Posición del candidato votado, un elemento por voto.
  */
 async function eleccionConVotos(reparto: number[], opts: { contrato?: string; demos?: number } = {}) {
+  // Ya terminada: desde SCRUM-16, /results solo publica el reparto por
+  // candidato pasada la fecha de fin, y aquí se prueba el contraste de ese
+  // reparto con la cadena, no cuándo se publica (eso es results-visibility).
+  const ahora = Math.floor(Date.now() / 1000);
   const electionId = await createFixtureElection({
     name: `Recuento ${Date.now()}-${Math.random()}`,
     candidates: ['Ana', 'Bruno'],
+    startTime: ahora - 7200,
+    endTime: ahora - 60,
   });
   await db.exec(
     "UPDATE elections SET chain_status = 'synced', chain_contract_address = ? WHERE id = ?",

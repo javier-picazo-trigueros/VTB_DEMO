@@ -43,9 +43,22 @@ export function isSubDomain(domain: string, parentDomain: string): boolean {
  * devolvía el listado: una lista vacía.
  */
 export async function isElectionInScope(req: Request, electionId: unknown): Promise<boolean> {
-  if (isSuperAdmin(req)) return true;
-  const adminDomain = getAdminDomain(req);
-  if (!adminDomain) return false;
+  return isElectionInScopeFor(req.user?.role, getAdminDomain(req), electionId);
+}
+
+/**
+ * La misma comprobación, para quien no pasa por requireAdmin: la usa
+ * GET /elections/:id/results (SCRUM-16), que es pública y solo enseña el
+ * recuento en vivo al administrador de esa elección. Una sola condición para
+ * las dos cosas: lo que un administrador puede modificar es lo que puede ver.
+ */
+export async function isElectionInScopeFor(
+  role: string | undefined | null,
+  adminDomain: string | null,
+  electionId: unknown,
+): Promise<boolean> {
+  if (role === "superadmin") return true;
+  if (role !== "admin" || !adminDomain) return false;
 
   const row = await getDbClient().get<{ election_id: number }>(
     `SELECT election_id FROM election_access
