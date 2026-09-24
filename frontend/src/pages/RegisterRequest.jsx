@@ -36,7 +36,6 @@ export const RegisterRequest = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
-  const [autoApproved, setAutoApproved] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
   // Reload schools/degrees whenever the email domain changes (fall back to URL ?domain= param)
@@ -103,7 +102,7 @@ export const RegisterRequest = () => {
     setError('')
 
     try {
-      const response = await api.post('/registration/request', {
+      await api.post('/registration/request', {
         fullName: formData.fullName,
         email: formData.email,
         studentId: formData.studentId,
@@ -115,11 +114,10 @@ export const RegisterRequest = () => {
         acceptedTerms,
       })
 
-      if (response.data.autoApproved) {
-        setAutoApproved(true)
-      } else {
-        setSubmitted(true)
-      }
+      // SCRUM-123: el servidor responde siempre lo mismo y la cuenta no se
+      // crea hasta confirmar el correo, así que no hay aprobación automática
+      // que anunciar aquí.
+      setSubmitted(true)
       setFormData({ fullName: '', email: '', studentId: '', password: '', confirmPassword: '', school: '', degree: '', year: '', study_group: '' })
       setAcceptedTerms(false)
     } catch (err) {
@@ -160,31 +158,16 @@ export const RegisterRequest = () => {
           transition={{ duration: 0.5 }}
           className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700"
         >
-          {autoApproved ? (
+          {submitted ? (
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
               <div className="text-5xl mb-4">✅</div>
               <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">
-                Account automatically approved!
-              </h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-2">
-                Your email was pre-authorized. You can log in immediately with the password you chose.
-              </p>
-              <button
-                onClick={() => navigate('/login')}
-                className="w-full py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors mt-4"
-              >
-                Log in now
-              </button>
-            </motion.div>
-
-          ) : submitted ? (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
-              <div className="text-5xl mb-4">✅</div>
-              <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">
-                Request submitted
+                Check your email
               </h2>
               <p className="text-slate-600 dark:text-slate-400 mb-6">
-                An administrator will review your request shortly.
+                If the details are correct, we have sent you an email to confirm your address.
+                Open the link within 24 hours to complete your registration. If it does not
+                arrive, check your spam folder.
               </p>
               <button
                 onClick={() => navigate('/login')}

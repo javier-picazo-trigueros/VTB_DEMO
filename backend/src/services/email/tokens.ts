@@ -11,6 +11,8 @@ import { generateSecureToken } from '../../utils/auth.js';
 
 export const RESET_TTL_MINUTES = 15;
 export const INVITATION_TTL_DAYS = 7;
+/** Enlace de confirmación del registro público (SCRUM-123). */
+export const REGISTRATION_VERIFY_TTL_HOURS = 24;
 
 export type EmailTokenType = 'reset' | 'invitation';
 

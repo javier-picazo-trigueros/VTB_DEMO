@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
 import { getDatabase } from '../config/database.js';
-import { createAndLogin } from './helpers/fixtures.js';
+import { createAndLogin, confirmRegistration } from './helpers/fixtures.js';
 import { CURRENT_TERMS_VERSION } from '../config/legal.js';
 
 const db = getDatabase();
@@ -81,9 +81,15 @@ describe('POST /registration/request — casilla de aceptación', () => {
     );
 
     const res = await request(app).post('/registration/request').send({ ...datos, acceptedTerms: true });
+    expect(res.status).toBe(200);
 
-    expect(res.status).toBe(201);
-    expect(res.body.autoApproved).toBe(true);
+    // Desde SCRUM-123 la cuenta no se crea al registrarse sino al abrir el
+    // enlace del correo: antes de eso, estar en la lista blanca no basta.
+    const antes = await db.get('SELECT id FROM users WHERE email = ?', [datos.email]);
+    expect(antes).toBeFalsy();
+
+    const confirmada = await confirmRegistration(datos.email);
+    expect(confirmada.body.status).toBe('approved');
     const usuario = await db.get<{ terms_version: string; terms_accepted_at: string }>(
       'SELECT terms_version, terms_accepted_at FROM users WHERE email = ?',
       [datos.email],
@@ -97,6 +103,8 @@ describe('PATCH /admin/registration-requests/:id — la aceptación pasa a la cu
   it('copia terms_version y terms_accepted_at de la solicitud a la cuenta creada', async () => {
     const datos = datosRegistro('aprobar');
     await request(app).post('/registration/request').send({ ...datos, acceptedTerms: true });
+    // Sin confirmar el correo la solicitud no llega al administrador (SCRUM-123).
+    expect((await confirmRegistration(datos.email)).body.status).toBe('pending');
 
     const solicitud = await db.get<{ id: number; terms_version: string; terms_accepted_at: string }>(
       'SELECT id, terms_version, terms_accepted_at FROM registration_requests WHERE email = ?',

@@ -1,6 +1,6 @@
 /**
- * Correos con enlace de un solo uso: invitación al censo y recuperación de
- * contraseña (P1-7).
+ * Correos con enlace de un solo uso: invitación al censo, recuperación de
+ * contraseña (P1-7) y confirmación del email del registro público (SCRUM-123).
  *
  * El token no se genera al encolar sino aquí, cuando el worker va a enviar. La
  * cola guarda solo template_data — a quién y los datos no secretos para
@@ -8,10 +8,11 @@
  * hash, en password_reset_tokens. Ver la cabecera de queue.ts.
  */
 import type { RawPayload } from './client.js';
-import { renderInvitation, renderPasswordReset } from './templates.js';
-import { issueEmailToken, RESET_TTL_MINUTES } from './tokens.js';
+import { renderInvitation, renderPasswordReset, renderRegistrationVerify } from './templates.js';
+import { issueEmailToken, RESET_TTL_MINUTES, REGISTRATION_VERIFY_TTL_HOURS } from './tokens.js';
+import { generateSecureToken } from '../../utils/auth.js';
 
-export type LinkTemplate = 'invitation' | 'password_reset';
+export type LinkTemplate = 'invitation' | 'password_reset' | 'registration_verify';
 
 /** Lo que se guarda en email_log.template_data. Nada de esto es secreto. */
 export interface InvitationLinkData {
@@ -25,6 +26,16 @@ export interface InvitationLinkData {
 
 export interface PasswordResetLinkData {
   userId: number;
+  name: string;
+  requestedAt: string;
+}
+
+/**
+ * Confirmación del registro. Lleva el id de la solicitud y no de un usuario:
+ * la cuenta todavía no existe, y no existirá hasta que se abra el enlace.
+ */
+export interface RegistrationVerifyLinkData {
+  requestId: number;
   name: string;
   requestedAt: string;
 }
@@ -47,6 +58,9 @@ export async function prepareLinkEmail(
   rawData: string,
   to: string,
 ): Promise<PreparedLinkEmail> {
+  if (template === 'registration_verify') {
+    return prepareRegistrationVerify(rawData, to);
+  }
   if (template !== 'invitation' && template !== 'password_reset') {
     return discard(`plantilla con enlace desconocida: ${template}`);
   }
@@ -113,5 +127,49 @@ export async function prepareLinkEmail(
         expiresAt: issued.expiresAt,
       });
 
+  return { kind: 'ready', payload: { to, ...rendered } };
+}
+
+/**
+ * El token de confirmación se guarda, como hash, en la propia solicitud: no
+ * en password_reset_tokens, cuyo user_id es obligatorio y aquí no hay usuario
+ * todavía (ver la migración 015).
+ *
+ * Cada envío emite un token nuevo y pisa el anterior, igual que issueEmailToken
+ * con la recuperación: si el correo se reintenta, solo vale el último enlace.
+ * El UPDATE exige status 'unverified', así que una solicitud ya confirmada,
+ * rechazada o borrada por el job de retención no recibe enlace.
+ */
+async function prepareRegistrationVerify(rawData: string, to: string): Promise<PreparedLinkEmail> {
+  let data: Partial<RegistrationVerifyLinkData>;
+  try {
+    data = JSON.parse(rawData);
+  } catch {
+    return discard('template_data no es JSON válido');
+  }
+  const requestId = data.requestId;
+  if (typeof requestId !== 'number' || !Number.isInteger(requestId)) {
+    return discard('template_data sin requestId');
+  }
+
+  const { getDbClient } = await import('../../db/index.js');
+  const { plaintext, hash } = generateSecureToken();
+  const expiresAt = new Date(Date.now() + REGISTRATION_VERIFY_TTL_HOURS * 3600 * 1000);
+
+  const updated = await getDbClient().exec(
+    `UPDATE registration_requests
+        SET verify_token_hash = ?, verify_expires_at = ?
+      WHERE id = ? AND status = 'unverified'`,
+    [hash, expiresAt.toISOString(), requestId],
+  );
+  if (updated.changes === 0) return discard('la solicitud ya no está pendiente de confirmar');
+
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+  const rendered = renderRegistrationVerify({
+    to,
+    name: String(data.name ?? ''),
+    verifyUrl: `${frontendUrl}/verify-email?token=${plaintext}`,
+    expiresAt,
+  });
   return { kind: 'ready', payload: { to, ...rendered } };
 }

@@ -5,6 +5,9 @@
  *   - Tokens de recuperación/invitación usados o caducados: 24 horas.
  *   - Cuenta de usuario dada de baja: anonimizada a los 30 días de la baja.
  *   - Registro de acciones de administración (admin_action_log): 12 meses.
+ *   - Solicitudes de registro sin confirmar el email: 48 horas (SCRUM-123).
+ *   - Al anonimizar una baja se borran también sus entradas de email_whitelist
+ *     y registration_requests, que guardaban su nombre e identificador.
  *
  * nullifier_audit NO se toca aquí, a propósito: sigue sin plazo de
  * conservación — es un hueco de cumplimiento real, no algo que este fichero
@@ -17,6 +20,7 @@
  * sin dar ningún error.
  */
 import type { DbClient } from '../db/client.js';
+import { withTransaction } from '../db/index.js';
 
 const REJECTED_REQUESTS_RETENTION_DAYS = 30;
 const EMAIL_LOG_RETENTION_DAYS = 90;
@@ -26,6 +30,10 @@ const DELETED_ACCOUNT_ANONYMIZE_DAYS = 30;
 // impugnación de cualquier votación de un curso académico. Si se cambia, hay
 // que cambiar también la Política de Privacidad, sección 6.
 export const ADMIN_ACTION_LOG_RETENTION_DAYS = 365;
+// El enlace vale 24 horas; se deja otro tanto de margen por si el correo
+// tardó en salir. Nadie ha demostrado que ese email sea suyo: no hay motivo
+// para guardar sus datos más tiempo.
+export const UNVERIFIED_REQUESTS_RETENTION_HOURS = 48;
 
 function cutoffHoursAgo(hours: number): string {
   return new Date(Date.now() - hours * 60 * 60 * 1000)
@@ -82,24 +90,45 @@ export async function purgeExpiredAuthTokens(db: DbClient): Promise<number> {
  */
 export async function anonymizeDeletedAccounts(db: DbClient): Promise<number> {
   const cutoff = cutoffDaysAgo(DELETED_ACCOUNT_ANONYMIZE_DAYS);
-  const candidatos = await db.run<{ id: number }>(
-    `SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < ? AND anonymized_at IS NULL`,
+  const candidatos = await db.run<{ id: number; email: string }>(
+    `SELECT id, email FROM users WHERE deleted_at IS NOT NULL AND deleted_at < ? AND anonymized_at IS NULL`,
     [cutoff],
   );
 
   let anonimizadas = 0;
-  for (const { id } of candidatos) {
-    const res = await db.exec(
-      `UPDATE users
-          SET email = ?, name = 'Usuario eliminado', student_id = ?,
-              school = NULL, degree = NULL, year = NULL, study_group = NULL,
-              password_hash = ?, anonymized_at = CURRENT_TIMESTAMP
-        WHERE id = ? AND anonymized_at IS NULL`,
-      [`deleted-${id}@anonimizado.invalid`, `DELETED-${id}`, `anonimizado:${id}:${Date.now()}`, id],
-    );
-    if (res.changes > 0) anonimizadas++;
+  for (const { id, email } of candidatos) {
+    // Las tres cosas juntas o ninguna. La lista blanca y la solicitud guardaban
+    // el nombre y el identificador de la persona con su email, así que
+    // anonimizar solo users dejaba esos datos legibles para siempre. Y la
+    // entrada de la lista blanca, sin usar, aprobaba a cualquiera que se
+    // registrase después con ese email (SCRUM-123).
+    const changed = await withTransaction(async (tx) => {
+      const res = await tx.exec(
+        `UPDATE users
+            SET email = ?, name = 'Usuario eliminado', student_id = ?,
+                school = NULL, degree = NULL, year = NULL, study_group = NULL,
+                password_hash = ?, anonymized_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND anonymized_at IS NULL`,
+        [`deleted-${id}@anonimizado.invalid`, `DELETED-${id}`, `anonimizado:${id}:${Date.now()}`, id],
+      );
+      if (res.changes === 0) return false;
+      await tx.exec('DELETE FROM email_whitelist WHERE LOWER(email) = LOWER(?)', [email]);
+      await tx.exec('DELETE FROM registration_requests WHERE LOWER(email) = LOWER(?)', [email]);
+      return true;
+    });
+    if (changed) anonimizadas++;
   }
   return anonimizadas;
+}
+
+/** Solicitudes de registro que nadie confirmó en 48 horas (SCRUM-123). */
+export async function purgeUnverifiedRegistrationRequests(db: DbClient): Promise<number> {
+  const cutoff = cutoffHoursAgo(UNVERIFIED_REQUESTS_RETENTION_HOURS);
+  const res = await db.exec(
+    `DELETE FROM registration_requests WHERE status = 'unverified' AND created_at < ?`,
+    [cutoff],
+  );
+  return res.changes;
 }
 
 /** Registro de acciones de administración de hace más de 12 meses. */
@@ -115,6 +144,7 @@ export interface RetentionSummary {
   authTokensPurged: number;
   accountsAnonymized: number;
   adminActionLogPurged: number;
+  unverifiedRequestsPurged: number;
 }
 
 export async function runRetentionJobs(db: DbClient): Promise<RetentionSummary> {
@@ -124,5 +154,6 @@ export async function runRetentionJobs(db: DbClient): Promise<RetentionSummary> 
     authTokensPurged: await purgeExpiredAuthTokens(db),
     accountsAnonymized: await anonymizeDeletedAccounts(db),
     adminActionLogPurged: await purgeOldAdminActionLog(db),
+    unverifiedRequestsPurged: await purgeUnverifiedRegistrationRequests(db),
   };
 }
