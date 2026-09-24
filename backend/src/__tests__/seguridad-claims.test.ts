@@ -6,6 +6,8 @@
  * 3. Se reconoce que los nullifiers en cadena son seudonimización, no anonimización completa.
  * 4. Se aclara que el recuento independiente solo comprueba lo que el contrato aceptó, no la legitimidad de los votantes.
  * 5. Se reconoce la limitación a consultas no secretas.
+ * 6. Se reconoce que el sistema no es resistente a la coacción ni a la compra de
+ *    votos (el comprobante de voto permite demostrar a un tercero qué se votó).
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
@@ -62,5 +64,30 @@ describe('Punto 14: Corrección de afirmaciones y garantías en SEGURIDAD.md', (
     expect(content).toMatch(/el operador conserva la correspondencia entre votante y voto en `?nullifier_audit`?/i);
     expect(content).toMatch(/sin plazo de borrado/i);
     expect(content).toMatch(/separaci[oó]n de (esa relaci[oó]n|tablas)[^.]*pendiente/i);
+  });
+
+  it('reconoce que el sistema no es resistente a la coacción ni a la compra de votos', () => {
+    expect(content).toMatch(/no es resistente a la coacci[oó]n/i);
+    expect(content).toMatch(/compra de votos/i);
+    // El mecanismo concreto: el comprobante/nullifier + el evento VoteCast permiten
+    // demostrar a un tercero qué se votó. Sin esto, la frase de arriba podría
+    // colarse sin explicar por qué es cierto.
+    expect(content).toMatch(/VoteCast/);
+    expect(content).toMatch(/demostrar a un tercero/i);
+  });
+
+  it('no afirma ni sugiere que el sistema resiste la coacción o impide la compra de votos', () => {
+    // Lookbehind negativo: deja pasar "no es resistente a la coacción" (lo que dice
+    // el documento) pero no "es resistente a la coacción" sin negar, ni "resiste la
+    // coacción" a secas — que sería la afirmación falsa contraria.
+    expect(content).not.toMatch(/(?<!no )es resistente a la coacci[oó]n/i);
+    expect(content).not.toMatch(/\bresiste la coacci[oó]n/i);
+    expect(content).not.toMatch(/impide la compra de votos/i);
+    expect(content).not.toMatch(/no (permite|posibilita) la coacci[oó]n/i);
+  });
+
+  it('aclara que Semaphore por sí solo no basta para la resistencia a la coacción (falta resistencia al recibo)', () => {
+    expect(content).toMatch(/resistencia al recibo/i);
+    expect(content).toMatch(/MACI/);
   });
 });

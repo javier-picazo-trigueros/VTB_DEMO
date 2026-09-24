@@ -151,6 +151,42 @@ Se ha diseñado así a propósito. Esa capacidad no se puede eliminar —quien o
 la infraestructura siempre puede dejar de transmitir votos—, de modo que lo que
 el contrato hace es **obligar a que su uso sea visible** en lugar de invisible.
 
+### 2.6 El sistema no es resistente a la coacción ni a la compra de votos
+
+Es consecuencia directa de escribir el candidato elegido en claro en la cadena
+(ver 2.2): **cualquier votante puede demostrar a un tercero a quién ha votado.**
+
+El comprobante de voto lleva el testigo único (*nullifier*) del votante, y el
+evento `VoteCast` de la cadena asocia ese testigo al candidato elegido. Basta con
+enseñarle a alguien el comprobante, o el propio testigo, para demostrar de forma
+verificable qué opción se marcó — sin necesidad de fiarse de la palabra del
+votante. Eso es exactamente lo que un sistema resistente a la coacción tiene que
+impedir, y este no lo impide.
+
+En la práctica, esto habilita:
+
+- **Coacción**: un superior, un familiar o una pareja pueden exigir ver el
+  comprobante antes o después de votar.
+- **Compra de votos**: quien compra un voto puede condicionar el pago a comprobarlo
+  en la cadena pública, sin tener que fiarse de que el votante cumplió lo pactado.
+
+Ninguna medida de interfaz lo evita: el dato está escrito en una cadena pública,
+legible por cualquiera que tenga el testigo o la propia transacción.
+
+**Por qué no basta con Semaphore.** Como ya se dice en 2.1, Semaphore y las pruebas
+de conocimiento cero resuelven el anonimato frente al operador, pero no la
+resistencia al recibo: seguiría existiendo algo —el secreto del votante, o la
+prueba generada— que este podría enseñar voluntariamente a un tercero para
+demostrar su voto. Resolver la coacción exige además un diseño específico de
+resistencia al recibo (por ejemplo MACI), o un esquema de compromisos que solo se
+revelen al cierre de la elección, sin que el candidato quede ligado en claro a
+ningún votante mientras la votación está en curso.
+
+**Consecuencia práctica.** Sumado a 2.1 y 2.2, el sistema solo es adecuado para
+consultas no vinculantes o de bajo riesgo de coacción. No debe usarse para una
+elección cuyo resultado tenga efectos jurídicos si el electorado puede estar
+sometido a presión o a compra de su voto.
+
 ## 3. Quién puede hacer qué
 
 | Actor | Puede | No puede |
