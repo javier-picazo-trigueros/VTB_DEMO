@@ -155,3 +155,58 @@ Tú decides si se cierra así o se hace.
 - El plazo de 12 meses del registro de acciones es una decisión mía, pensada
   para cubrir la impugnación de cualquier votación de un curso. Confírmalo o
   cámbialo: la constante y la política van juntas y el test lo vigila.
+
+---
+
+## Actualización 25-sep: SCRUM-16 y SCRUM-123
+
+Jaime decidió cortar el reparto también en la API (punto 4) y hacer la
+verificación por correo (puntos 1 y 2).
+
+### SCRUM-16 · El servidor no publica el reparto hasta la fecha de fin (`67e7894e`)
+
+- `GET /elections/:id/results` ya no da votos por candidato antes de
+  `end_time`. Da el total, la participación y los nombres de las
+  candidaturas, y la marca `tallyHidden`. También quita `recuentoBase` y
+  `recuentoCadena`, que eran el mismo reparto con otra forma.
+- La referencia es `end_time` y no `status`. Ocultar una elección a mitad de
+  plazo la marcaba como `closed` y habría destapado el recuento.
+- El administrador de esa elección y el superadministrador lo siguen viendo
+  en vivo. Saqué tu condición de alcance a `isElectionInScopeFor` para usarla
+  sin `requireAdmin`.
+- El PDF de resultados se podía exportar con la votación abierta y salía el
+  recuento. Ya no.
+- Actualicé tu párrafo de `SEGURIDAD.md` 2.2 sin cambiar lo esencial: sigue
+  siendo legible en la cadena.
+- Ajusté `results-chain.test.ts`: sus elecciones nacen ya terminadas, porque
+  prueba el contraste con la cadena y no cuándo se publica.
+- De paso corregí el texto de ejemplo de `/vote-feed`, que decía "hash
+  anónimo del votante".
+
+### SCRUM-123 · Confirmar el email en el registro (`baef39ab`)
+
+- El registro ya no crea ni aprueba nada. Guarda la solicitud como
+  `unverified` y manda un enlace, que dura 24 horas. Solo al abrirlo se
+  aprueba la cuenta si el email está en la lista blanca, o la solicitud pasa
+  al panel como `pending`.
+- El formulario responde lo mismo en todos los casos. Quien ya tiene cuenta
+  recibe un aviso con enlace a recuperar la contraseña.
+- Al anonimizar una baja se borran también su entrada de la lista blanca y su
+  solicitud. Las solicitudes sin confirmar se borran a las 48 horas.
+- El panel no ve ni deja aprobar solicitudes sin confirmar, y ya no deja
+  revisar dos veces la misma.
+- He adaptado tus dos tests de `legal-acceptance`: ahora confirman el correo
+  antes de comprobar lo mismo que antes.
+
+### Antes de desplegar estos dos commits
+
+Estos commits **no están subidos**. El orden importa:
+
+1. **`npm run migrate` en producción**, que aplica la 014 y la 015. La 015
+   cambia el `CHECK` de `registration_requests.status`: si el código llega
+   antes, cada registro da 500.
+2. **Comprobar que Resend envía de verdad en producción** (`RESEND_API_KEY`
+   en Render). Hasta ahora el registro funcionaba sin correo. Desde ahora,
+   sin correo nadie puede completarlo. Si los correos caen en spam, eso es
+   `SCRUM-27`.
+3. Después, `git push`.
