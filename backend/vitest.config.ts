@@ -35,8 +35,7 @@ export default defineConfig({
     // la causa en el código: se puede acotar con
     //   npx vitest run --no-file-parallelism --testTimeout=60000 <ficheros>
     // que es lo que separa un fallo real de uno de entorno.
-    poolOptions: {
-      vmForks: { minForks: 1, maxForks: 4 },
-    },
+    minForks: 1,
+    maxForks: 4,
   },
 });
