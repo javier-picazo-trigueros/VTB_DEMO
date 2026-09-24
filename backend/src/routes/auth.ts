@@ -16,10 +16,11 @@ import {
   COOKIE_NAME_CSRF,
   REFRESH_TOKEN_TTL_DAYS,
 } from "../utils/auth.js";
-import { extractToken, requireAuth, requireAdmin } from "../middleware/auth.js";
+import { extractToken, requireAuth } from "../middleware/auth.js";
 import { sendPasswordReset } from "../services/email/index.js";
 import { forgotIpLimiter, forgotEmailLimiter } from "../middleware/rateLimit.js";
 import { formatError } from "../utils/errors.js";
+import { emailSchema, passwordSchema, firstIssue } from "../utils/validation.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -32,11 +33,21 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Contraseña requerida').max(128),
 });
 
+// El login NO usa passwordSchema a propósito: valida la contraseña que la
+// persona ya tiene, y una cuenta anterior a la política de 8 caracteres tiene
+// que poder entrar para cambiarla. Las contraseñas NUEVAS sí pasan todas por
+// utils/validation.ts (SCRUM-21).
 const registerSchema = z.object({
-  email:      z.string().email('Email inválido').max(254),
-  password:   z.string().min(8, 'La contraseña debe tener al menos 8 caracteres').max(128),
+  email:      emailSchema,
+  password:   passwordSchema,
   name:       z.string().min(2).max(120),
   student_id: z.string().min(1).max(50),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string({ error: "Debes indicar la contraseña actual y la nueva" })
+    .min(1, "Debes indicar la contraseña actual y la nueva"),
+  newPassword: passwordSchema,
 });
 
 /** Shared cookie options for access and refresh tokens. */
@@ -376,66 +387,11 @@ router.get("/verify", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * @route POST /auth/admin/register
- * @desc Solo administradores pueden crear nuevos usuarios
- * @body { email, password, name, student_id }
- * @header Authorization: Bearer <token>
- */
-router.post("/admin/register", requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { email, password, name, student_id } = req.body;
-    const adminUser = req.user!;
-
-    // Validaciones
-    if (!email || !password || !name || !student_id) {
-      res.status(400).json({
-        error: "Faltan campos requeridos",
-        required: ["email", "password", "name", "student_id"],
-      });
-      return;
-    }
-
-    // Admin de dominio: solo puede crear usuarios de su mismo dominio
-    if (adminUser.role !== "superadmin" && adminUser.adminDomain) {
-      const emailDomain = email.split("@")[1];
-      if (emailDomain !== adminUser.adminDomain) {
-        res.status(403).json({
-          error: `Solo puedes crear usuarios del dominio @${adminUser.adminDomain}`,
-        });
-        return;
-      }
-    }
-
-    // Verificar que email no exista
-    const existingUser = await db.get<{ id: number }>(
-      "SELECT id FROM users WHERE email = ?",
-      [email]
-    );
-
-    if (existingUser) {
-      res.status(409).json({ error: "El email ya está registrado" });
-      return;
-    }
-
-    // Los usuarios creados por admins quedan auto-aprobados
-    const passwordHash = await hashPassword(password);
-    const result = await db.exec(
-      `INSERT INTO users (email, password_hash, name, student_id, role, is_approved, approved_by, approved_at, is_eligible)
-       VALUES (?, ?, ?, ?, 'student', TRUE, ?, CURRENT_TIMESTAMP, TRUE)`,
-      [email, passwordHash, name, student_id, adminUser.userId]
-    );
-
-    res.json({
-      success: true,
-      userId: result.lastID,
-      message: `Usuario ${name} creado y aprobado exitosamente`,
-    });
-  } catch (error) {
-    console.error("Error en registro de admin:", error);
-    res.status(500).json({ error: "Error al registrar usuario" });
-  }
-});
+// POST /auth/admin/register se eliminó (SCRUM-21): duplicaba POST /admin/users
+// sin validar la contraseña y con una comprobación de dominio más débil — un
+// administrador sin dominio asignado podía crear cuentas aprobadas en cualquier
+// institución. No la llamaba nadie. Las altas de administrador van por
+// routes/admin/users.ts.
 
 /**
  * @route GET /auth/me
@@ -479,17 +435,13 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
  * @body { currentPassword, newPassword }
  */
 router.patch("/change-password", requireAuth, async (req: Request, res: Response) => {
-  const { currentPassword, newPassword } = req.body;
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: firstIssue(parsed.error) });
+    return;
+  }
+  const { currentPassword, newPassword } = parsed.data;
   const userId = req.user!.userId;
-
-  if (!currentPassword || !newPassword) {
-    res.status(400).json({ error: "Debes indicar la contraseña actual y la nueva" });
-    return;
-  }
-  if (newPassword.length < 6) {
-    res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
-    return;
-  }
 
   try {
     const user = await db.get<{ password_hash: string }>("SELECT password_hash FROM users WHERE id = ?", [userId]);
@@ -814,9 +766,11 @@ const forgotSchema = z.object({
   email: z.string().email(),
 });
 
+// Sirve también para activar una cuenta desde la invitación del censo: es el
+// mismo endpoint, así que es la misma política.
 const resetSchema = z.object({
   token:    z.string().min(64).max(64),
-  password: z.string().min(8).max(128),
+  password: passwordSchema,
 });
 
 /**

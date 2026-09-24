@@ -608,7 +608,7 @@ const resources = {
         success: "Password changed!",
         successDesc: "Redirecting to dashboard…",
         mismatch: "New passwords do not match",
-        tooShort: "New password must be at least 6 characters",
+        tooShort: "New password must be at least {{min}} characters",
         cancel: "Cancel",
       },
 
@@ -1233,7 +1233,7 @@ const resources = {
         success: "¡Contraseña cambiada!",
         successDesc: "Redirigiendo al dashboard…",
         mismatch: "Las contraseñas nuevas no coinciden",
-        tooShort: "La nueva contraseña debe tener al menos 6 caracteres",
+        tooShort: "La nueva contraseña debe tener al menos {{min}} caracteres",
         cancel: "Cancelar",
       },
 

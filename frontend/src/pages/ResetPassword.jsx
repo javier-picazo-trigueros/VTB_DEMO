@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
 import { api } from '../utils/apiClient'
+import { PASSWORD_MIN_LENGTH } from '../utils/passwordPolicy'
 
 // Mismo mínimo que resetSchema en backend/src/routes/auth.ts. Si cambia allí,
 // cambia aquí: si no, el formulario deja pasar contraseñas que el servidor
@@ -14,7 +15,7 @@ import { api } from '../utils/apiClient'
 // antes que handleSubmit y muestra su propio bocadillo en el idioma del navegador
 // (verificado: salía en inglés con la página en español), así que el mensaje
 // traducido no se veía nunca.
-const MIN_LENGTH = 8
+const MIN_LENGTH = PASSWORD_MIN_LENGTH
 
 /**
  * Establecer una contraseña a partir de un enlace recibido por correo.

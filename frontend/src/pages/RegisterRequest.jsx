@@ -10,6 +10,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
 import { api, apiFetch } from '../utils/apiClient'
+import { PASSWORD_MIN_LENGTH } from '../utils/passwordPolicy'
 
 export const RegisterRequest = () => {
   const navigate = useNavigate()
@@ -88,7 +89,7 @@ export const RegisterRequest = () => {
     if (!formData.studentId.trim()) { setError('Student ID is required'); return false }
     if (formData.studentId.trim().length < 4) { setError('Student ID must be at least 4 characters'); return false }
     if (!formData.password) { setError('Password is required'); return false }
-    if (formData.password.length < 6) { setError('Password must be at least 6 characters'); return false }
+    if (formData.password.length < PASSWORD_MIN_LENGTH) { setError(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`); return false }
     if (formData.password !== formData.confirmPassword) { setError('Passwords do not match'); return false }
     if (!acceptedTerms) { setError('You must accept the Terms and Privacy Policy to register'); return false }
     return true
@@ -134,8 +135,8 @@ export const RegisterRequest = () => {
       fullName: 'Nuria Campos',
       email: `nuria.campos.${Date.now()}@vtb.demo`,
       studentId: `MER-${Date.now().toString().slice(-6)}`,
-      password: 'demo123',
-      confirmPassword: 'demo123',
+      password: 'demo1234',
+      confirmPassword: 'demo1234',
       school: '',
       degree: '',
       year: '',
@@ -319,7 +320,7 @@ export const RegisterRequest = () => {
                     <div>
                       <label className={labelCls}>{t("register.password")}</label>
                       <div className="relative">
-                        <input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange} disabled={loading} className={inputCls} placeholder="Min. 6 characters" required />
+                        <input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange} disabled={loading} className={inputCls} placeholder={`Min. ${PASSWORD_MIN_LENGTH} characters`} required />
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-sm">
                           {showPassword ? '🙈' : '👁️'}
                         </button>

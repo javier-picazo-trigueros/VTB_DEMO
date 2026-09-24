@@ -2,9 +2,53 @@ import express, { Request, Response } from "express";
 import { getDbClient, isUniqueViolation, withTransaction } from "../db/index.js";
 import { hashPassword } from "../utils/auth.js";
 import { CURRENT_TERMS_VERSION } from "../config/legal.js";
+import { z } from "zod";
+import { emailSchema, passwordSchema, firstIssue } from "../utils/validation.js";
 
 const router = express.Router();
 const db = getDbClient();
+
+/** Texto opcional del formulario: vacío o ausente se guarda como NULL. */
+const optionalText = (max: number) =>
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "") || v == null ? null : v,
+    z.string().trim().max(max).nullable(),
+  );
+
+/**
+ * Esta era la única ruta pública que no usaba zod (M-3 de
+ * AUDITORIA_SEGURIDAD_3.md): el email se validaba con includes("@"), la
+ * contraseña con 6 caracteres y el curso con parseInt sin mirar NaN.
+ * Email y contraseña salen ahora de utils/validation.ts, igual que en el
+ * resto de rutas que crean o cambian contraseñas.
+ */
+const registrationSchema = z.object({
+  fullName: z.string({ error: "El nombre completo es obligatorio" })
+    .trim()
+    .min(2, "El nombre completo es obligatorio")
+    .max(120, "El nombre es demasiado largo"),
+  email: emailSchema,
+  studentId: z.string({ error: "El identificador es obligatorio" })
+    .trim()
+    .min(1, "El identificador es obligatorio")
+    .max(50, "El identificador es demasiado largo"),
+  password: passwordSchema,
+  orgUnit: optionalText(120),
+  school: optionalText(120),
+  degree: optionalText(120),
+  study_group: optionalText(50),
+  // Curso académico: 1..10 o nada. Antes parseInt("abc") llegaba como NaN.
+  year: z.preprocess(
+    (v) => (v === "" || v == null ? null : Number(v)),
+    z.number({ error: "El curso no es válido" }).int("El curso no es válido").min(1, "El curso no es válido").max(10, "El curso no es válido").nullable(),
+  ),
+  // Casilla de aceptación de términos y privacidad: obligatoria, sin marcar
+  // por defecto en el formulario. No basta con validarlo en el cliente —
+  // sin esto aquí, una petición hecha a mano se saltaría el requisito entero.
+  acceptedTerms: z.literal(true, {
+    error: "Debes aceptar los Términos y Condiciones y la Política de Privacidad para registrarte",
+  }),
+});
 
 /**
  * @route POST /registration/request
@@ -13,45 +57,27 @@ const db = getDbClient();
  */
 router.post("/request", async (req: Request, res: Response) => {
   try {
-    const fullName = req.body.fullName || req.body.name;
-    const email = req.body.email;
-    const studentId = req.body.studentId || req.body.student_id;
-    const password = req.body.password;
-    const orgUnit: string | null = req.body.orgUnit || req.body.org_unit || null;
-    const school: string | null = req.body.school || null;
-    const degree: string | null = req.body.degree || null;
-    const year: number | null = req.body.year ? parseInt(req.body.year) : null;
-    const study_group: string | null = req.body.study_group || null;
-
-    // Validate required fields
-    if (!fullName?.trim() || !email?.trim() || !studentId?.trim() || !password?.trim()) {
-      res.status(400).json({
-        error: "Faltan campos obligatorios: nombre completo, email, identificador y contraseña",
-      });
+    // El formulario manda camelCase y algunos clientes antiguos snake_case: se
+    // aceptan los dos nombres, pero todo pasa por el mismo esquema.
+    const parsed = registrationSchema.safeParse({
+      fullName:     req.body.fullName ?? req.body.name,
+      email:        req.body.email,
+      studentId:    req.body.studentId ?? req.body.student_id,
+      password:     req.body.password,
+      orgUnit:      req.body.orgUnit ?? req.body.org_unit,
+      school:       req.body.school,
+      degree:       req.body.degree,
+      year:         req.body.year,
+      study_group:  req.body.study_group,
+      acceptedTerms: req.body.acceptedTerms,
+    });
+    if (!parsed.success) {
+      res.status(400).json({ error: firstIssue(parsed.error) });
       return;
     }
-
-    // Casilla de aceptación de términos y privacidad: obligatoria, sin marcar
-    // por defecto en el formulario. No basta con validarlo en el cliente —
-    // sin esto aquí, una petición hecha a mano se saltaría el requisito entero.
-    if (req.body.acceptedTerms !== true) {
-      res.status(400).json({
-        error: "Debes aceptar los Términos y Condiciones y la Política de Privacidad para registrarte",
-      });
-      return;
-    }
-
-    // Validate email format
-    if (!email.includes("@") || !email.includes(".")) {
-      res.status(400).json({ error: "Formato de email no válido" });
-      return;
-    }
-
-    // Validate password length
-    if (password.length < 6) {
-      res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
-      return;
-    }
+    const {
+      fullName, email, studentId, password, orgUnit, school, degree, year, study_group,
+    } = parsed.data;
 
     // Check email doesn't already exist in users
     const existingUser = await db.get<{ id: number }>(

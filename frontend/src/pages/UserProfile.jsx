@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { clearAuthAndRedirect } from '../utils/auth';
 import toast from 'react-hot-toast';
 import { api } from '../utils/apiClient';
+import { PASSWORD_MIN_LENGTH } from '../utils/passwordPolicy';
 
 export function UserProfile() {
   const navigate = useNavigate();
@@ -139,8 +140,8 @@ export function UserProfile() {
       setPwError('Las contraseñas nuevas no coinciden.');
       return;
     }
-    if (pwForm.next.length < 6) {
-      setPwError('La contraseña debe tener al menos 6 caracteres.');
+    if (pwForm.next.length < PASSWORD_MIN_LENGTH) {
+      setPwError(`La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`);
       return;
     }
     setPwLoading(true);

@@ -7,6 +7,7 @@ import { getDbClient, withTransaction, type DbClient } from "../../db/index.js";
 import { hashPassword } from "../../utils/auth.js";
 import { requireAdmin } from "../../middleware/auth.js";
 import { formatError } from "../../utils/errors.js";
+import { emailSchema, passwordSchema, firstIssue } from "../../utils/validation.js";
 import { sendCensusInvitation } from "../../services/email/index.js";
 import {
   upload, isSuperAdmin, getAdminDomain, isSubDomain, createCensusUser, parseCSV,
@@ -104,12 +105,26 @@ router.get("/users", requireAdmin, async (req: Request, res: Response) => {
  */
 router.post("/users", requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { email, password, name, student_id, role = "student", admin_domain = null } = req.body;
+    const { name, student_id, role = "student", admin_domain = null } = req.body;
 
-    if (!email || !password || !name || !student_id) {
+    if (!req.body.email || !req.body.password || !name || !student_id) {
       res.status(400).json({ error: "Faltan campos requeridos" });
       return;
     }
+
+    // Misma política que el resto de altas (SCRUM-21): hasta aquí esta ruta
+    // aceptaba cualquier contraseña, también de un carácter, y guardaba el
+    // email con las mayúsculas que trajera — una cuenta que luego no podía
+    // entrar, porque el login busca en minúsculas.
+    const emailCheck = emailSchema.safeParse(req.body.email);
+    const passwordCheck = passwordSchema.safeParse(req.body.password);
+    if (!emailCheck.success || !passwordCheck.success) {
+      const issue = !emailCheck.success ? emailCheck.error : passwordCheck.error!;
+      res.status(400).json({ error: firstIssue(issue) });
+      return;
+    }
+    const email = emailCheck.data;
+    const password = passwordCheck.data;
 
     let finalAdminDomain = admin_domain;
 

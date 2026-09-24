@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
 import { api } from '../utils/apiClient'
+import { PASSWORD_MIN_LENGTH } from '../utils/passwordPolicy'
 
 export function ChangePassword() {
   const { t } = useTranslation()
@@ -24,8 +25,8 @@ export function ChangePassword() {
       setError(t('changePassword.mismatch'))
       return
     }
-    if (form.next.length < 6) {
-      setError(t('changePassword.tooShort'))
+    if (form.next.length < PASSWORD_MIN_LENGTH) {
+      setError(t('changePassword.tooShort', { min: PASSWORD_MIN_LENGTH }))
       return
     }
     setLoading(true)
