@@ -340,6 +340,10 @@ router.get("/registration-requests", requireAdmin, async (req: Request, res: Res
     const params: any[] = [];
     const conditions: string[] = [];
 
+    // Una solicitud sin confirmar no es todavía una solicitud: nadie ha
+    // demostrado que ese email sea suyo (SCRUM-123). No aparece nunca, tampoco
+    // con status=all, y el job de retención la borra si no se confirma.
+    conditions.push("status <> 'unverified'");
     if (status !== 'all') {
       conditions.push("status = ?");
       params.push(status);
@@ -428,8 +432,15 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
       [id]
     );
 
-    if (!request) {
+    // Sin confirmar, no existe para el panel (ver el listado). Y solo se
+    // revisa una vez: antes se podía "aprobar" una ya rechazada o aprobada, y la
+    // segunda aprobación intentaba crear la cuenta otra vez.
+    if (!request || request.status === 'unverified') {
       res.status(404).json({ error: "Solicitud no encontrada" });
+      return;
+    }
+    if (request.status !== 'pending') {
+      res.status(409).json({ error: "Esta solicitud ya se ha revisado" });
       return;
     }
 

@@ -75,6 +75,7 @@ import {
   type LinkTemplate,
   type InvitationLinkData,
   type PasswordResetLinkData,
+  type RegistrationVerifyLinkData,
 } from './link-emails.js';
 import crypto from 'crypto';
 
@@ -127,7 +128,8 @@ export interface QueuePayload extends RawPayload {
 /** Correo con enlace de token: se encola sin cuerpo (ver cabecera, P1-7). */
 export type LinkQueuePayload =
   | { template: 'invitation'; to: string; subject: string; data: InvitationLinkData }
-  | { template: 'password_reset'; to: string; subject: string; data: PasswordResetLinkData };
+  | { template: 'password_reset'; to: string; subject: string; data: PasswordResetLinkData }
+  | { template: 'registration_verify'; to: string; subject: string; data: RegistrationVerifyLinkData };
 
 function nowIso(): string {
   return new Date().toISOString();

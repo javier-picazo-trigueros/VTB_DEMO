@@ -251,6 +251,89 @@ export function renderPasswordReset(d: PasswordResetData): { subject: string; ht
   return { subject, html, text };
 }
 
+// ─── Confirmación del email del registro público (SCRUM-123) ────────────────
+
+export interface RegistrationVerifyData {
+  to: string;
+  name: string;
+  verifyUrl: string;
+  expiresAt: Date;
+}
+
+/** Constante por la misma razón que invitationSubject(). */
+export const REGISTRATION_VERIFY_SUBJECT = 'Confirma tu correo — VoteTrustBlock';
+
+export function renderRegistrationVerify(d: RegistrationVerifyData): { subject: string; html: string; text: string } {
+  const subject = REGISTRATION_VERIFY_SUBJECT;
+
+  const body =
+    h1('Confirma tu dirección de correo') +
+    p(`Hola <strong>${esc(d.name)}</strong>,`) +
+    p('Hemos recibido una solicitud de registro con este correo. Para continuar, confirma que la dirección es tuya:') +
+    btn(d.verifyUrl, 'Confirmar mi correo') +
+    table(badge('Este enlace caduca:', fmtDate(d.expiresAt))) +
+    p('<strong style="color:#DC2626;">Si no has sido tú</strong>, ignora este mensaje: sin confirmar no se crea ninguna cuenta.');
+
+  const html = base(subject, body);
+
+  const text = [
+    `Confirma tu dirección de correo`,
+    ``,
+    `Hola ${d.name},`,
+    ``,
+    `Hemos recibido una solicitud de registro con este correo.`,
+    ``,
+    `Para continuar, abre este enlace (válido hasta ${fmtDate(d.expiresAt)}):`,
+    d.verifyUrl,
+    ``,
+    `Si no has sido tú, ignora este mensaje: sin confirmar no se crea ninguna cuenta.`,
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+/**
+ * Aviso a quien ya tiene cuenta y alguien ha usado su email en el registro.
+ *
+ * Es lo que permite que el formulario responda igual en todos los casos: la
+ * diferencia entre "ya tienes cuenta" y "te hemos enviado el enlace" solo la
+ * ve quien lee ese buzón. Sin enlace de un solo uso — apunta a la página de
+ * recuperación, que pide su propio enlace —, así que se puede encolar ya
+ * renderizado.
+ */
+export interface AccountExistsData {
+  to: string;
+  forgotPasswordUrl: string;
+}
+
+export const ACCOUNT_EXISTS_SUBJECT = 'Ya tienes una cuenta — VoteTrustBlock';
+
+export function renderAccountExists(d: AccountExistsData): { subject: string; html: string; text: string } {
+  const subject = ACCOUNT_EXISTS_SUBJECT;
+
+  const body =
+    h1('Ya tienes una cuenta con este correo') +
+    p('Alguien ha intentado registrarse en VoteTrustBlock con esta dirección, pero ya existe una cuenta con ella. No se ha creado nada nuevo.') +
+    p('Si has sido tú y no recuerdas la contraseña, puedes restablecerla:') +
+    btn(d.forgotPasswordUrl, 'Restablecer contraseña') +
+    p('Si no has sido tú, no tienes que hacer nada.');
+
+  const html = base(subject, body);
+
+  const text = [
+    `Ya tienes una cuenta con este correo`,
+    ``,
+    `Alguien ha intentado registrarse en VoteTrustBlock con esta dirección, pero ya existe una cuenta con ella. No se ha creado nada nuevo.`,
+    ``,
+    `Si has sido tú y no recuerdas la contraseña, puedes restablecerla aquí:`,
+    d.forgotPasswordUrl,
+    ``,
+    `Si no has sido tú, no tienes que hacer nada.`,
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
 // ─── Template 4: Apertura de votación ───────────────────────────────────────
 
 export interface ElectionOpenData {

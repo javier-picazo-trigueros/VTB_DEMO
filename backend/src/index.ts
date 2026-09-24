@@ -254,7 +254,7 @@ async function start() {
         // Plazos de conservación de la Política de Privacidad, sección 6.
         runRetentionJobs(getDbClient()).then(r => {
           const total = r.rejectedRequestsPurged + r.emailLogPurged + r.authTokensPurged
-            + r.accountsAnonymized + r.adminActionLogPurged;
+            + r.accountsAnonymized + r.adminActionLogPurged + r.unverifiedRequestsPurged;
           if (total > 0) console.log('[retention]', r);
         }).catch(err =>
           console.error('[retention] error:', formatError(err)),

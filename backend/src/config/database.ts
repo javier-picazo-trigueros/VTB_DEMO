@@ -355,6 +355,18 @@ export class Database {
       'CREATE INDEX IF NOT EXISTS idx_prt_hash ON password_reset_tokens(token_hash)'
     ).catch(() => {});
 
+    // ── SCRUM-123: el registro confirma el email ─────────────────────────────
+    // Paridad con la migración 015. SQLite no tiene el CHECK de status, así que
+    // 'unverified' cabe sin más.
+    for (const ddl of [
+      'ALTER TABLE registration_requests ADD COLUMN email_verified_at DATETIME DEFAULT NULL',
+      'ALTER TABLE registration_requests ADD COLUMN verify_token_hash TEXT DEFAULT NULL',
+      'ALTER TABLE registration_requests ADD COLUMN verify_expires_at DATETIME DEFAULT NULL',
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_registration_requests_verify_token ON registration_requests(verify_token_hash) WHERE verify_token_hash IS NOT NULL',
+    ]) {
+      await this.exec(ddl).catch(() => {});
+    }
+
     // ── SCRUM-20: registro de acciones de administración ─────────────────────
     // Paridad con la migración 014 de PostgreSQL. Ver allí el porqué de cada
     // columna, y middleware/adminActionLog.ts para quién la escribe.

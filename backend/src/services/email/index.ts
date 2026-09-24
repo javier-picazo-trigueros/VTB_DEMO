@@ -10,8 +10,10 @@ import {
   renderElectionClose,    type ElectionCloseData,
   invitationSubject,
   PASSWORD_RESET_SUBJECT,
+  REGISTRATION_VERIFY_SUBJECT,
+  renderAccountExists,
 } from './templates.js';
-import type { InvitationLinkData, PasswordResetLinkData } from './link-emails.js';
+import type { InvitationLinkData, PasswordResetLinkData, RegistrationVerifyLinkData } from './link-emails.js';
 
 /**
  * Invitación al censo. No lleva enlace: el token de "establece tu contraseña"
@@ -60,6 +62,29 @@ export function sendPasswordReset(req: PasswordResetRequest): void {
     requestedAt: new Date().toISOString(),
   };
   enqueueLinkEmail({ template: 'password_reset', to: req.to, subject: PASSWORD_RESET_SUBJECT, data });
+}
+
+/**
+ * Enlace para confirmar el email de una solicitud de registro (SCRUM-123).
+ * Igual que la invitación: sin enlace al encolar, el token lo genera el worker.
+ */
+export function sendRegistrationVerification(req: { to: string; requestId: number; name: string }): void {
+  const data: RegistrationVerifyLinkData = {
+    requestId:   req.requestId,
+    name:        req.name,
+    requestedAt: new Date().toISOString(),
+  };
+  enqueueLinkEmail({ template: 'registration_verify', to: req.to, subject: REGISTRATION_VERIFY_SUBJECT, data });
+}
+
+/**
+ * Aviso a quien ya tiene cuenta cuando alguien usa su email en el registro.
+ * No lleva token, así que se encola ya renderizado.
+ */
+export function sendAccountExistsNotice(to: string): void {
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+  const { subject, html, text } = renderAccountExists({ to, forgotPasswordUrl: `${frontendUrl}/forgot-password` });
+  enqueue({ to, subject, html, text, template: 'account_exists' });
 }
 
 export function sendElectionOpen(data: ElectionOpenData): void {

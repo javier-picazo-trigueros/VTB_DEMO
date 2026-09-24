@@ -141,3 +141,32 @@ export async function createFixtureElection(opts: {
 
   return result.lastID;
 }
+
+/**
+ * Enlace de confirmación de una solicitud de registro (SCRUM-123), emitido por
+ * el mismo código que usa la cola al enviar el correo. Sin RESEND_API_KEY los
+ * tests no envían nada, así que el token se saca del correo renderizado.
+ */
+export async function issueRegistrationVerifyToken(email: string): Promise<string> {
+  const { prepareLinkEmail } = await import('../../services/email/link-emails.js');
+  const row = await getDatabase().get<{ id: number; full_name: string }>(
+    "SELECT id, full_name FROM registration_requests WHERE email = ? AND status = 'unverified'",
+    [email],
+  );
+  if (!row) throw new Error(`issueRegistrationVerifyToken(${email}): no hay solicitud sin confirmar`);
+  const prepared = await prepareLinkEmail(
+    'registration_verify',
+    JSON.stringify({ requestId: row.id, name: row.full_name, requestedAt: new Date().toISOString() }),
+    email,
+  );
+  if (prepared.kind !== 'ready') throw new Error(`correo descartado: ${prepared.reason}`);
+  const token = prepared.payload.text.match(/verify-email\?token=([0-9a-f]{64})/)?.[1];
+  if (!token) throw new Error('el correo no lleva enlace de confirmación');
+  return token;
+}
+
+/** Abre el enlace de confirmación de la solicitud de ese email. */
+export async function confirmRegistration(email: string) {
+  const token = await issueRegistrationVerifyToken(email);
+  return request(app).post('/registration/verify').send({ token });
+}

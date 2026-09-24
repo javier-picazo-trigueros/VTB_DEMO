@@ -218,6 +218,21 @@ const resources = {
 
       // LOGIN
       // R4 - recuperacion de contrasena (ForgotPassword.jsx, ResetPassword.jsx)
+      verifyEmail: {
+        title: "Confirm your email",
+        body: "Press the button to confirm this address is yours and finish your registration.",
+        confirm: "Confirm my email",
+        confirming: "Confirming…",
+        approvedTitle: "Email confirmed",
+        approvedBody: "Your account is active. You can log in with the password you chose.",
+        goToLogin: "Log in",
+        pendingTitle: "Email confirmed",
+        pendingBody: "An administrator from your institution will review your request. You will be able to log in once it is approved.",
+        invalidTitle: "Invalid link",
+        invalidBody: "The link is incomplete. Copy it in full from the email, or register again.",
+        registerAgain: "Register again",
+        genericError: "The email could not be confirmed. Try again in a few minutes.",
+      },
       passwordRecovery: {
         forgotLink: "Forgot your password?",
         forgotTitle: "Recover your password",
@@ -894,6 +909,21 @@ const resources = {
       },
 
       // LOGIN
+      verifyEmail: {
+        title: "Confirma tu correo",
+        body: "Pulsa el botón para confirmar que esta dirección es tuya y completar el registro.",
+        confirm: "Confirmar mi correo",
+        confirming: "Confirmando…",
+        approvedTitle: "Correo confirmado",
+        approvedBody: "Tu cuenta está activa. Ya puedes iniciar sesión con la contraseña que elegiste.",
+        goToLogin: "Iniciar sesión",
+        pendingTitle: "Correo confirmado",
+        pendingBody: "Un administrador de tu institución revisará tu solicitud. Podrás iniciar sesión cuando la apruebe.",
+        invalidTitle: "Enlace no válido",
+        invalidBody: "El enlace está incompleto. Cópialo entero desde el correo, o vuelve a registrarte.",
+        registerAgain: "Volver a registrarme",
+        genericError: "No se ha podido confirmar el correo. Inténtalo de nuevo en unos minutos.",
+      },
       passwordRecovery: {
         forgotLink: "¿Has olvidado tu contraseña?",
         forgotTitle: "Recupera tu contraseña",

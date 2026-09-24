@@ -53,7 +53,8 @@ export function PrivacyPolicy() {
           con una contraseña temporal, y se obliga a cambiarla en el primer acceso.</li>
         <li><b>Lista de pre-autorización.</b> Cuando un administrador importa un censo general, esos mismos datos
           se guardan también en una lista interna que aprueba automáticamente a esa persona si más adelante se
-          autorregistra con ese email.</li>
+          autorregistra con ese email y confirma, con el enlace que le enviamos, que el correo es suyo. Esa entrada
+          se borra cuando se anonimiza su cuenta.</li>
         <li><b>Candidatos.</b> El nombre y la descripción de cada candidato los aporta la institución al configurar
           la elección, no la persona candidata. Si eres candidato y quieres ejercer tus derechos, dirígete a la
           institución que convocó la elección.</li>
@@ -113,9 +114,10 @@ export function PrivacyPolicy() {
           ['Sesión (cookie de acceso)', '15 minutos'],
           ['Sesión (renovación automática)', '7 días'],
           ['Tokens de recuperación e invitación, usados o caducados', 'Se eliminan a las 24 horas'],
+          ['Solicitudes de registro sin confirmar el correo', 'Se eliminan a las 48 horas'],
           ['Solicitudes de registro rechazadas', 'Se eliminan a los 30 días'],
           ['Historial de correos enviados (email_log)', 'Se elimina a los 90 días'],
-          ['Cuenta de usuario dada de baja', 'Se anonimiza a los 30 días de la baja (nombre, email e identificador dejan de ser legibles)'],
+          ['Cuenta de usuario dada de baja', 'Se anonimiza a los 30 días de la baja (nombre, email e identificador dejan de ser legibles). A la vez se borran su solicitud de registro y su entrada en la lista de pre-autorización'],
           ['Registro de acciones de administración (incluye la IP)', 'Se elimina a los 12 meses'],
           ['Registro de voto (nullifier_audit): usuario, elección y candidato en la misma fila', 'Sin plazo definido hoy — ver sección 4'],
         ]}

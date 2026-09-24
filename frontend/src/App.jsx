@@ -27,6 +27,7 @@ import { Transparency } from './pages/Transparency'
 import { Pricing } from './pages/Pricing'
 import { ForgotPassword } from './pages/ForgotPassword'
 import { ResetPassword } from './pages/ResetPassword'
+import { VerifyEmail } from './pages/VerifyEmail'
 import { PrivacyPolicy } from './pages/legal/PrivacyPolicy'
 import { LegalNotice } from './pages/legal/LegalNotice'
 import { TermsOfService } from './pages/legal/TermsOfService'
@@ -112,6 +113,7 @@ const AppContent = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/auth/reset-password" element={<ResetPassword mode="reset" />} />
       <Route path="/auth/set-password" element={<ResetPassword mode="invitation" />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/portal/:domain" element={<InstitutionPortal />} />
       <Route path="/transparency" element={<Transparency />} />
       <Route path="/pricing" element={<Pricing />} />
