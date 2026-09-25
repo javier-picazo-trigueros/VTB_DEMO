@@ -184,10 +184,10 @@ export const AdminPanel = () => {
       entry.election_name?.toLowerCase().includes(search);
     const matchElection = !auditFilter.electionId ||
       String(entry.election_id) === auditFilter.electionId;
-    const matchDateFrom = !auditFilter.dateFrom ||
-      new Date(entry.generated_at) >= new Date(auditFilter.dateFrom);
-    const matchDateTo = !auditFilter.dateTo ||
-      new Date(entry.generated_at) <= new Date(auditFilter.dateTo + 'T23:59:59');
+    // voted_on es solo el día ('YYYY-MM-DD'): el servidor ya no da la hora ni
+    // el nullifier del voto, que permitían cruzarlo con la cadena (SCRUM-17).
+    const matchDateFrom = !auditFilter.dateFrom || entry.voted_on >= auditFilter.dateFrom;
+    const matchDateTo = !auditFilter.dateTo || entry.voted_on <= auditFilter.dateTo;
     return matchSearch && matchElection && matchDateFrom && matchDateTo;
   });
 
@@ -955,16 +955,12 @@ export const AdminPanel = () => {
                       ) : (
                         <div className="space-y-3">
                           {dashboardData.recentVotes.map((vote, i) => {
-                            const email = vote.email || '';
-                            const parts = email.split('@');
-                            const anon = parts[0] ? parts[0].slice(0, 2) + '***' : '***';
-                            const domain = parts[1] ? '@' + parts[1] : '';
                             const diff = Math.floor((Date.now() - new Date(vote.generated_at).getTime()) / 1000);
                             const timeAgo = diff < 60 ? `hace ${diff}s` : diff < 3600 ? `hace ${Math.floor(diff / 60)}m` : `hace ${Math.floor(diff / 3600)}h`;
                             return (
                               <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-700/50 last:border-0">
                                 <div>
-                                  <p className="text-xs font-mono text-slate-700 dark:text-slate-300">{anon}{domain}</p>
+                                  <p className="text-xs text-slate-700 dark:text-slate-300">Voto registrado</p>
                                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{vote.election_name}</p>
                                 </div>
                                 <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">{timeAgo}</span>
@@ -1864,33 +1860,26 @@ export const AdminPanel = () => {
                   </div>
 
                   <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Registro de auditoría de votos</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Registro de participación</h2>
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-300 dark:border-slate-600">
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Email del votante</th>
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Elección</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Hash del voto</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Fecha y hora</th>
+                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Día</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredAudit.map((entry) => {
-                          const truncateHash = (h) => h ? `${h.slice(0, 10)}...${h.slice(-6)}` : '—';
                           return (
                             <tr
-                              key={entry.id}
+                              key={`${entry.election_id}-${entry.user_id}`}
                               className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
                             >
                               <td className="py-3 px-4 font-mono text-xs text-slate-800 dark:text-slate-200">{entry.email}</td>
                               <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{entry.election_name}</td>
-                              <td className="py-3 px-4 font-mono text-xs">
-                                <span className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-1 rounded">
-                                  {truncateHash(entry.nullifier_hash)}
-                                </span>
-                              </td>
                               <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-400">
-                                {new Date(entry.generated_at).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}
+                                {new Date(`${entry.voted_on}T12:00:00`).toLocaleDateString('es-ES')}
                               </td>
                             </tr>
                           );
@@ -1907,7 +1896,7 @@ export const AdminPanel = () => {
                   {/* Privacy Notice */}
                   <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4 rounded-lg">
                     <p className="text-sm text-emerald-800 dark:text-emerald-200">
-                      <strong>Registro inmutable en blockchain:</strong> Este registro de auditoría confirma la participación. El nullifier y el hash de voto almacenados on-chain no identifican al votante en la cadena. El recuento es irrevocable y auditable públicamente.
+                      <strong>Quién ha participado, no qué ha votado.</strong> Este registro muestra solo el día de cada voto, sin hora ni identificador del voto: con cualquiera de los dos se podría cruzar con la cadena pública, donde cada voto aparece con su candidato. El recuento completo es público y auditable en la cadena.
                     </p>
                   </div>
                 </motion.div>

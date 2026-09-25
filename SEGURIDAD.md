@@ -192,6 +192,7 @@ sometido a presión o a compra de su voto.
 | Actor | Puede | No puede |
 |---|---|---|
 | Cualquier persona | Leer todos los votos y recontar lo que el contrato aceptó | Escribir votos ni verificar desde la cadena si corresponden a votantes legítimos |
+| Administrador de una institución | Ver quién de su censo ha participado en cada elección, y qué día | Ver qué ha votado cada persona. Hasta el 25-09-2026 sí podía: el panel le daba, por votante, el identificador del voto que el contrato publica junto al candidato, y la hora exacta. Ya no da ninguna de las dos |
 | Servidor de VTB (relayer) | Registrar votos y crear elecciones (puede inyectar votos inventando nullifiers) | Modificar o borrar votos ya confirmados en la cadena |
 | Propietario del contrato | Autorizar o revocar relayers, detener una elección, traspasar la propiedad, y autorizarse como relayer para emitir votos | Modificar o borrar votos ya confirmados en la cadena, o reabrir lo detenido |
 

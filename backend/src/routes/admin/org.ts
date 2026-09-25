@@ -59,8 +59,11 @@ router.get("/dashboard", requireAdmin, async (req: Request, res: Response) => {
       domainFilter ? [domainFilter, domainFilter] : []
     );
 
+    // Sin el email de quien votó (SCRUM-17). Email + hora exacta se cruza con
+    // la hora del evento VoteCast en la cadena, que lleva el candidato. "Un
+    // voto en tal elección hace 30 s" ya es público; con la persona, no.
     const recentVotes = await db.run<any>(
-      `SELECT na.generated_at, u.email, e.name as election_name
+      `SELECT na.generated_at, e.name as election_name
        FROM nullifier_audit na
        JOIN users u ON na.user_id = u.id
        JOIN elections e ON na.election_id = e.id

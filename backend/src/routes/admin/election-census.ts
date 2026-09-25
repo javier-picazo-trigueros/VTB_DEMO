@@ -208,18 +208,31 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
 
 /**
  * @route GET /admin/audit
+ * @desc  Quién ha participado en cada elección. NO qué ha votado.
+ *
+ * Esta ruta devolvía, por cada votante, su email junto a su nullifier completo
+ * y la hora exacta del voto. El nullifier es el mismo valor que el contrato
+ * publica en el evento VoteCast, al lado del candidato: cualquier
+ * administrador de una institución podía cruzar su panel con la cadena
+ * pública y saber qué votó cada persona de su censo.
+ *
+ * Ahora se devuelve solo el día, sin nullifier, sin hora y sin el id de la
+ * fila (un autoincremento que delataba el orden de los votos), y se ordena por
+ * email dentro de cada día. Con la hora exacta o el orden, en una votación
+ * pequeña bastaba comparar con la hora del evento en la cadena.
+ *
+ * Es el primer paso de SCRUM-17. El resto, separar la identidad del voto en la
+ * propia base, está planificado aparte.
  */
 router.get("/audit", requireAdmin, async (req: Request, res: Response) => {
   try {
     let query = `
       SELECT
-        na.id,
         na.user_id,
         u.email,
         u.name,
         na.election_id,
         e.name as election_name,
-        na.nullifier_hash,
         na.generated_at
       FROM nullifier_audit na
       JOIN users u ON na.user_id = u.id
@@ -235,11 +248,35 @@ router.get("/audit", requireAdmin, async (req: Request, res: Response) => {
 
     query += " ORDER BY na.generated_at DESC LIMIT 100";
 
-    const audit = await db.run<any>(query, params);
+    const rows = await db.run<{
+      user_id: number;
+      email: string;
+      name: string;
+      election_id: number;
+      election_name: string;
+      generated_at: string | Date;
+    }>(query, params);
 
-    res.json({ audit: audit || [] });
+    // Día en hora de Madrid, 'YYYY-MM-DD'. SQLite devuelve la fecha en UTC sin
+    // zona ('YYYY-MM-DD HH:MM:SS'); PostgreSQL, un Date.
+    const dia = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Madrid" });
+    const toDay = (v: string | Date) =>
+      dia.format(v instanceof Date ? v : new Date(v.includes("T") ? v : `${v.replace(" ", "T")}Z`));
+
+    const audit = rows
+      .map((r) => ({
+        user_id: r.user_id,
+        email: r.email,
+        name: r.name,
+        election_id: r.election_id,
+        election_name: r.election_name,
+        voted_on: toDay(r.generated_at),
+      }))
+      .sort((a, b) => b.voted_on.localeCompare(a.voted_on) || a.email.localeCompare(b.email));
+
+    res.json({ audit });
   } catch (error) {
-    console.error("Error en auditoría:", error);
+    console.error("Error en auditoría:", formatError(error));
     res.status(500).json({ error: "Error al obtener auditoría" });
   }
 });
