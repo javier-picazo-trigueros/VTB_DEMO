@@ -45,13 +45,18 @@ tiempo pase entre aplicarlas y desplegar.
 
 **Pasos**
 
-1. Trae mi rama, que es la que tiene el fichero de la 015:
+1. Ponte en la versión de mi rama que está en GitHub, que es la que tiene el
+   fichero de la 015:
    ```
    git fetch origin
-   git switch JaimeOrdovas
+   git switch --detach origin/JaimeOrdovas
    cd backend
    npm ci
    ```
+   Va con `--detach` a propósito. Si en tu ordenador hubiera una
+   `JaimeOrdovas` antigua, `git switch JaimeOrdovas` te llevaría a esa y no a
+   la de GitHub; a mí me pasó. Así vas directo a la de GitHub. Git te dirá
+   "detached HEAD": es normal, solo vas a lanzar las migraciones.
 2. En Supabase, en el **SQL Editor**, mira qué hay aplicado:
    ```sql
    SELECT name FROM pgmigrations ORDER BY id;
