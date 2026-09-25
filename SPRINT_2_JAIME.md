@@ -163,7 +163,7 @@ Tú decides si se cierra así o se hace.
 Jaime decidió cortar el reparto también en la API (punto 4) y hacer la
 verificación por correo (puntos 1 y 2).
 
-### SCRUM-16 · El servidor no publica el reparto hasta la fecha de fin (`67e7894e`)
+### SCRUM-16 · El servidor no publica el reparto hasta la fecha de fin (`a30e3c80`)
 
 - `GET /elections/:id/results` ya no da votos por candidato antes de
   `end_time`. Da el total, la participación y los nombres de las
@@ -183,7 +183,7 @@ verificación por correo (puntos 1 y 2).
 - De paso corregí el texto de ejemplo de `/vote-feed`, que decía "hash
   anónimo del votante".
 
-### SCRUM-123 · Confirmar el email en el registro (`baef39ab`)
+### SCRUM-123 · Confirmar el email en el registro (`dd3c5332`)
 
 - El registro ya no crea ni aprueba nada. Guarda la solicitud como
   `unverified` y manda un enlace, que dura 24 horas. Solo al abrirlo se
@@ -198,15 +198,103 @@ verificación por correo (puntos 1 y 2).
 - He adaptado tus dos tests de `legal-acceptance`: ahora confirman el correo
   antes de comprobar lo mismo que antes.
 
-### Antes de desplegar estos dos commits
+### El panel dejaba saber qué votó cada persona (`954b94c8`)
 
-Estos commits **no están subidos**. El orden importa:
+Lo encontré al preparar SCRUM-17, y era peor que lo que pedía el ticket:
+una fuga activa hacia los administradores de cada institución.
 
-1. **`npm run migrate` en producción**, que aplica la 014 y la 015. La 015
-   cambia el `CHECK` de `registration_requests.status`: si el código llega
-   antes, cada registro da 500.
-2. **Comprobar que Resend envía de verdad en producción** (`RESEND_API_KEY`
-   en Render). Hasta ahora el registro funcionaba sin correo. Desde ahora,
-   sin correo nadie puede completarlo. Si los correos caen en spam, eso es
-   `SCRUM-27`.
-3. Después, `git push`.
+- **El fallo:** `GET /admin/audit` daba, por cada votante, su email junto a
+  su nullifier completo y la hora exacta. Ese nullifier es el mismo valor que
+  el contrato publica en `VoteCast` al lado del candidato. Cruzando el panel
+  con la cadena, un administrador sabía qué votó cada persona de su censo.
+  Los votos recientes del dashboard daban además email y hora exacta.
+- **El arreglo:** la respuesta lleva solo email, nombre, elección y día. Va
+  sin nullifier, sin hora y sin el id de la fila, que delataba el orden. El
+  dashboard ya no lleva emails. Añadí una fila en `SEGURIDAD.md`, sección 3.
+
+### Despliegue en dos fases
+
+Reordené los commits para que lo urgente pueda salir ya:
+
+| Commit | Qué | ¿Necesita migración? |
+|---|---|---|
+| `954b94c8` | El panel no deja cruzar votos con la cadena | No |
+| `a30e3c80` | SCRUM-16, resultados ocultos hasta la fecha de fin | No |
+| `dd3c5332` | SCRUM-123, confirmar el email | **Sí, la 015**, y que Resend envíe |
+| `403b4151` | Este documento | No |
+
+1. **Fase 1:** Jaime sube hasta `a30e3c80` a `main`.
+2. **Fase 2:** Jaime sube todo a la rama `JaimeOrdovas`, que no despliega.
+   Javier la usa para aplicar las migraciones 014 y 015 en producción y
+   comprueba Resend. Después se sube todo a `main`.
+
+Las migraciones 014 y 015 solo añaden cosas. El código que ya está en
+producción sigue funcionando con ellas aplicadas, así que no importa el tiempo
+que pase entre aplicarlas y desplegar.
+
+---
+
+## SCRUM-17, opción A: lo que queda para Javier
+
+**Objetivo:** que cuando cierre la elección y se destruya su sal, ninguna fila
+de la base una a una persona con su candidato, su nullifier o su transacción.
+Hoy `nullifier_audit` lo hace para siempre, así que destruir la sal no protege
+nada.
+
+**Diseño**
+
+1. **Tabla de participación:** `(election_id, user_id)` con clave primaria
+   compuesta. Sin hora ni fecha, sin nullifier y sin id autoincremental. Sirve
+   para "ya has votado", el anti-doble-voto en la base, la participación y el
+   registro de participación del panel.
+2. **Tabla de votos:** es `nullifier_audit` sin `user_id` (`election_id`,
+   `nullifier_hash`, `candidate_id`, `vote_choice`, `tx_hash`, `block_number`,
+   `vote_source`, hora). Mejor con un id aleatorio: un autoincremento insertado
+   en la misma transacción que la participación permite emparejarlas por
+   orden.
+3. **Las dos inserciones van en la misma transacción,** en el camino normal
+   del voto y en la reconciliación (`db/postgres.ts`).
+
+**Sitios que leen o escriben `nullifier_audit`**
+
+- `routes/elections.ts`: "ya has votado" y recibo, recuento de `/results`,
+  `/audit` público y las dos inserciones.
+- `app.ts`: estadísticas públicas. Excluye las cuentas demo con un JOIN a
+  `users`; tiene que pasar a usar `vote_source`.
+- `admin/election-census.ts` y `admin/org.ts`: panel, estadísticas y
+  dashboard.
+- `db/postgres.ts`, `db/sqlite-adapter.ts`, `config/database.ts`, el seed y
+  `routes/auth.ts`, que es la exportación de datos personales.
+
+**Decisiones de producto que salen de esto**
+
+- **El recibo.** La pantalla de "ya has votado" busca la transacción del
+  usuario en la base, y eso ya es un vínculo. Tras la separación, el
+  comprobante solo se puede dar en el momento de votar y por correo. La
+  interfaz debe pedir que se guarde.
+- **La exportación de datos** solo podrá decir en qué elecciones participó la
+  persona, no a quién votó. Hay que cambiar la Política de Privacidad.
+- **El día en el registro de participación.** Si la participación no guarda
+  fecha, el panel deja de mostrarla.
+
+**Migración de datos**
+
+Hay que copiar `(election_id, user_id)` a la tabla nueva y quitar `user_id`
+de la de votos. Es irreversible a propósito: el `down` no puede reconstruir el
+vínculo. Antes, copia de seguridad de Supabase, sabiendo que esas copias
+conservan el vínculo hasta que caducan.
+
+**Lo que seguirá sin estar cubierto** (hay que decirlo en `SEGURIDAD.md`)
+
+- Durante la votación, el servidor puede calcular el nullifier de cualquier
+  persona, porque la sal existe.
+- `vote_attempts` guarda usuario y nullifier mientras un voto está pendiente.
+  Se borra al confirmarse; convendría un plazo para los que se quedan
+  colgados.
+- El correo de confirmación lleva el hash de la transacción: una copia queda
+  en el buzón de la persona y en Resend.
+- Las copias de seguridad anteriores a la migración.
+
+**Test sugerido:** uno que recorra el esquema, con `PRAGMA table_info` en
+SQLite e `information_schema` en PostgreSQL, y falle si alguna tabla tiene
+`user_id` junto a `nullifier_hash`, `candidate_id` o `tx_hash`.
