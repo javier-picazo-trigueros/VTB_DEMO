@@ -192,9 +192,9 @@ describe('cleanupStaleVoteAttempts', () => {
 
     await clienteCon(pool).cleanupStaleVoteAttempts(respuesta({ estado: 'no-esta' }));
 
-    // La consulta de reconciliación, más la purga por caducidad del final.
-    expect(consultas).toHaveLength(2);
-    expect(consultas[1].sql).toMatch(/DELETE FROM vote_attempts/);
+    // La consulta de reconciliación, más la consulta y la purga por caducidad del final.
+    expect(consultas).toHaveLength(3);
+    expect(consultas[2].sql).toMatch(/DELETE FROM vote_attempts/);
     expect(consultas[0].sql).toMatch(/status = 'pending'/);
     expect(consultas[0].sql).toMatch(/INTERVAL '30 minutes'/);
   });

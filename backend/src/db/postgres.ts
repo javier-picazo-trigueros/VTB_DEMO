@@ -527,6 +527,19 @@ export class PgClient implements DbClient {
 
     // Después de reconciliar, para que un intento resoluble se resuelva antes
     // de caducar. Lo que sigue aquí pasado el plazo se borra.
+    //
+    // Un pendiente que caduca puede ser un voto que sí está en la cadena. Se deja
+    // constancia en el log (id del intento, elección y tx_hash, nunca el usuario)
+    // para poder explicar una discrepancia entre la cadena y /results.
+    const caducados = await this.pool.query(
+      `SELECT id, election_id, tx_hash FROM vote_attempts
+        WHERE status = 'pending' AND started_at < NOW() - INTERVAL '${VOTE_ATTEMPT_PENDING_TTL_HOURS} hours'`,
+    );
+    for (const fila of caducados.rows as Array<{ id: number; election_id: number; tx_hash: string | null }>) {
+      console.error(
+        `[cleanup] intento pendiente caducado sin resolver: intento=${fila.id} eleccion=${fila.election_id} tx=${fila.tx_hash ?? 'sin-tx'}`,
+      );
+    }
     await this.pool.query(
       `DELETE FROM vote_attempts
         WHERE (status = 'failed'  AND COALESCE(completed_at, started_at) < NOW() - INTERVAL '${VOTE_ATTEMPT_FAILED_TTL_HOURS} hours')
