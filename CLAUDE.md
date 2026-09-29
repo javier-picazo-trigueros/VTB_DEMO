@@ -285,3 +285,78 @@ Ver **SETUP.md** para el detalle completo.
 
 Cada desarrollador usa su propia base de Supabase para desarrollar. No
 uses la del otro: un `seed:reset` borra sus datos.
+
+---
+
+## Estado y traspaso (actualizar en cada sprint)
+
+Lo que ya está en las reglas de arriba no se repite aquí.
+
+### SCRUM-17 (opción A), hecho en la rama JavierPicazo
+
+- **Dos tablas:** `election_participations (election_id, user_id)` y
+  `nullifier_audit` sin `user_id` (migración 016).
+- **`recordConfirmedVote`** (`backend/src/db/voteRecord.ts`) es el único
+  punto de escritura de las dos: voto normal, voto de demo y
+  reconciliación pasan por él, en una transacción.
+- **Se quitó:** el correo de confirmación de voto (y sus filas
+  históricas de `email_log`), `userId` en los logs del camino del voto,
+  la columna `vote_choice`, y los scripts `db:migrate` / `db:rollback`.
+- **Lo vigilan:** `separacion-participacion.test.ts`,
+  `vote-logs-privacy.test.ts`, `receipt-not-persisted.test.ts` y
+  `seguridad-claims.test.ts`.
+- **Frontend en producción:** la API es siempre `/backend`, aunque
+  `VITE_API_URL` esté definida (solo se respeta en desarrollo). Lo
+  vigila `frontend-api-base.test.ts`.
+
+### Decisiones abiertas, para revisar juntos
+
+- Plazos de `vote_attempts`: 24 h los fallidos, 72 h los colgados.
+- El comprobante (hash de la transacción) solo se ve una vez, al votar.
+- El panel de participación no muestra fecha ni hora.
+
+### Despliegue
+
+- El *start command* de Render vive en el panel, no en el repo, y aplica
+  las migraciones solo: `npm run migrate && node dist/index.js`, con
+  autoDeploy en cada commit a `main` (comprobado en el panel).
+- Copia de seguridad ANTES de fusionar. La 016 es irreversible (su
+  `down` lanza un error). Orden: 015 → 016.
+- La 015 (`registration_email_verification`) entra en `main` solo como
+  fichero. El código de ese registro con confirmación por correo
+  (SCRUM-123, rama `JaimeOrdovas`) sigue sin fusionar hasta que Resend
+  funcione en producción.
+
+### Pendiente, con dueño
+
+- Resend y dominio: Javier.
+- `[RELLENAR]` de la Política de Privacidad: los dos.
+- Health check path en Render (`/health`, que ya devuelve 503 si la base
+  no responde): Javier.
+- Borrar la copia de seguridad previa a la 016 a los 30 días: Javier.
+- Plazo de conservación de `nullifier_audit`: decidir juntos.
+
+### Cómo comprobar en local que todo va
+
+```
+# Backend: tests y typecheck
+cd backend
+npm test
+npx tsc --noEmit
+
+# Frontend: build
+cd ../frontend
+npm run build
+
+# Migración 016 en un PostgreSQL local de Docker (nunca Supabase)
+docker run -d --name vtb-pg -e POSTGRES_PASSWORD=local -e POSTGRES_DB=vtb -p 55432:5432 postgres:16
+cd ../backend
+DATABASE_URL=postgresql://postgres:local@localhost:55432/vtb npx node-pg-migrate up
+VTB_SCHEMA_TEST_PG_URL=postgresql://postgres:local@localhost:55432/vtb \
+  npx vitest run src/__tests__/separacion-participacion.test.ts
+docker rm -f vtb-pg
+```
+
+`VTB_SCHEMA_TEST_PG_URL` solo acepta un host local. Para probar la 016
+con datos, inserta antes votos `chain`, `demo` y `legacy` con la 015
+aplicada (`npx node-pg-migrate up 15`) y luego aplica el resto.
