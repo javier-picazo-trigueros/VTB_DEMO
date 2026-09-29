@@ -72,6 +72,27 @@ Las tres `SEED_*` solo hacen falta si vas a ejecutar el seed (paso 6).
 El orden importa porque **el esquema tiene que existir antes de que arranque el
 backend**, y el build de Render no ejecuta migraciones.
 
+> **Las migraciones se aplican solas al arrancar (comprobado en el panel).** El
+> *start command* del servicio `VTB_backend` es:
+>
+> ```
+> npm run migrate && node dist/index.js
+> ```
+>
+> y el servicio tiene *autoDeploy* en cada commit a `main`. **Ese start command
+> vive en el panel de Render, no en el repositorio**: nada de lo que hay en el
+> código lo fija ni lo protege, y quien cambie el panel lo cambia sin dejar
+> rastro en git. Consecuencias:
+>
+> - Fusionar a `main` despliega y aplica al arrancar todas las migraciones que
+>   falten (a fecha de este documento, la 015 y la 016). Si una falla, el
+>   servicio no arranca.
+> - Las migraciones irreversibles, como la 016 (SCRUM-17), se aplican sin
+>   preguntar. **La copia de seguridad se hace ANTES de fusionar.**
+> - El paso 2 de abajo (migrar a mano desde el portátil) solo hace falta para la
+>   primera creación de la base, antes de que el servicio exista.
+> - El seed sigue sin ir nunca en el start command (ver más abajo).
+
 ### Paso 1 — Crear la instancia de PostgreSQL
 
 En el panel de Render. Apunta las **dos** URLs que da:
