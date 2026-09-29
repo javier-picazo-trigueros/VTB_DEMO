@@ -169,6 +169,10 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         </div>
       )}
 
+      <p className="mb-3 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-xs font-medium text-center">
+        {t("votingBooth.receiptSaveWarning")}
+      </p>
+
       <div className="bg-slate-900 dark:bg-slate-900 rounded-xl p-3 mb-4 font-mono text-xs text-cyan-400 break-all leading-relaxed select-all">
         {txData.txHash}
       </div>
@@ -362,7 +366,6 @@ export const VotingBoothContent = () => {
   // Estado real del voto ya emitido: "onchain" | "demo" | "offchain" | null.
   // null = desconocido (p. ej. se llega aqui por un 409 al emitir), y en ese
   // caso no se afirma nada sobre la cadena.
-  const [alreadyVotedChain, setAlreadyVotedChain] = useState(null);
   const [copied, setCopied] = useState(false);
   const [participation, setParticipation] = useState(null);
   const [reconnecting, setReconnecting] = useState(false);
@@ -380,7 +383,6 @@ export const VotingBoothContent = () => {
     setError("");
     setEligibilityError("");
     setAlreadyVoted(false);
-    setAlreadyVotedChain(null);
 
     try {
       // 1. Verificar elegibilidad
@@ -389,9 +391,9 @@ export const VotingBoothContent = () => {
         if (!eligRes.data.eligible) {
           const reason = eligRes.data.reason;
           if (reason === "already_voted") {
+            // Solo se sabe que ha participado (SCRUM-17): el comprobante se dio una
+            // sola vez, en la pantalla de confirmación del voto.
             setAlreadyVoted(true);
-            const d = eligRes.data;
-            setAlreadyVotedChain(d.onChain ? "onchain" : d.isDemo ? "demo" : "offchain");
           } else {
             setEligibilityError(getEligibilityMessage(reason, t));
           }
@@ -575,7 +577,6 @@ export const VotingBoothContent = () => {
       console.error("Vote error:", err);
       if (err.response?.status === 409) {
         setAlreadyVoted(true);
-        setAlreadyVotedChain(null);
         setVoteError(null);
         setVoteStatus(null);
         setShowConfirm(false);
@@ -726,12 +727,7 @@ export const VotingBoothContent = () => {
             <div className="flex justify-center mb-3"><CheckCircleIcon /></div>
             <h3 className="text-xl font-bold text-emerald-800 dark:text-emerald-300 mb-1">{t("votingBooth.alreadyVoted")}</h3>
             <p className="text-emerald-600 dark:text-emerald-400 text-sm mb-5">
-              {t(
-                alreadyVotedChain === "onchain"  ? "votingBooth.alreadyVotedDesc"
-                : alreadyVotedChain === "demo"     ? "votingBooth.alreadyVotedDescDemo"
-                : alreadyVotedChain === "offchain" ? "votingBooth.alreadyVotedDescOffChain"
-                : "votingBooth.alreadyVotedDescUnknown"
-              )}
+              {t("votingBooth.alreadyParticipatedDesc")}
             </p>
             <button
               onClick={() => navigate(`/results/${electionId}`)}

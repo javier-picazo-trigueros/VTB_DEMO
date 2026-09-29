@@ -109,8 +109,6 @@ export const AdminPanel = () => {
   const [auditFilter, setAuditFilter] = useState({
     search: '',
     electionId: '',
-    dateFrom: '',
-    dateTo: '',
     institution: '',
   });
 
@@ -184,11 +182,9 @@ export const AdminPanel = () => {
       entry.election_name?.toLowerCase().includes(search);
     const matchElection = !auditFilter.electionId ||
       String(entry.election_id) === auditFilter.electionId;
-    // voted_on es solo el día ('YYYY-MM-DD'): el servidor ya no da la hora ni
-    // el nullifier del voto, que permitían cruzarlo con la cadena (SCRUM-17).
-    const matchDateFrom = !auditFilter.dateFrom || entry.voted_on >= auditFilter.dateFrom;
-    const matchDateTo = !auditFilter.dateTo || entry.voted_on <= auditFilter.dateTo;
-    return matchSearch && matchElection && matchDateFrom && matchDateTo;
+    // El registro de participación ya no lleva fecha ni hora (SCRUM-17): con el
+    // día basta, en una elección pequeña, para cruzarlo con el bloque del voto.
+    return matchSearch && matchElection;
   });
 
   // Cargar datos según tab
@@ -1832,24 +1828,12 @@ export const AdminPanel = () => {
                         <option value="">Todas las elecciones</option>
                         {elections.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                       </select>
-                      <input
-                        type="date"
-                        value={auditFilter.dateFrom}
-                        onChange={(e) => setAuditFilter(p => ({ ...p, dateFrom: e.target.value }))}
-                        className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
-                      />
-                      <input
-                        type="date"
-                        value={auditFilter.dateTo}
-                        onChange={(e) => setAuditFilter(p => ({ ...p, dateTo: e.target.value }))}
-                        className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
-                      />
                     </div>
-                    {(auditFilter.search || auditFilter.electionId || auditFilter.dateFrom) && (
+                    {(auditFilter.search || auditFilter.electionId) && (
                       <div className="flex items-center gap-2 mt-3">
                         <span className="text-xs text-slate-500">Filtros activos:</span>
                         <button
-                          onClick={() => setAuditFilter({ search: '', electionId: '', dateFrom: '', dateTo: '', institution: '' })}
+                          onClick={() => setAuditFilter({ search: '', electionId: '', institution: '' })}
                           className="text-xs text-red-500 hover:text-red-700"
                         >
                           Borrar todos ✕
@@ -1866,7 +1850,6 @@ export const AdminPanel = () => {
                         <tr className="border-b border-slate-300 dark:border-slate-600">
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Email del votante</th>
                           <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Elección</th>
-                          <th className="text-left py-2 px-4 text-slate-700 dark:text-slate-300">Día</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1878,9 +1861,6 @@ export const AdminPanel = () => {
                             >
                               <td className="py-3 px-4 font-mono text-xs text-slate-800 dark:text-slate-200">{entry.email}</td>
                               <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{entry.election_name}</td>
-                              <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-400">
-                                {new Date(`${entry.voted_on}T12:00:00`).toLocaleDateString('es-ES')}
-                              </td>
                             </tr>
                           );
                         })}
