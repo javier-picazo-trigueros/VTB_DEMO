@@ -537,8 +537,6 @@ Backend:
 | `npm run sync-blockchain` | Sync elections to configured chain |
 | `npm run migrate` | Apply pending PG migrations (requires `DB_CLIENT=postgres`) |
 | `npm run migrate:down` | Roll back the last PG migration |
-| `npm run db:migrate` | Copy data from SQLite to PostgreSQL |
-| `npm run db:rollback` | Copy data from PostgreSQL back to SQLite |
 
 Frontend:
 
@@ -662,11 +660,9 @@ To run with PostgreSQL instead of SQLite:
    ```bash
    npm run seed
    ```
-5. (Optional) Migrate existing SQLite data to PostgreSQL:
-   ```bash
-   DATABASE_PATH=./vtb.db npm run db:migrate
-   ```
-   To revert: `npm run db:rollback`.
+5. ~~Migrate existing SQLite data to PostgreSQL~~ — removed (SCRUM-17): the
+   `db:migrate` / `db:rollback` scripts copied `voter -> vote` links that
+   migration 016 deletes on purpose.
 
 ## Notes
 

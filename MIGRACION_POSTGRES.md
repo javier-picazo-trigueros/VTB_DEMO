@@ -354,9 +354,8 @@ backend**, y el build de Render no ejecuta migraciones.
 3. **(Solo si vas a conservar datos)** Migrar el contenido del SQLite que hayas
    extraído:
 
-   ```bash
-   DATABASE_URL="postgresql://…?sslmode=require" DATABASE_PATH=./vtb.db npm run db:migrate
-   ```
+   > **Retirado (SCRUM-17):** el script `db:migrate` y su inverso `db:rollback` se han eliminado. Copiaban `nullifier_audit` con `user_id`, cosa que la migración 016 quita a propósito. Este paso ya no existe.
+
 
    ⚠️ **Aviso sobre este script.** Abre una transacción con `BEGIN`/`COMMIT` sobre una
    conexión, pero todos los INSERT van por el *pool*, es decir, por conexiones

@@ -134,9 +134,8 @@ renumeración que apuntaba a otras elecciones del contrato.
 
 ### Paso 3 — (Solo si conservas datos) migrar el contenido
 
-```bash
-DATABASE_URL="postgresql://…?sslmode=require" DATABASE_PATH=./vtb.db npm run db:migrate
-```
+> **Retirado (SCRUM-17):** el script `db:migrate` y su inverso `db:rollback` se han eliminado. Copiaban `nullifier_audit` con `user_id`, cosa que la migración 016 quita a propósito. Este paso ya no existe.
+
 
 ⚠️ **Aviso sobre este script.** Abre `BEGIN`/`COMMIT` sobre una conexión, pero todos
 los INSERT van por el *pool*, es decir, por conexiones distintas. En la práctica
