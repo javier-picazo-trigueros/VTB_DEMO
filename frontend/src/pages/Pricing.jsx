@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { DemoLoginModal } from '../components/DemoLoginModal';
+import { useDemoEnabled } from '../utils/useDemoEnabled.js';
 
 const TIERS = [
   {
@@ -116,6 +117,7 @@ const CONTACT_EMAIL = '[RELLENAR: email de contacto]';
 export function Pricing() {
   const navigate = useNavigate();
   const [demoOpen, setDemoOpen] = useState(false);
+  const demoEnabled = useDemoEnabled();
   const [openFaq, setOpenFaq] = useState(null);
 
   return (
@@ -138,12 +140,14 @@ export function Pricing() {
           <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-8">
             Start free and scale as your institution grows. Every plan includes real blockchain auditability.
           </p>
-          <button
-            onClick={() => setDemoOpen(true)}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-lg shadow-blue-600/30"
-          >
-            🚀 Try Live Demo — No Registration
-          </button>
+          {demoEnabled && (
+            <button
+              onClick={() => setDemoOpen(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-lg shadow-blue-600/30"
+            >
+              🚀 Try Live Demo — No Registration
+            </button>
+          )}
         </motion.div>
       </section>
 
@@ -260,12 +264,14 @@ export function Pricing() {
           <p className="text-blue-100 mb-6 max-w-xl mx-auto">
             No registration. No credit card. Real blockchain voting with full audit trail in under 60 seconds.
           </p>
-          <button
-            onClick={() => setDemoOpen(true)}
-            className="px-8 py-3 rounded-2xl bg-white text-blue-700 font-bold hover:bg-blue-50 transition shadow-lg"
-          >
-            🎓 Launch Demo Now
-          </button>
+          {demoEnabled && (
+            <button
+              onClick={() => setDemoOpen(true)}
+              className="px-8 py-3 rounded-2xl bg-white text-blue-700 font-bold hover:bg-blue-50 transition shadow-lg"
+            >
+              🎓 Launch Demo Now
+            </button>
+          )}
         </motion.div>
       </section>
 

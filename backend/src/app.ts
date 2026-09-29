@@ -136,6 +136,7 @@ const ALLOWED_WHILE_MUST_CHANGE = new Set([
   'POST /auth/login',
   'POST /auth/logout',
   'GET /auth/me',
+  'GET /auth/config',
   'PATCH /auth/change-password',
   'GET /health',
   'GET /api/health',

@@ -282,6 +282,17 @@ const DEMO_ACCOUNTS: Record<string, { email: string; envVar: string }> = {
   },
 };
 
+/**
+ * @route GET /auth/config
+ * @desc  Configuración pública que el frontend necesita antes de pintar nada:
+ *        si el acceso de demostración está activo. Sin él, el botón de demo se
+ *        mostraba siempre y daba error donde POST /auth/demo-login responde 404.
+ *        Solo un booleano: no devuelve ninguna variable de entorno.
+ */
+router.get('/config', (_req: Request, res: Response) => {
+  res.json({ demoLoginEnabled: process.env.DEMO_LOGIN_ENABLED === 'true' });
+});
+
 router.post('/demo-login', async (req: Request, res: Response) => {
   try {
     // Se lee en cada petición, no al cargar el módulo: los tests alternan el
