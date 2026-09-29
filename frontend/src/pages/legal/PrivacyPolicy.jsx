@@ -100,8 +100,11 @@ export function PrivacyPolicy() {
         elección y ya no se puede recalcular el testigo único de nadie.</P>
       <P><b>Lo que sigue sin cubrirse:</b> mientras la votación está abierta, el servidor puede calcular el testigo
         único de cualquier persona; mientras un voto está pendiente de confirmar, una tabla interna une tu cuenta
-        con su testigo único (se borra al confirmarse y caduca a las 24 o 72 horas); y las copias de seguridad
-        anteriores a esta separación conservan el vínculo hasta que caducan. <b>No afirmamos que el voto sea
+        con su testigo único (se borra al confirmarse y caduca a las 24 o 72 horas); las copias de seguridad
+        anteriores a esta separación conservan el vínculo hasta que caducan; y los registros de acceso de las
+        plataformas que alojan el servicio (Render, Vercel) guardan la IP y la hora de cada petición de voto
+        durante su plazo de retención (<Fill>[RELLENAR: plazo de cada proveedor]</Fill>), y con la hora del
+        bloque y los registros de inicio de sesión permiten reconstruir el vínculo. <b>No afirmamos que el voto sea
         anónimo.</b> Es un registro verificable por terceros, con doble voto prevenido criptográficamente.</P>
 
       <H2>5. Cookies y almacenamiento local</H2>

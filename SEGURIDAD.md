@@ -67,6 +67,9 @@ Esa frase es exacta y tiene límites. Lo que sigue **sin** cubrirse:
   quedan colgados a las 72 h (el borrado deja constancia en el log del servidor, sin el usuario).
 - **Las copias de seguridad anteriores a la migración** conservan el vínculo hasta que caducan.
   La migración es irreversible a propósito; una copia previa no lo es.
+- **Los registros de acceso de las plataformas (Render, Vercel)** guardan la IP y la hora de cada
+  petición de voto durante su plazo de retención. Con la hora del bloque y los registros de login
+  permiten reconstruir el vínculo entre persona y voto. No dependen de nuestra base de datos.
 - **`nullifier_audit` sigue sin plazo de borrado**: los votos, sin usuario, se conservan.
 - La cadena es pública: el candidato y la hora exacta del bloque de cada voto son legibles
   por cualquiera. Ver la coacción y la compra de votos más abajo.
