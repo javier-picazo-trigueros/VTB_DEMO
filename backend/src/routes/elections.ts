@@ -971,7 +971,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
           }
         } catch (auditError) {
           console.error('AUDIT INSERT FAILED after successful blockchain tx:', txHash, `electionId=${electionId}`);
-          console.error(auditError);
+          console.error(formatError(auditError));
         }
 
         // Sin correo de confirmación (SCRUM-17): su fila en email_log, cruzada con
@@ -1002,7 +1002,8 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       console.error(
         "Error al registrar voto en blockchain:",
         formatError(blockchainError),
-        `userId=${decoded.userId}`,
+        // Solo la elección: el usuario junto a ella (o a un txHash) es el vínculo
+        // persona-voto que SCRUM-17 quita de la base, y un log no debe recrearlo.
         `electionId=${electionId}`,
       );
 

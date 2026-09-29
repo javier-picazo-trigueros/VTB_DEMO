@@ -3,6 +3,7 @@ import type { DbClient, ExecResult } from './client.js';
 import { VoteConflictError } from './client.js';
 import type { BusquedaDeVoto } from '../services/voteChain.js';
 import { recordConfirmedVote } from './voteRecord.js';
+import { formatError } from '../utils/errors.js';
 
 const { Pool } = pg;
 
@@ -517,7 +518,9 @@ export class PgClient implements DbClient {
           );
         }
       } catch (err) {
-        console.error(`[cleanup] Error procesando intento ${attempt.id}:`, err);
+        // formatError: el detalle de un error de PostgreSQL trae los valores de la
+        // clave (p. ej. election_id y user_id de una participación).
+        console.error(`[cleanup] Error procesando intento ${attempt.id}:`, formatError(err));
       }
     }
 
