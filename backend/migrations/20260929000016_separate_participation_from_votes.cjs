@@ -28,6 +28,9 @@
  * Las copias de seguridad de la base anteriores a esta migración lo conservan
  * hasta que caducan.
  *
+ * Borra además las filas históricas de email_log con plantilla
+ * 'vote_confirmation' (destinatario + fecha = el mismo vínculo).
+ *
  * En producción va después de la 015 (registration_email_verification).
  *
  * @param {import('node-pg-migrate').MigrationBuilder} pgm
@@ -50,6 +53,11 @@ exports.up = async (pgm) => {
       END IF;
     END $$;
   `);
+
+  // ── 0. Correos de confirmación de voto ───────────────────────────────────
+  // La fila (destinatario + plantilla + created_at) se cruza con generated_at y
+  // reconstruye el vínculo. El envío ya no existe; se borran los históricos.
+  pgm.sql(`DELETE FROM email_log WHERE template_name = 'vote_confirmation';`);
 
   // ── 1. Participación ─────────────────────────────────────────────────────
   pgm.sql(`
