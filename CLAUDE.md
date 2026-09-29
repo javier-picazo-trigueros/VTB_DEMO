@@ -27,10 +27,20 @@ rompió alguna vez y costó trabajo arreglarlo.
 
 ### Nunca afirmar que el voto es anónimo
 
-El backend conoce hoy la correspondencia entre votante y voto:
-`nullifier_audit` guarda `user_id`, `election_id` y `vote_choice` en la
-misma fila. Se eliminaron unas cuarenta afirmaciones falsas repartidas
-por interfaz, correos, PDFs exportados y los textos en ambos idiomas.
+Desde la migración 016 (SCRUM-17) la participación
+(`election_participations`: elección y usuario, sin hora) y el voto
+(`nullifier_audit`: sin `user_id`, id aleatorio, hora al minuto) están
+en tablas separadas. La frase exacta, la de SEGURIDAD.md, es: "la base
+de datos no conserva la correspondencia entre votante y voto una vez
+cerrada la elección, pero el operador la conoce en el momento de
+procesar el voto".
+
+El voto **sigue sin ser anónimo**: el operador lo conoce al procesarlo
+(el servidor calcula el nullifier durante la votación, `vote_attempts`
+une usuario y nullifier mientras hay un voto pendiente, y hay copias de
+seguridad y registros de plataforma que lo conservan). Antes de la 016
+se eliminaron unas cuarenta afirmaciones falsas repartidas por
+interfaz, correos, PDFs exportados y los textos en ambos idiomas.
 
 Lo que **sí** se puede decir: registro inmutable, recuento verificable,
 y prevención criptográfica del doble voto mediante nullifier.
@@ -140,6 +150,20 @@ funcionó nunca (BC-23).
 
 Se parte de `DEPLOY_BLOCK`, o de `contract.deploymentBlock()` si no está
 definida, y se avanza en ventanas de 45.000 bloques.
+
+### Ninguna tabla junta `user_id` con el voto
+
+Ninguna tabla nueva puede tener `user_id` junto a `nullifier_hash`,
+`candidate_id` o `tx_hash`. Solo `vote_attempts` está exenta (voto en
+curso, caduca). Lo vigila `separacion-participacion.test.ts`, que
+recorre el esquema.
+
+### El camino del voto no escribe al usuario en logs ni en `email_log`
+
+Ni `userId` en un `console.*` junto a electionId o txHash, ni correo de
+confirmación de voto: la fila de `email_log` (destinatario + fecha) se
+cruza con la hora del voto. Lo vigilan `vote-logs-privacy.test.ts` y
+`separacion-participacion.test.ts`.
 
 ### El owner del contrato nunca en un `.env`
 
