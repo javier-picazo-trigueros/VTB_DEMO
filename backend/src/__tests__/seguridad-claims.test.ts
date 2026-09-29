@@ -68,7 +68,7 @@ describe('Punto 14: Corrección de afirmaciones y garantías en SEGURIDAD.md', (
 
   it('reconoce que los registros de acceso de Render y Vercel permiten reconstruir el vínculo', () => {
     expect(content).toMatch(/registros de acceso de las plataformas \(Render, Vercel\)/i);
-    expect(content).toMatch(/IP y la hora de cada petici[oó]n de voto/i);
+    expect(content).toMatch(/IP\s+y\s+la\s+hora\s+de\s+cada\s+petici[oó]n\s+de\s+voto/i);
   });
 
   it('ya no dice que nullifier_audit guarda user_id ni que la separación esté pendiente', () => {
