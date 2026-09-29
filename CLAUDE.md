@@ -319,7 +319,8 @@ Lo que ya está en las reglas de arriba no se repite aquí.
 
 - El *start command* de Render vive en el panel, no en el repo, y aplica
   las migraciones solo: `npm run migrate && node dist/index.js`, con
-  autoDeploy en cada commit a `main` (comprobado en el panel).
+  autoDeploy en cada commit a `main` (comprobado con la API de Render el
+  29-09-2026).
 - Copia de seguridad ANTES de fusionar. La 016 es irreversible (su
   `down` lanza un error). Orden: 015 → 016.
 - La 015 (`registration_email_verification`) entra en `main` solo como
@@ -335,6 +336,9 @@ Lo que ya está en las reglas de arriba no se repite aquí.
   no responde): Javier.
 - Borrar la copia de seguridad previa a la 016 a los 30 días: Javier.
 - Plazo de conservación de `nullifier_audit`: decidir juntos.
+- `docker-compose.yml` y `frontend/nginx.conf` están rotos (`nginx.conf` es
+  un script de PowerShell y no hay proxy a `/backend`). Decidir si se
+  arreglan o se borran: los dos.
 
 ### Cómo comprobar en local que todo va
 
@@ -349,14 +353,22 @@ cd ../frontend
 npm run build
 
 # Migración 016 en un PostgreSQL local de Docker (nunca Supabase)
-docker run -d --name vtb-pg -e POSTGRES_PASSWORD=local -e POSTGRES_DB=vtb -p 55432:5432 postgres:16
+docker run -d --name vtb-pg -e POSTGRES_PASSWORD=local -e POSTGRES_DB=vtb -p 55432:5432 postgres:17
 cd ../backend
-DATABASE_URL=postgresql://postgres:local@localhost:55432/vtb npx node-pg-migrate up
-VTB_SCHEMA_TEST_PG_URL=postgresql://postgres:local@localhost:55432/vtb \
-  npx vitest run src/__tests__/separacion-participacion.test.ts
+export DATABASE_URL="postgresql://postgres:local@localhost:55432/vtb?sslmode=disable"
+npm run migrate
+VTB_SCHEMA_TEST_PG_URL="postgresql://postgres:local@localhost:55432/vtb"   npx vitest run src/__tests__/separacion-participacion.test.ts
 docker rm -f vtb-pg
 ```
 
-`VTB_SCHEMA_TEST_PG_URL` solo acepta un host local. Para probar la 016
-con datos, inserta antes votos `chain`, `demo` y `legacy` con la 015
-aplicada (`npx node-pg-migrate up 15`) y luego aplica el resto.
+- `npm run migrate` ejecuta `node-pg-migrate up --reject-unauthorized`, y ese
+  flag obliga a usar SSL: contra un Docker local sin SSL falla con "The server
+  does not support SSL connections". Por eso la URL lleva `?sslmode=disable`
+  (comprobado).
+- `VTB_SCHEMA_TEST_PG_URL` solo acepta un host local.
+- Para probar la 016 con datos, deja la base en la 015, inserta votos `chain`,
+  `demo` y `legacy`, y aplica el resto. `up N` aplica **N migraciones**, no "hasta
+  la N": hay 15 ficheros anteriores a la 016 en `backend/migrations`, así que
+  para dejar una base vacía en la 015 es `npm run migrate -- 15` (lo que va
+  detrás de `--` se pasa a `node-pg-migrate`). Después, `npm run migrate` aplica
+  la 016.
