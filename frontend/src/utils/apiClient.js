@@ -16,7 +16,8 @@ import { getCsrfToken, SAFE_METHODS } from './csrf.js';
 
 // Con proxy de mismo origen bajo prefijo dedicado (/backend en local y en Vercel),
 // las rutas de la API no colisionan nunca con las páginas del frontend (/admin, /auth/set-password).
-const API_URL = import.meta.env.VITE_API_URL || '/backend';
+// En producción es siempre '/backend', aunque VITE_API_URL esté definida: ver apiBase.js.
+import { API_URL } from './apiBase.js';
 
 // Re-exportado por compatibilidad: la lógica vive en csrf.js (ver ese fichero).
 export { getCsrfToken };

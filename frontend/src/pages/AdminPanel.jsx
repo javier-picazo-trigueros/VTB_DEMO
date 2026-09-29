@@ -800,13 +800,6 @@ export const AdminPanel = () => {
               {/* Dashboard */}
               {activeTab === "dashboard" && stats && (
                 <div className="space-y-6">
-                  {import.meta.env.VITE_API_URL?.includes('onrender.com') && (
-                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-300">
-                      ⚠️ Nivel gratuito de Render — la base de datos se reinicia en cada despliegue.
-                      Añade un disco persistente (5 $/mes) para conservar los datos entre despliegues.
-                    </div>
-                  )}
-
                   {/* Scope badge */}
                   <div className="flex flex-wrap gap-2">
                     {isSuperAdmin ? (
