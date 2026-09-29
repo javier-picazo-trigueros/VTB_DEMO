@@ -156,60 +156,6 @@ export function renderInvitation(d: InvitationData): { subject: string; html: st
   return { subject, html, text };
 }
 
-// ─── Template 2: Confirmación de voto emitido ───────────────────────────────
-
-export interface VoteConfirmationData {
-  to: string;
-  name: string;
-  electionName: string;
-  txHash: string;
-  votedAt: Date;
-  explorerUrl?: string;
-}
-
-export function renderVoteConfirmation(d: VoteConfirmationData): { subject: string; html: string; text: string } {
-  const subject = `Tu voto ha sido registrado — ${d.electionName}`;
-  const shortHash = d.txHash.length > 20
-    ? d.txHash.slice(0, 10) + '…' + d.txHash.slice(-8)
-    : d.txHash;
-  const explorerLink = d.explorerUrl
-    ? `<a href="${d.explorerUrl}" style="color:#2D6EAA;">${shortHash}</a>`
-    : `<code style="font-size:12px;">${shortHash}</code>`;
-
-  const body =
-    `<div style="text-align:center;margin:0 0 28px;">
-       <div style="display:inline-block;background:#ECFDF5;border-radius:50%;width:56px;height:56px;line-height:56px;font-size:28px;">✓</div>
-     </div>` +
-    h1('Voto registrado correctamente') +
-    p(`Hola <strong>${esc(d.name)}</strong>,`) +
-    p(`Tu participación en <strong>${esc(d.electionName)}</strong> ha quedado registrada de forma permanente y auditable en la blockchain.`) +
-    table(
-      badge('Proceso:', esc(d.electionName)) +
-      badge('Fecha y hora:', fmtDate(d.votedAt)) +
-      badge('Transacción:', explorerLink),
-    ) +
-    p('<small style="color:#94A3B8;">Guarda este mensaje como comprobante. La transacción en blockchain es permanente y auditable públicamente.</small>');
-
-  const html = base(subject, body);
-
-  const text = [
-    `Tu voto ha sido registrado correctamente`,
-    ``,
-    `Hola ${d.name},`,
-    ``,
-    `Tu participación en "${d.electionName}" ha quedado registrada de forma permanente y auditable en la blockchain.`,
-    ``,
-    `Proceso:    ${d.electionName}`,
-    `Fecha:      ${fmtDate(d.votedAt)}`,
-    `Transacción: ${d.txHash}`,
-    d.explorerUrl ? `Ver en blockchain: ${d.explorerUrl}` : '',
-    ``,
-    `Conserva este mensaje como comprobante.`,
-  ].filter(Boolean).join('\n');
-
-  return { subject, html, text };
-}
-
 // ─── Template 3: Recuperación de contraseña ─────────────────────────────────
 
 export interface PasswordResetData {

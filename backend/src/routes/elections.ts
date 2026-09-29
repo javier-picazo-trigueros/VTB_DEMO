@@ -4,7 +4,6 @@ import { getDbClient, VoteConflictError } from "../db/index.js";
 import { z } from "zod";
 import { generateNullifier, verifyToken, COOKIE_NAME_ACCESS } from "../utils/auth.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
-import { sendVoteConfirmation } from "../services/email/index.js";
 import { formatError } from "../utils/errors.js";
 import { isChainConfigured } from "../scripts/syncElections.js";
 import { getVotePort } from "../services/voteChain.js";
@@ -957,7 +956,6 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
         // Participación y voto en la MISMA transacción, que además borra la fila
         // de vote_attempts (SCRUM-17). Si falla, el cerrojo queda 'pending' y la
         // reconciliación lo resuelve desde el evento on-chain.
-        let auditInserted = false;
         try {
           const resultado = await recordConfirmedVote(db, {
             userId: decoded.userId,
@@ -968,7 +966,6 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
             blockNumber,
             voteSource: 'chain',
           });
-          auditInserted = true;
           if (resultado === 'ya-participaba') {
             console.warn('Voto confirmado en cadena pero la participación ya existía:', txHash, `electionId=${electionId}`);
           }
@@ -977,22 +974,11 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
           console.error(auditError);
         }
 
-        if (auditInserted) {
-          // Confirmación por email (fire-and-forget, no bloquea la respuesta)
-          if (!decoded.email?.endsWith('@vtb.demo')) {
-            const explorerBase = process.env.EXPLORER_URL;
-            sendVoteConfirmation({
-              to:           decoded.email,
-              name:         voter!.name ?? decoded.email,
-              electionName: election.name,
-              txHash:       txHash,
-              votedAt:      new Date(),
-              explorerUrl:  explorerBase ? `${explorerBase}/tx/${txHash}` : undefined,
-            });
-          }
-        }
+        // Sin correo de confirmación (SCRUM-17): su fila en email_log, cruzada con
+        // la hora del voto, reconstruiría el vínculo persona-voto, y el hash de la
+        // transacción quedaría copiado en Resend y en el buzón.
       }
-      // Si isPendingConfirmation=true (o auditInserted=false), el cerrojo queda
+      // Si isPendingConfirmation=true (o el registro anterior falló), el cerrojo queda
       // 'pending' para que el job de limpieza lo resuelva/reconcilie desde el evento on-chain.
 
       res.json({

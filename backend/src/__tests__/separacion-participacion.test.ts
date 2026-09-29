@@ -164,6 +164,24 @@ describe('un voto confirmado', () => {
     expect(intentos).toEqual([]);
   });
 
+  it('no crea ninguna fila en email_log: ni correo de confirmación ni hash por correo', async () => {
+    // La fila (destinatario + plantilla + created_at) se cruza con la hora del
+    // voto y reconstruye el vínculo; el correo llevaba además el hash de la
+    // transacción, que quedaría copiado en Resend y en el buzón.
+    puertoConfirmado();
+    const { user, electionId, candidatos } = await eleccionVotable(6005);
+
+    const res = await votar(user, electionId, candidatos[0].id);
+    expect(res.status).toBe(200);
+    await new Promise(r => setTimeout(r, 50)); // el envío era fire-and-forget
+
+    const filas = await db.run(
+      "SELECT id FROM email_log WHERE recipient = ? OR template_name = 'vote_confirmation'",
+      [user.email],
+    );
+    expect(filas).toEqual([]);
+  });
+
   it('el doble voto sigue rechazado, y no escribe un segundo voto', async () => {
     puertoConfirmado();
     const { user, electionId, candidatos } = await eleccionVotable(6002);

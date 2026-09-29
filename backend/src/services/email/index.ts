@@ -5,7 +5,6 @@
 
 import { enqueue, enqueueLinkEmail } from './queue.js';
 import {
-  renderVoteConfirmation, type VoteConfirmationData,
   renderElectionOpen,     type ElectionOpenData,
   renderElectionClose,    type ElectionCloseData,
   invitationSubject,
@@ -48,10 +47,11 @@ export function sendCensusInvitation(req: InvitationRequest): void {
   enqueueLinkEmail({ template: 'invitation', to: req.to, subject: invitationSubject(req), data });
 }
 
-export function sendVoteConfirmation(data: VoteConfirmationData): void {
-  const { subject, html, text } = renderVoteConfirmation(data);
-  enqueue({ to: data.to, subject, html, text, template: 'vote_confirmation' });
-}
+// No hay sendVoteConfirmation a propósito (SCRUM-17): la fila de email_log
+// (destinatario + plantilla + created_at) se cruza con la hora del voto y
+// reconstruye quién votó y cuándo, y el correo llevaba además el hash de la
+// transacción. El comprobante se muestra una sola vez, en la pantalla de
+// confirmación.
 
 export function sendPasswordReset(req: PasswordResetRequest): void {
   const data: PasswordResetLinkData = {
@@ -74,7 +74,6 @@ export function sendElectionClose(data: ElectionCloseData): void {
 
 // Re-export types por si las rutas los necesitan
 export type {
-  VoteConfirmationData,
   ElectionOpenData,
   ElectionCloseData,
 };
