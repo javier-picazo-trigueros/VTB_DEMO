@@ -40,8 +40,11 @@ describe('BLOQUE 0 — Same-origin reverse proxy, cookie policy and CSRF propaga
   });
 
   it('4. frontend/src/utils/apiClient.js must default to /backend for same-origin proxying', () => {
-    const clientPath = path.join(rootDir, 'frontend', 'src', 'utils', 'apiClient.js');
-    const content = fs.readFileSync(clientPath, 'utf8');
+    // La base vive en apiBase.js (frontend-api-base.test.ts prueba su lógica);
+    // apiClient.js solo tiene que usarla, sin URL propia.
+    const content = fs.readFileSync(path.join(rootDir, 'frontend', 'src', 'utils', 'apiBase.js'), 'utf8');
+    expect(fs.readFileSync(path.join(rootDir, 'frontend', 'src', 'utils', 'apiClient.js'), 'utf8'))
+      .toMatch(/import\s*\{\s*API_URL\s*\}\s*from\s*['"]\.\/apiBase\.js['"]/);
 
     // In a same-origin setup with route isolation, default API_URL must be '/backend',
     // NOT hardcoded to 'http://localhost:3001'
