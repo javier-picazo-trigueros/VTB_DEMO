@@ -72,6 +72,17 @@ app.use(cookieParser());
 // CORS CONFIGURATION
 // ============================================================
 
+/**
+ * Origen rechazado por CORS. Tiene su propia clase para que el manejador de
+ * errores lo distinga de un fallo real: es tráfico ajeno, no un 500.
+ */
+class CorsOriginError extends Error {
+  constructor(origin: string) {
+    super(`Origin ${origin} not allowed`);
+    this.name = 'CorsOriginError';
+  }
+}
+
 const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -95,7 +106,7 @@ app.use(cors({
     }
 
     console.warn(`CORS blocked: ${origin}`);
-    return callback(new Error(`Origin ${origin} not allowed`));
+    return callback(new CorsOriginError(origin));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -431,6 +442,12 @@ app.get("/", (req: any, res: Response) => {
 });
 
 app.use((err: any, req: any, res: any, next: any) => {
+  // Un origen que CORS ya ha rechazado (y avisado con console.warn arriba) no es
+  // un error del servidor: 403, y sin "Error no manejado" en el log.
+  if (err instanceof CorsOriginError) {
+    res.status(403).json({ error: 'Origen no permitido' });
+    return;
+  }
   // Catch-all: cualquier rechazo no capturado llega aquí, incluidos los de
   // ethers si algún camino se escapa de su try. Saneado por defecto (A1).
   console.error("Error no manejado:", formatError(err));
