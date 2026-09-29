@@ -616,12 +616,10 @@ router.delete('/me', requireAuth, async (req: Request, res: Response) => {
  * @desc  Portabilidad de datos (RGPD art. 20): descarga en JSON todo lo que
  *        el sistema tiene identificado con esta cuenta.
  *
- *        Incluye la elección de voto de nullifier_audit a propósito: es un
- *        dato personal sobre este usuario y esta ruta es una solicitud del
- *        propio titular, no una consulta de terceros — no es la afirmación
- *        de anonimato que el proyecto tiene prohibida (CLAUDE.md), es lo
- *        contrario: mostrarle a la persona exactamente qué sabe de ella el
- *        sistema.
+ *        Dice EN QUÉ elecciones participó la persona, nunca a quién votó
+ *        (SCRUM-17): la base no conserva esa correspondencia una vez cerrada
+ *        la elección, y esta ruta no debe reconstruirla. No lleva candidato,
+ *        nullifier, transacción ni hora del voto.
  */
 router.get('/me/export', requireAuth, async (req: Request, res: Response) => {
   const userId = req.user!.userId;
@@ -638,15 +636,12 @@ router.get('/me/export', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const votos = await db.run<Record<string, unknown>>(
-      `SELECT na.election_id, e.name AS election_name, na.candidate_id,
-              c.name AS candidate_name, na.vote_choice, na.tx_hash,
-              na.block_number, na.generated_at
-         FROM nullifier_audit na
-         LEFT JOIN elections e ON e.id = na.election_id
-         LEFT JOIN candidates c ON c.id = na.candidate_id
-        WHERE na.user_id = ?
-        ORDER BY na.generated_at ASC`,
+    const participaciones = await db.run<Record<string, unknown>>(
+      `SELECT ep.election_id, e.name AS election_name
+         FROM election_participations ep
+         LEFT JOIN elections e ON e.id = ep.election_id
+        WHERE ep.user_id = ?
+        ORDER BY ep.election_id ASC`,
       [userId],
     );
 
@@ -663,7 +658,7 @@ router.get('/me/export', requireAuth, async (req: Request, res: Response) => {
     res.json({
       exportado_en: new Date().toISOString(),
       perfil: profile,
-      votos_emitidos: votos,
+      elecciones_participadas: participaciones,
       elecciones_censado: censo,
     });
   } catch (err: any) {

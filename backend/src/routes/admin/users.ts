@@ -449,7 +449,7 @@ router.delete("/users/:id", requireAdmin, async (req: Request, res: Response) =>
       return;
     }
 
-    // Borrado lógico: preserva FKs (election_voters, nullifier_audit) y permite auditoría.
+    // Borrado lógico: preserva FKs (election_voters, election_participations) y permite auditoría.
     // Además se revoca cualquier sesión/refresh token activo.
     await withTransaction(async (tx) => {
       await tx.exec(

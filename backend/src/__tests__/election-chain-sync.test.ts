@@ -310,7 +310,8 @@ describe('register-vote en una elección que aún no está en blockchain', () =>
 
     expect(res.status).toBe(503);
     expect(res.body.code).toBe('ELECTION_NOT_ON_CHAIN');
-    expect(await count('SELECT COUNT(*) AS n FROM nullifier_audit WHERE user_id = ?', [user.id])).toBe(0);
+    expect(await count('SELECT COUNT(*) AS n FROM election_participations WHERE user_id = ?', [user.id])).toBe(0);
+    expect(await count('SELECT COUNT(*) AS n FROM nullifier_audit WHERE election_id = ?', [electionId])).toBe(0);
   });
 
   it('una cuenta demo también recibe 503 ELECTION_NOT_ON_CHAIN si la elección no está en blockchain', async () => {
@@ -335,6 +336,7 @@ describe('register-vote en una elección que aún no está en blockchain', () =>
 
     expect(res.status).toBe(503);
     expect(res.body.code).toBe('ELECTION_NOT_ON_CHAIN');
-    expect(await count('SELECT COUNT(*) AS n FROM nullifier_audit WHERE user_id = ?', [user.id])).toBe(0);
+    expect(await count('SELECT COUNT(*) AS n FROM election_participations WHERE user_id = ?', [user.id])).toBe(0);
+    expect(await count('SELECT COUNT(*) AS n FROM nullifier_audit WHERE election_id = ?', [electionId])).toBe(0);
   });
 });

@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
 import { getDbClient } from '../db/index.js';
-import { createFixtureElection, createAndLogin } from './helpers/fixtures.js';
+import { createFixtureElection, createAndLogin, insertVoteFixture } from './helpers/fixtures.js';
 import { setVotePortForTesting, type VotePort } from '../services/voteChain.js';
 
 const db = getDbClient();
@@ -91,19 +91,13 @@ async function eleccionConVotos(reparto: number[], opts: { contrato?: string; de
   const insertar = async (posicion: number, origen: string, i: number) => {
     const userId = await crearVotante();
     await db.exec('INSERT INTO election_voters (election_id, user_id) VALUES (?, ?)', [electionId, userId]);
-    await db.exec(
-      `INSERT INTO nullifier_audit
-         (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, vote_source)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId, electionId, `0xnull-${electionId}-${origen}-${i}`,
-        String(candidatos[posicion].id),
-        origen === 'chain' ? `0xtx-${electionId}-${i}` : null,
-        origen === 'chain' ? 100 + i : null,
-        candidatos[posicion].id,
-        origen,
-      ],
-    );
+    await insertVoteFixture({
+      userId, electionId, nullifier: `0xnull-${electionId}-${origen}-${i}`,
+      candidateId: candidatos[posicion].id,
+      txHash: origen === 'chain' ? `0xtx-${electionId}-${i}` : null,
+      blockNumber: origen === 'chain' ? 100 + i : null,
+      voteSource: origen as 'chain' | 'demo',
+    });
   };
 
   for (const [i, posicion] of reparto.entries()) await insertar(posicion, 'chain', i);

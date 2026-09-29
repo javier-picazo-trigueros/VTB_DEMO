@@ -1,5 +1,6 @@
 import { getDbClient, ensureSchema, withTransaction } from "../db/index.js";
 import { PgClient } from "../db/postgres.js";
+import { recordConfirmedVote } from "../db/voteRecord.js";
 import { hashPassword, generateNullifier } from "../utils/auth.js";
 
 /**
@@ -9,15 +10,14 @@ import { hashPassword, generateNullifier } from "../utils/auth.js";
  *   (o `--reset`) borra usuarios, elecciones, candidatos, censo y votos antes de
  *   sembrar. Ver runSeed() al final del fichero.
  * - seedDemoData() no duplica datos, pero NO es de solo inserción: reescribe las
- *   contraseñas de las cuentas demo, borra sus votos y borra los votos sin bloque
- *   de usuarios que no son demo.
+ *   contraseñas de las cuentas demo y borra sus votos (los de vote_source='demo'
+ *   y la participación de las cuentas demo).
  *
  * Solo genera datos para la universidad ficticia "Meridian University"
  * (dominio vtb.demo) y el superadmin de plataforma (vtb.system). No crea
  * ni mantiene ninguna otra institución — si una base de datos ya tiene
  * cuentas reales bajo otros dominios (p. ej. de un piloto real), no borra
- * esas cuentas, pero sí sus votos que no tengan número de bloque (ver el
- * DELETE sobre nullifier_audit al principio de seedDemoData). Por eso el
+ * esas cuentas ni sus votos. Aun así, el
  * script aborta si ya hay datos.
  */
 /**
@@ -63,11 +63,6 @@ export async function seedDemoData(): Promise<void> {
   await db.exec("UPDATE election_access SET email_domain = 'highlands.edu' WHERE email_domain = 'highland.edu'").catch(() => {});
   await db.exec("UPDATE election_targets SET target_value = 'highlands.edu' WHERE target_value = 'highland.edu'").catch(() => {});
   await db.exec("UPDATE schools_and_degrees SET institution_domain = 'highlands.edu' WHERE institution_domain = 'highland.edu'").catch(() => {});
-  await db.exec(
-    `DELETE FROM nullifier_audit
-     WHERE block_number IS NULL
-     AND user_id IN (SELECT id FROM users WHERE email NOT LIKE '%@vtb.demo')`
-  ).catch(() => {});
 
   // Rename the "vtb.demo" sandbox identity to "Meridian University" for live demos.
   // Domain and emails are UNCHANGED (student@vtb.demo etc. — tests and DemoLoginModal
@@ -244,9 +239,12 @@ export async function seedDemoData(): Promise<void> {
     for (const email of ['student@vtb.demo', 'student2@vtb.demo']) {
       const demoUser = await tx.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]);
       if (demoUser) {
-        await tx.exec("DELETE FROM nullifier_audit WHERE user_id = ?", [demoUser.id]).catch(() => {});
+        await tx.exec("DELETE FROM election_participations WHERE user_id = ?", [demoUser.id]).catch(() => {});
       }
     }
+    // Los votos ya no llevan usuario (SCRUM-17): los de demostración se
+    // reconocen por vote_source, que solo escribe el atajo @vtb.demo y el seed.
+    await tx.exec("DELETE FROM nullifier_audit WHERE vote_source = 'demo'").catch(() => {});
 
     // ============================================================
     // Elecciones de Meridian University — se mantienen en cada arranque
@@ -404,11 +402,15 @@ export async function seedDemoData(): Promise<void> {
       if (!userId || !electionId) continue;
       const nullifierHash = generateNullifier(userId, electionId);
       try {
-        await tx.exec(
-          `INSERT OR IGNORE INTO nullifier_audit (user_id, election_id, nullifier_hash)
-           VALUES (?, ?, ?)`,
-          [userId, electionId, nullifierHash]
-        );
+        await recordConfirmedVote(tx, {
+          userId,
+          electionId,
+          nullifierHash,
+          candidateId: null,
+          txHash: null,
+          blockNumber: null,
+          voteSource: 'demo',
+        });
         voteCount++;
       } catch (err: any) {
         console.error(`  ❌ Error simulando voto: ${err.message}`);
@@ -453,6 +455,7 @@ export async function seedDemoData(): Promise<void> {
 /** Tablas que vacía `--reset`, de hijas a padres para no chocar con las FK. */
 const RESET_TABLES = [
   'nullifier_audit',
+  'election_participations',
   'election_voters',
   'election_targets',
   'election_access',

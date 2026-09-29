@@ -74,17 +74,32 @@ export class Database {
           )
         `);
 
-        // Tabla de Auditoría de Generación de Nullifiers
+        // Participación: quién ha votado en qué elección, y nada más (SCRUM-17).
+        // Sin id, sin hora y sin nullifier, igual que la migración 016.
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS election_participations (
+            election_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            PRIMARY KEY (election_id, user_id),
+            FOREIGN KEY (election_id) REFERENCES elections (id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+          )
+        `);
+
+        // Votos: sin user_id (SCRUM-17). Id aleatorio, asignado por la
+        // aplicación, y hora truncada al minuto. Paridad con la migración 016.
         this.db.run(`
           CREATE TABLE IF NOT EXISTS nullifier_audit (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
             election_id INTEGER NOT NULL,
             nullifier_hash TEXT NOT NULL,
-            generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
+            tx_hash TEXT DEFAULT NULL,
+            block_number INTEGER DEFAULT NULL,
+            candidate_id INTEGER DEFAULT NULL,
+            generated_at DATETIME DEFAULT (strftime('%Y-%m-%d %H:%M:00', 'now')),
+            vote_source TEXT NOT NULL DEFAULT 'legacy',
             FOREIGN KEY (election_id) REFERENCES elections (id),
-            UNIQUE(user_id, election_id)
+            UNIQUE(election_id, nullifier_hash)
           )
         `);
 
@@ -203,7 +218,6 @@ export class Database {
     await this.exec("ALTER TABLE users ADD COLUMN approved_at DATETIME DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN approved_password TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE registration_requests ADD COLUMN password_hash TEXT DEFAULT NULL").catch(() => {});
-    await this.exec("ALTER TABLE nullifier_audit ADD COLUMN vote_choice TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE nullifier_audit ADD COLUMN tx_hash TEXT DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE nullifier_audit ADD COLUMN block_number INTEGER DEFAULT NULL").catch(() => {});
     await this.exec("ALTER TABLE nullifier_audit ADD COLUMN candidate_id INTEGER DEFAULT NULL").catch(() => {});
@@ -417,6 +431,58 @@ export class Database {
       'ALTER TABLE elections ADD COLUMN ephemeral_salt TEXT DEFAULT NULL',
     ]) {
       await this.exec(ddl).catch(() => {});
+    }
+
+    await this.separateParticipationFromVotes();
+  }
+
+  /**
+   * Paridad con la migración 016 para bases SQLite de desarrollo anteriores a
+   * SCRUM-17: su nullifier_audit todavía lleva user_id. Copia (election_id,
+   * user_id) a election_participations y reconstruye los votos sin user_id, con
+   * id aleatorio, hora al minuto y en orden barajado.
+   *
+   * Irreversible, igual que la 016. Idempotente: si la tabla ya no tiene
+   * user_id, no hace nada (es lo que pasa en cada arranque y en los tests, que
+   * crean la tabla ya en su forma nueva).
+   */
+  private async separateParticipationFromVotes(): Promise<void> {
+    const columnas = await this.run<{ name: string }>('PRAGMA table_info(nullifier_audit)');
+    if (!columnas.some(c => c.name === 'user_id')) return;
+
+    await this.exec('BEGIN IMMEDIATE');
+    try {
+      await this.exec(
+        `INSERT OR IGNORE INTO election_participations (election_id, user_id)
+         SELECT election_id, user_id FROM nullifier_audit ORDER BY RANDOM()`,
+      );
+      await this.exec('DROP TABLE IF EXISTS nullifier_audit_new');
+      await this.exec(`
+        CREATE TABLE nullifier_audit_new (
+          id TEXT PRIMARY KEY,
+          election_id INTEGER NOT NULL,
+          nullifier_hash TEXT NOT NULL,
+          tx_hash TEXT DEFAULT NULL,
+          block_number INTEGER DEFAULT NULL,
+          candidate_id INTEGER DEFAULT NULL,
+          generated_at DATETIME DEFAULT (strftime('%Y-%m-%d %H:%M:00', 'now')),
+          vote_source TEXT NOT NULL DEFAULT 'legacy',
+          FOREIGN KEY (election_id) REFERENCES elections (id),
+          UNIQUE(election_id, nullifier_hash)
+        )`);
+      await this.exec(
+        `INSERT OR IGNORE INTO nullifier_audit_new
+           (id, election_id, nullifier_hash, tx_hash, block_number, candidate_id, generated_at, vote_source)
+         SELECT lower(hex(randomblob(16))), election_id, nullifier_hash, tx_hash, block_number, candidate_id,
+                strftime('%Y-%m-%d %H:%M:00', generated_at), vote_source
+           FROM nullifier_audit ORDER BY RANDOM()`,
+      );
+      await this.exec('DROP TABLE nullifier_audit');
+      await this.exec('ALTER TABLE nullifier_audit_new RENAME TO nullifier_audit');
+      await this.exec('COMMIT');
+    } catch (err) {
+      await this.exec('ROLLBACK').catch(() => {});
+      throw err;
     }
   }
 

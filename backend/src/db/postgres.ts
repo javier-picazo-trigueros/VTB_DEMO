@@ -2,6 +2,7 @@ import pg from 'pg';
 import type { DbClient, ExecResult } from './client.js';
 import { VoteConflictError } from './client.js';
 import type { BusquedaDeVoto } from '../services/voteChain.js';
+import { recordConfirmedVote } from './voteRecord.js';
 
 const { Pool } = pg;
 
@@ -57,7 +58,13 @@ export function toPositional(sql: string): string {
  *
  * Si se añade otra tabla con clave compuesta, va aquí.
  */
-const TABLES_WITHOUT_ID = new Set(['election_voters']);
+const TABLES_WITHOUT_ID = new Set([
+  'election_voters',
+  // SCRUM-17: clave compuesta, sin id.
+  'election_participations',
+  // SCRUM-17: su id es un UUID aleatorio, no un autoincremental; nadie usa lastID.
+  'nullifier_audit',
+]);
 
 /** Extrae el nombre de la tabla de un INSERT, o null si no se reconoce. */
 function insertTarget(sql: string): string | null {
@@ -124,7 +131,7 @@ class PgTransactionClient implements DbClient {
     candidateId: number | null,
   ): Promise<void> {
     const yaVoto = await this.client.query(
-      `SELECT id FROM nullifier_audit WHERE user_id = $1 AND election_id = $2 LIMIT 1`,
+      `SELECT 1 FROM election_participations WHERE user_id = $1 AND election_id = $2 LIMIT 1`,
       [userId, electionId],
     );
     if ((yaVoto.rowCount ?? 0) > 0) {
@@ -287,7 +294,7 @@ export class PgClient implements DbClient {
     candidateId: number | null,
   ): Promise<void> {
     const yaVoto = await this.pool.query(
-      `SELECT id FROM nullifier_audit WHERE user_id = $1 AND election_id = $2 LIMIT 1`,
+      `SELECT 1 FROM election_participations WHERE user_id = $1 AND election_id = $2 LIMIT 1`,
       [userId, electionId],
     );
     if ((yaVoto.rowCount ?? 0) > 0) {
@@ -376,8 +383,8 @@ export class PgClient implements DbClient {
    * Para cada intento 'pending' con más de 30 min de antigüedad se pregunta a la
    * cadena por su nullifier, y se actúa según lo que conteste:
    *
-   *   'encontrado'    → reconstruye la fila de nullifier_audit con los datos del
-   *                     evento VoteCast y marca el intento 'confirmed'
+   *   'encontrado'    → reconstruye la participación y el voto con los datos del
+   *                     evento VoteCast y borra el intento
    *   'no-esta'       → marca 'failed' (permite reintentar; el contrato
    *                     rechazará el nullifier si en realidad ya se usó)
    *   'sin-respuesta' → NO TOCA NADA. El intento sigue 'pending' y se vuelve a
@@ -446,7 +453,7 @@ export class PgClient implements DbClient {
         const onChain = respuesta.estado === 'encontrado' ? respuesta.recibo : null;
 
         if (onChain) {
-          // Reconstruir la fila de nullifier_audit y confirmar el intento dentro de la MISMA transacción.
+          // Reconstruir participación y voto, y borrar el intento, dentro de la MISMA transacción.
           await this.transaction(async (tx) => {
             // Contrastar el candidato del evento con la tabla candidates y detectar discrepancias
             let finalCandidateId = attempt.candidate_id;
@@ -469,28 +476,17 @@ export class PgClient implements DbClient {
               }
             }
 
-            // Voto confirmado en blockchain: se elimina el intento para no conservar vinculación
-            await tx.exec(
-              `DELETE FROM vote_attempts WHERE id = $1`,
-              [attempt.id],
-            );
-
-            await tx.exec(
-              `INSERT INTO nullifier_audit
-                 (user_id, election_id, nullifier_hash, tx_hash, block_number, candidate_id, vote_choice, vote_source)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT (user_id, election_id) DO NOTHING`,
-              [
-                attempt.user_id,
-                attempt.election_id,
-                attempt.nullifier_hash,
-                onChain.txHash,
-                onChain.blockNumber,
-                finalCandidateId,
-                finalCandidateId != null ? String(finalCandidateId) : null,
-                'chain',
-              ],
-            );
+            // Voto confirmado en blockchain: borra el intento e inserta participación
+            // y voto, todo en esta misma transacción (ver db/voteRecord.ts).
+            await recordConfirmedVote(tx, {
+              userId: attempt.user_id,
+              electionId: attempt.election_id,
+              nullifierHash: attempt.nullifier_hash as string,
+              candidateId: finalCandidateId,
+              txHash: onChain.txHash,
+              blockNumber: onChain.blockNumber,
+              voteSource: 'chain',
+            });
           });
         } else if (
           respuesta.estado === 'revertido' ||

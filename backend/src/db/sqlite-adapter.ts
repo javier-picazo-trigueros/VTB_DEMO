@@ -57,8 +57,8 @@ export class SqliteAdapter implements DbClient {
     candidateId: number | null,
   ): Promise<void> {
     // Comprobación previa al voto en cadena (pre-blockchain check), igual que antes.
-    const existing = await this.db.get<{ id: number }>(
-      'SELECT id FROM nullifier_audit WHERE user_id = ? AND election_id = ?',
+    const existing = await this.db.get<{ ya: number }>(
+      'SELECT 1 AS ya FROM election_participations WHERE user_id = ? AND election_id = ?',
       [userId, electionId],
     );
     if (existing) throw new VoteConflictError('Ya has votado en esta elección');
@@ -91,7 +91,7 @@ export class SqliteAdapter implements DbClient {
     if (status === 'confirmed') {
       // Igual que PgClient: al confirmarse, se borra la fila en vez de dejarla
       // 'confirmed' — no hay razón para retener la relación user_id/candidate_id
-      // en vote_attempts una vez el voto ya está en nullifier_audit.
+      // en vote_attempts una vez el voto ya está registrado.
       await this.db.exec(
         'DELETE FROM vote_attempts WHERE user_id = ? AND election_id = ?',
         [userId, electionId],

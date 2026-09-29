@@ -7,6 +7,8 @@ function createMockPool() {
   const handleQuery = async (sql: string, params: unknown[] = []): Promise<ResultadoConsulta> => {
     executedQueries.push({ sql, params });
 
+    if (/72 hours/.test(sql)) return { rows: [], rowCount: 0 };
+
     if (/FROM vote_attempts/i.test(sql) && /'pending'/.test(sql)) {
       return {
         rows: [
@@ -71,8 +73,9 @@ describe('Borrado de vote_attempts al confirmarse el voto', () => {
     }));
 
     // Debe eliminar el intento confirmado de vote_attempts
+    // (por usuario y elección: es el mismo borrado de recordConfirmedVote)
     const deleteAttempt = executedQueries.find(q =>
-      /DELETE FROM vote_attempts/i.test(q.sql) && q.params.includes(1)
+      /DELETE FROM vote_attempts/i.test(q.sql) && q.params[0] === 101 && q.params[1] === 5
     );
     expect(deleteAttempt).toBeDefined();
   });

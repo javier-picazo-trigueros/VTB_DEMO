@@ -307,11 +307,11 @@ app.get('/api/stats', async (req: any, res: Response) => {
       studentEmails.map((u) => u.email.split('@')[1]).filter(Boolean)
     ).size;
     const blockchainTransactions = await db.get<{ count: number }>(
+      // Sin JOIN a users: los votos ya no llevan usuario (SCRUM-17). Las cuentas
+      // demo se excluyen por vote_source, no por el correo de quien votó.
       `SELECT COUNT(*) as count FROM nullifier_audit
-       JOIN users u ON nullifier_audit.user_id = u.id
-       WHERE nullifier_audit.tx_hash IS NOT NULL AND nullifier_audit.tx_hash != ''
-       AND nullifier_audit.block_number IS NOT NULL
-       AND u.email NOT LIKE '%@vtb.demo'`
+       WHERE vote_source = 'chain' AND tx_hash IS NOT NULL AND tx_hash != ''
+       AND block_number IS NOT NULL`
     );
     res.json({
       totalElections: totalElections?.count || 0,
@@ -359,8 +359,7 @@ app.get('/api/audit/public', async (req: any, res: Response) => {
          e.name as election_name
        FROM nullifier_audit na
        JOIN elections e ON na.election_id = e.id
-       JOIN users u ON na.user_id = u.id
-       WHERE u.email NOT LIKE '%@vtb.demo'
+       WHERE na.vote_source = 'chain'
        AND na.block_number IS NOT NULL
        ORDER BY na.generated_at DESC
        LIMIT 20`

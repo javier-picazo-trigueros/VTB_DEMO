@@ -8,13 +8,13 @@ import type { DbClient } from '../db/client.js';
  * Una vez destruida (puesta a NULL), el nullifier de esa elección deja de poder
  * recalcularse desde cero — ni con NULLIFIER_SECRET basta, porque falta la sal.
  *
- * OJO — esto NO anonimiza el voto ni desvincula votante y voto ya emitidos:
- * `nullifier_audit` sigue guardando `user_id`, `election_id` y `vote_choice` en la
- * misma fila, sin plazo de borrado, con o sin sal. La sal solo cierra la puerta a
- * que alguien recalcule el nullifier de fuera hacia dentro tras el cierre; no borra
- * la correspondencia que la base ya tiene escrita. Esa separación (mover el
- * `user_id` fuera de la fila del voto) es trabajo pendiente, no algo que esta
- * función resuelva.
+ * Desde SCRUM-17 (migración 016), `nullifier_audit` ya no guarda `user_id`: la
+ * persona vive en `election_participations`, sin nullifier, candidato ni
+ * transacción. Con la sal destruida, ninguna fila de la base une a una persona
+ * con su voto. Lo que sigue sin cubrirse está en SEGURIDAD.md: durante la
+ * votación el servidor puede calcular cualquier nullifier, `vote_attempts` une
+ * usuario y nullifier mientras un voto está pendiente, y las copias de
+ * seguridad anteriores a la migración conservan el vínculo.
  *
  * @returns true si la sal fue destruida en esta llamada, false si no se pudo destruir.
  */

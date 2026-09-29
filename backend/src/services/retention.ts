@@ -74,7 +74,7 @@ export async function purgeExpiredAuthTokens(db: DbClient): Promise<number> {
 /**
  * Anonimiza (no borra) las cuentas dadas de baja hace más de 30 días:
  * email, nombre e identificador dejan de ser legibles. No borra la fila —
- * borrarla rompería las claves foráneas de election_voters, nullifier_audit,
+ * borrarla rompería las claves foráneas de election_voters, election_participations,
  * vote_attempts, refresh_tokens y password_reset_tokens, todas por user_id,
  * no por email — así que la anonimización solo toca columnas, nunca la
  * clave primaria. Idempotente: solo procesa deleted_at antiguos con

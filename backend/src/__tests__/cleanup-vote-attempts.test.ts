@@ -114,7 +114,14 @@ describe('cleanupStaleVoteAttempts', () => {
 
     // El intento confirmado se elimina de vote_attempts para no retener la relación persona-voto
     expect(eliminaciones()).toHaveLength(1);
-    expect(eliminaciones()[0].params[0]).toBe(1);
+    expect(eliminaciones()[0].params).toEqual([10, 5]);
+
+    // La participación (sin hora, sin id) va en la misma transacción que el voto
+    const participaciones = consultas.filter(c => /INSERT INTO election_participations/i.test(c.sql));
+    expect(participaciones).toHaveLength(1);
+    expect(participaciones[0].params).toEqual([5, 10]);
+    // ... y el voto no lleva el usuario
+    expect(inserciones()[0].sql).not.toMatch(/user_id/);
 
     expect(inserciones()).toHaveLength(1);
     expect(inserciones()[0].sql).toMatch(/vote_source/);
@@ -136,9 +143,9 @@ describe('cleanupStaleVoteAttempts', () => {
 
   it('con varios intentos, solo se deja pendiente el que no obtuvo respuesta o nonce sigue libre', async () => {
     const { pool, actualizaciones, eliminaciones } = poolFalso([
-      intento({ id: 1, nullifier_hash: '0xa' }),
-      intento({ id: 2, nullifier_hash: '0xb' }),
-      intento({ id: 3, nullifier_hash: '0xc' }),
+      intento({ id: 1, user_id: 11, nullifier_hash: '0xa' }),
+      intento({ id: 2, user_id: 12, nullifier_hash: '0xb' }),
+      intento({ id: 3, user_id: 13, nullifier_hash: '0xc' }),
     ]);
     const checkOnChain = vi.fn(async (n: string): Promise<BusquedaDeVoto> => {
       if (n === '0xa') return { estado: 'encontrado', recibo: { txHash: '0xtx', blockNumber: 1 } };
@@ -149,13 +156,10 @@ describe('cleanupStaleVoteAttempts', () => {
     await clienteCon(pool).cleanupStaleVoteAttempts(checkOnChain);
 
     expect(checkOnChain).toHaveBeenCalledTimes(3);
-    const tocados = [
-      ...actualizaciones().map(c => c.params[1]),
-      ...eliminaciones().map(c => c.params[0]),
-    ];
-    expect(tocados).toContain(1);
-    expect(tocados).toContain(3);
-    expect(tocados).not.toContain(2);
+    // El confirmado (0xa, usuario 11) se borra; el reemplazado (0xc, intento 3)
+    // se marca fallido; el que no obtuvo respuesta (0xb) no se toca.
+    expect(eliminaciones().map(c => c.params[0])).toEqual([11]);
+    expect(actualizaciones().map(c => c.params[1])).toEqual([3]);
   });
 
   it('un intento que falla no impide procesar los siguientes', async () => {

@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
 import { getDatabase } from '../config/database.js';
-import { createAndLogin, createFixtureUser, createFixtureElection } from './helpers/fixtures.js';
+import { createAndLogin, createFixtureUser, createFixtureElection, insertVoteFixture } from './helpers/fixtures.js';
 
 type Actor = Awaited<ReturnType<typeof createAndLogin>>;
 
@@ -41,11 +41,10 @@ async function electionWithVotes(opts: { startTime: number; endTime: number; hid
   const reparto = [cands[0], cands[0], cands[0], cands[1]];
   for (const [i, c] of reparto.entries()) {
     const voter = await createFixtureUser({});
-    await db.exec(
-      `INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, candidate_id, vote_source)
-       VALUES (?, ?, ?, ?, ?, 'demo')`,
-      [voter.id, id, `0x${id}-${i}-${Date.now()}`, String(c.id), c.id],
-    );
+    await insertVoteFixture({
+      userId: voter.id, electionId: id, nullifier: `0x${id}-${i}-${Date.now()}`,
+      candidateId: c.id, voteSource: 'demo',
+    });
   }
   return id;
 }

@@ -141,3 +141,38 @@ export async function createFixtureElection(opts: {
 
   return result.lastID;
 }
+
+/**
+ * Inserta un voto confirmado tal como lo deja la aplicación (SCRUM-17): la
+ * participación (election_id, user_id) y el voto sin user_id. Sin pasar por
+ * recordConfirmedVote a propósito, para poder fijar la hora o el origen.
+ */
+export async function insertVoteFixture(opts: {
+  userId: number;
+  electionId: number;
+  nullifier: string;
+  candidateId?: number | null;
+  txHash?: string | null;
+  blockNumber?: number | null;
+  voteSource?: 'chain' | 'demo' | 'legacy';
+  generatedAt?: string;
+}): Promise<void> {
+  const db = getDatabase();
+  await db.exec(
+    'INSERT INTO election_participations (election_id, user_id) VALUES (?, ?)',
+    [opts.electionId, opts.userId],
+  );
+  const columnas = ['id', 'election_id', 'nullifier_hash', 'candidate_id', 'tx_hash', 'block_number', 'vote_source'];
+  const valores: unknown[] = [
+    crypto.randomUUID(), opts.electionId, opts.nullifier, opts.candidateId ?? null,
+    opts.txHash ?? null, opts.blockNumber ?? null, opts.voteSource ?? 'legacy',
+  ];
+  if (opts.generatedAt) {
+    columnas.push('generated_at');
+    valores.push(opts.generatedAt);
+  }
+  await db.exec(
+    `INSERT INTO nullifier_audit (${columnas.join(', ')}) VALUES (${columnas.map(() => '?').join(', ')})`,
+    valores,
+  );
+}
