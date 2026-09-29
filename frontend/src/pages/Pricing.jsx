@@ -76,7 +76,7 @@ const TIERS = [
 const FAQ = [
   {
     q: 'How does VTB prevent double voting?',
-    a: 'Each vote generates a unique HMAC-SHA256 nullifier derived from the voter\'s identity and the election ID. The nullifier is recorded on-chain: it is mathematically impossible to link it to a specific voter from the blockchain alone, while making any second vote attempt detectable and rejected.',
+    a: 'Each vote generates a unique HMAC-SHA256 nullifier derived from the voter\'s identity and the election ID. The nullifier is recorded on-chain: the chain shows no name or email, and any second vote attempt is detectable and rejected. The vote is pseudonymous, not anonymous: the database does not keep the voter-to-vote correspondence once the election is closed, but the operator knows it at the moment the vote is processed.',
   },
   {
     q: 'What blockchain network does VTB use?',
@@ -92,7 +92,7 @@ const FAQ = [
   },
   {
     q: 'Is the voter census stored on-chain?',
-    a: 'No. Voter identity stays in your institution\'s database (Web2). Only nullifiers and vote hashes are written to the blockchain — they do not identify the voter on-chain. This hybrid architecture preserves auditability without exposing identity in the blockchain.',
+    a: 'No. Voter identity stays in your institution\'s database (Web2). Only nullifiers and vote hashes are written to the blockchain: no name or email appears on-chain. The vote is not anonymous, though: the operator knows the voter-to-vote correspondence when the vote is processed, and the database only stops keeping it once the election is closed.',
   },
 ];
 

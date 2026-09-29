@@ -1348,7 +1348,7 @@ export const AdminPanel = () => {
                         </div>
                         {newElection.voter_role === 'admin' && (
                           <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 mt-2">
-                            Esta elección será visible para los administradores cuyo dominio dependa del tuyo. Sus votos se registran en blockchain mediante nullifiers, sin exponer la identidad del votante en el registro público.
+                            Esta elección será visible para los administradores cuyo dominio dependa del tuyo. Sus votos se registran en blockchain mediante nullifiers: en la cadena no figura nombre ni correo, pero el voto no es anónimo, porque el operador conoce la correspondencia al procesarlo.
                           </p>
                         )}
                       </div>
