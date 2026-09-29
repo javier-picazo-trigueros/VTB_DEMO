@@ -65,9 +65,12 @@ function poolFalso(pendientes: IntentoPendiente[], candidatos: Array<{ id: numbe
     end: async () => {},
   };
 
-  const escrituras = () => consultas.filter(c => /UPDATE|INSERT|DELETE/i.test(c.sql));
+  // La purga por caducidad (SCRUM-17) es un DELETE ... INTERVAL al final de cada
+  // pasada; no es una escritura de reconciliación y tiene su propio test.
+  const esPurga = (sql: string) => /INTERVAL/i.test(sql) && /DELETE FROM vote_attempts/i.test(sql);
+  const escrituras = () => consultas.filter(c => /UPDATE|INSERT|DELETE/i.test(c.sql) && !esPurga(c.sql));
   const actualizaciones = () => consultas.filter(c => /UPDATE vote_attempts/i.test(c.sql));
-  const eliminaciones = () => consultas.filter(c => /DELETE FROM vote_attempts/i.test(c.sql));
+  const eliminaciones = () => consultas.filter(c => /DELETE FROM vote_attempts/i.test(c.sql) && !esPurga(c.sql));
   const inserciones = () => consultas.filter(c => /INSERT INTO nullifier_audit/i.test(c.sql));
 
   return { pool, consultas, escrituras, actualizaciones, eliminaciones, inserciones };
@@ -189,7 +192,9 @@ describe('cleanupStaleVoteAttempts', () => {
 
     await clienteCon(pool).cleanupStaleVoteAttempts(respuesta({ estado: 'no-esta' }));
 
-    expect(consultas).toHaveLength(1);
+    // La consulta de reconciliación, más la purga por caducidad del final.
+    expect(consultas).toHaveLength(2);
+    expect(consultas[1].sql).toMatch(/DELETE FROM vote_attempts/);
     expect(consultas[0].sql).toMatch(/status = 'pending'/);
     expect(consultas[0].sql).toMatch(/INTERVAL '30 minutes'/);
   });

@@ -230,6 +230,18 @@ export interface PoolLike {
   end(): Promise<void>;
 }
 
+/**
+ * Plazo máximo de vote_attempts (SCRUM-17). La tabla une usuario y nullifier
+ * mientras un voto está sin resolver; sin caducidad ese vínculo duraría para
+ * siempre en los intentos fallidos y en los que el nodo nunca contesta.
+ *
+ * El pendiente tiene más margen que el fallido: puede ser un voto real que aún
+ * no se ha podido reconciliar. Si caduca y la transacción sí estaba en la
+ * cadena, reintentar da 409 (el contrato rechaza el nullifier repetido).
+ */
+export const VOTE_ATTEMPT_FAILED_TTL_HOURS = 24;
+export const VOTE_ATTEMPT_PENDING_TTL_HOURS = 72;
+
 export class PgClient implements DbClient {
   private pool: PoolLike;
 
@@ -512,6 +524,14 @@ export class PgClient implements DbClient {
         console.error(`[cleanup] Error procesando intento ${attempt.id}:`, err);
       }
     }
+
+    // Después de reconciliar, para que un intento resoluble se resuelva antes
+    // de caducar. Lo que sigue aquí pasado el plazo se borra.
+    await this.pool.query(
+      `DELETE FROM vote_attempts
+        WHERE (status = 'failed'  AND COALESCE(completed_at, started_at) < NOW() - INTERVAL '${VOTE_ATTEMPT_FAILED_TTL_HOURS} hours')
+           OR (status = 'pending' AND started_at < NOW() - INTERVAL '${VOTE_ATTEMPT_PENDING_TTL_HOURS} hours')`,
+    );
   }
 
   async close(): Promise<void> {
