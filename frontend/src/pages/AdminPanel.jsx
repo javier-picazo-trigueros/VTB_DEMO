@@ -49,7 +49,11 @@ const KPI_TONES = {
 function TabButton({ id, label, icon, badge, active, onSelect }) {
   return (
     <button
-      data-tour={id === "inbox" ? "requests-tab" : id === "stats" ? "stats-tab" : undefined}
+      // Los tres objetivos del tutorial son botones de pestaña: están siempre en
+      // pantalla. "create-election" estaba en el formulario de crear usuarios
+      // (pestaña "users"), que no existe al abrir /admin: el paso 2 no encontraba
+      // su objetivo y el tutorial se cerraba.
+      data-tour={id === "inbox" ? "requests-tab" : id === "stats" ? "stats-tab" : id === "elections" ? "create-election" : undefined}
       onClick={() => onSelect(id)}
       className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${active
           ? "bg-emerald-500 text-white"
@@ -1026,7 +1030,6 @@ export const AdminPanel = () => {
                   )}
                   {/* Form */}
                   <motion.div
-                    data-tour="create-election"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"
