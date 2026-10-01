@@ -1165,7 +1165,7 @@ const resources = {
         candidateCountPlural: "{{count}} candidatos",
         noCandidates: "No hay candidatos disponibles",
         connectingLiveFeed: "Conectando al directo de votos...",
-        currentParticipation: "Participacion actual",
+        currentParticipation: "Participación actual",
         participationSummary: "{{votes}} de {{total}} votantes han votado ({{rate}}%)",
         confirmDialogTitle: "Confirma tu voto",
         confirmDialogSubtitle: "Revisa tu selección antes de emitir.",

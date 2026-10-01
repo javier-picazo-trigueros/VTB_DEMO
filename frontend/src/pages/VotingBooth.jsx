@@ -879,7 +879,7 @@ export const VotingBoothContent = () => {
                   )}
 
                   {/* Candidate list — left-border selection pattern, no scale animations */}
-                  <div className="divide-y divide-warm-100 border border-warm-200 rounded overflow-hidden">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded overflow-hidden">
                     {candidates.map((candidate) => {
                       const selected = selectedCandidate === candidate.id;
                       return (
@@ -887,12 +887,17 @@ export const VotingBoothContent = () => {
                           key={candidate.id}
                           onClick={() => setSelectedCandidate(candidate.id)}
                           disabled={inProgress}
-                          className={`w-full px-4 py-3.5 text-left transition-colors duration-100 flex items-center gap-4 ${
+                          className={`relative w-full px-4 py-3.5 text-left transition-colors duration-100 flex items-center gap-4 ${
                             selected
-                              ? "border-l-[3px] border-l-brand-600 bg-brand-50/40 dark:bg-brand-600/25 pl-[13px]"
-                              : "border-l-[3px] border-l-transparent hover:bg-warm-50 dark:hover:bg-slate-700/50"
+                              ? "bg-brand-50/40 dark:bg-brand-600/25"
+                              : "hover:bg-warm-50 dark:hover:bg-slate-700/50"
                           }`}
                         >
+                          {/* Barra de selección. No es un border-l: junto al borde
+                              superior que pone divide-y, un borde izquierdo
+                              transparente se unía en diagonal y dejaba un trozo
+                              blanco a la izquierda de la segunda tarjeta. */}
+                          {selected && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-brand-600" />}
                           {/* Radio circle */}
                           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                             selected ? "border-brand-600 bg-brand-600" : "border-slate-300 dark:border-slate-500"
@@ -930,7 +935,7 @@ export const VotingBoothContent = () => {
                       className={`w-full py-3 rounded font-semibold text-sm transition-colors ${
                         selectedCandidate && !inProgress
                           ? "bg-brand-600 hover:bg-brand-700 text-white"
-                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                          : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 cursor-not-allowed"
                       }`}
                     >
                       {inProgress
@@ -940,7 +945,7 @@ export const VotingBoothContent = () => {
                         : t("votingBooth.selectOption")}
                     </button>
                     {!selectedCandidate && (
-                      <p className="text-center text-xs text-slate-400 mt-2">
+                      <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-2">
                         {t("votingBooth.selectOption")}
                       </p>
                     )}

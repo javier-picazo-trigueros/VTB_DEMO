@@ -53,3 +53,22 @@ describe('"votantes registrados" sale del censo', () => {
     expect(booth).toMatch(/total: participation\.totalVoters/);
   });
 });
+
+describe('detalles de la lista de candidatos y del botón', () => {
+  it('"Participación" lleva tilde', () => {
+    expect(i18n).toMatch(/currentParticipation: "Participación actual"/);
+    expect(i18n).not.toMatch(/Participacion actual/);
+  });
+
+  it('la selección no usa border-l junto a divide-y (dejaba un trozo blanco en la segunda tarjeta)', () => {
+    expect(lista).not.toMatch(/border-l-/);
+    expect(booth).toMatch(/divide-slate-100 dark:divide-slate-700/);
+    expect(lista).toMatch(/absolute inset-y-0 left-0 w-\[3px\] bg-brand-600/);
+  });
+
+  it('el botón desactivado ya no es slate-400 sobre slate-100 y tiene variante dark:', () => {
+    const boton = booth;
+    expect(boton).not.toMatch(/bg-slate-100 text-slate-400 cursor-not-allowed/);
+    expect(boton).toMatch(/bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300/);
+  });
+});
