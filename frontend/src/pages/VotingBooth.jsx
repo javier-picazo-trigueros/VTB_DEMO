@@ -891,24 +891,26 @@ export const VotingBoothContent = () => {
                           disabled={inProgress}
                           className={`w-full px-4 py-3.5 text-left transition-colors duration-100 flex items-center gap-4 ${
                             selected
-                              ? "border-l-[3px] border-l-brand-600 bg-brand-50/40 pl-[13px]"
-                              : "border-l-[3px] border-l-transparent hover:bg-warm-50"
+                              ? "border-l-[3px] border-l-brand-600 bg-brand-50/40 dark:bg-brand-600/25 pl-[13px]"
+                              : "border-l-[3px] border-l-transparent hover:bg-warm-50 dark:hover:bg-slate-700/50"
                           }`}
                         >
                           {/* Radio circle */}
                           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                            selected ? "border-brand-600 bg-brand-600" : "border-slate-300"
+                            selected ? "border-brand-600 bg-brand-600" : "border-slate-300 dark:border-slate-500"
                           }`}>
                             {selected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={`font-medium text-sm ${
-                              selected ? "text-brand-700" : "text-slate-800"
+                              selected
+                                ? "text-brand-700 dark:text-brand-100"
+                                : "text-slate-900 dark:text-white"
                             }`}>
                               {candidate.name}
                             </p>
                             {candidate.description && (
-                              <p className="text-xs text-slate-400 mt-0.5 truncate">
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                                 {candidate.description}
                               </p>
                             )}
