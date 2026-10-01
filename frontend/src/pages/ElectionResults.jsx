@@ -237,7 +237,7 @@ const ElectionResults = () => {
         pdf.setFontSize(8);
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(100, 116, 139);
-        pdf.text(`${currentAuditData.length} votes recorded. Nullifier and vote hash on-chain do not identify the voter in the blockchain.`, margin, y);
+        pdf.text(`${currentAuditData.length} votes recorded. The chain shows each vote's nullifier and chosen candidate; no names or emails.`, margin, y);
         y += 7;
 
         // Table header
