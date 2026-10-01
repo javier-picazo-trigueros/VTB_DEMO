@@ -3,6 +3,17 @@
 **De:** Jaime · **Fecha:** 25 sep 2026
 **Contexto completo:** [`SPRINT_2_JAIME.md`](SPRINT_2_JAIME.md)
 
+> **Actualización 1-oct.** Esta lista se escribió el 25-sep sin saber que el
+> *start command* de Render aplica las migraciones solo en cada despliegue de
+> `main` (lo comprobó Javier el 29-sep). Así que:
+>
+> - **La tarea 1 sobra.** La 014 se aplicó sola al subirse a `main`, y la 015 y
+>   la 016 con el PR #41.
+> - **La tarea 5 está hecha** (PR #41, fusionado el 1-oct).
+> - **Siguen pendientes la 2 (Resend), la 3 (accesos) y la 4 (revisión).** La 2
+>   es lo único que bloquea el registro con confirmación por correo, que está
+>   en la rama `JaimeOrdovas`, ya rebasado sobre el `main` del 1-oct y probado.
+
 Hay cinco cosas que solo puedes hacer tú, porque tienes los accesos a
 producción. Van en orden: las dos primeras desbloquean el despliegue del
 registro nuevo.

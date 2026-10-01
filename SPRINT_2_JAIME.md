@@ -212,6 +212,14 @@ una fuga activa hacia los administradores de cada institución.
   sin nullifier, sin hora y sin el id de la fila, que delataba el orden. El
   dashboard ya no lleva emails. Añadí una fila en `SEGURIDAD.md`, sección 3.
 
+> **Actualización 1-oct.** El despliegue en dos fases y el orden de migraciones
+> de abajo quedan superados: Render aplica las migraciones solo en cada
+> despliegue de `main`, y la 015 entró en producción con el PR #41 de Javier
+> (SCRUM-17). El registro con confirmación por correo (SCRUM-123) está en la
+> rama `JaimeOrdovas`, rebasado sobre ese `main` y probado. **Solo espera a que
+> Resend envíe en producción.** Entonces basta con `git push origin
+> JaimeOrdovas:main`, que es un avance directo sin forzar nada.
+
 ### Despliegue en dos fases
 
 Reordené los commits para que lo urgente pueda salir ya:
