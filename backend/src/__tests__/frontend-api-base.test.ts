@@ -7,7 +7,8 @@
  * desarrollo se respeta VITE_API_URL.
  */
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 // @ts-expect-error: módulo JS del frontend, sin tipos
 import { resolveApiUrl } from '../../../frontend/src/utils/apiBase.js';
@@ -33,7 +34,7 @@ describe('resolveApiUrl', () => {
   });
 });
 
-describe('nadie más lee VITE_API_URL', () => {
+describe('solo apiBase.js lee VITE_API_URL', () => {
   function ficheros(dir: string): string[] {
     return readdirSync(dir).flatMap((n) => {
       const p = path.join(dir, n);
@@ -46,6 +47,25 @@ describe('nadie más lee VITE_API_URL', () => {
     const lectores = ficheros(frontendSrc)
       .filter((f) => /import\.meta\.env\.VITE_API_URL/.test(readFileSync(f, 'utf-8')))
       .map((f) => path.relative(frontendSrc, f).split(path.sep).join('/'));
-    expect(lectores).toEqual([]);
+    expect(lectores).toEqual(['utils/apiBase.js']);
   });
+
+  it('nadie pasa ni guarda import.meta.env entero (Vite incrustaría todas las VITE_*)', () => {
+    const enteros = ficheros(frontendSrc)
+      .filter((f) => /import\.meta\.env(?![.\w])/.test(readFileSync(f, 'utf-8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '')))
+      .map((f) => path.relative(frontendSrc, f).split(path.sep).join('/'));
+    expect(enteros).toEqual([]);
+  });
+});
+
+describe('el bundle de producción no incrusta el entorno', () => {
+  const vite = path.join(frontendSrc, '..', 'node_modules', 'vite', 'bin', 'vite.js');
+  const hayVite = existsSync(vite);
+
+  // Compila el frontend con VITE_API_URL=https://debe-no-aparecer.example (unos 2 s)
+  // y falla si ese host, o "VITE_API_URL:", acaban en el JS. Es `npm run check:bundle`.
+  it.skipIf(!hayVite)('npm run check:bundle: ni VITE_API_URL ni el objeto de entorno llegan a dist', () => {
+    const script = path.join(frontendSrc, '..', 'scripts', 'check-bundle.mjs');
+    expect(() => execFileSync(process.execPath, [script], { stdio: 'pipe' })).not.toThrow();
+  }, 120_000);
 });

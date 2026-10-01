@@ -7,11 +7,18 @@
  * volvería al login nada más entrar. Por eso VITE_API_URL solo se respeta en
  * desarrollo, aunque esté definida en el entorno de Vercel.
  *
- * @param {{ PROD?: boolean, VITE_API_URL?: string }} env import.meta.env
+ * @param {{ PROD?: boolean, VITE_API_URL?: string }} env
  */
 export function resolveApiUrl(env) {
   if (env.PROD) return '/backend';
   return env.VITE_API_URL || '/backend';
 }
 
-export const API_URL = resolveApiUrl(import.meta.env);
+// Se leen SOLO import.meta.env.PROD e import.meta.env.VITE_API_URL, nunca el
+// objeto entero: Vite sustituye cada acceso por su valor y, si se pasara el
+// objeto, incrustaría en el bundle TODAS las variables VITE_* (URLs, claves RPC).
+// En producción la rama de abajo no lee VITE_API_URL, así que su valor no llega
+// al bundle. Lo comprueba `npm run check:bundle`.
+export const API_URL = import.meta.env.PROD
+  ? resolveApiUrl({ PROD: true })
+  : resolveApiUrl({ PROD: false, VITE_API_URL: import.meta.env.VITE_API_URL });
