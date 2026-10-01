@@ -103,3 +103,7 @@ blockchain/node_modules/
 # le dice a un tercero que ahi encontrara la direccion del contrato.
 blockchain/deployments/localhost.json
 blockchain/deployments/hardhat.json
+
+# Copias de seguridad de bases de datos y archivos comprimidos: nunca al repositorio
+*.dump
+*.7z

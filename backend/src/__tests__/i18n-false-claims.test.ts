@@ -34,10 +34,14 @@ describe('Punto 12: Eliminación de afirmaciones falsas en i18n/config.ts', () =
     expect(content).not.toMatch(/npx hardhat node/i);
   });
 
-  it('precisa en español e inglés que en la cadena no figura nombre ni correo y que el operador conserva la correspondencia', () => {
+  it('precisa en español e inglés que en la cadena no figura nombre ni correo y qué conserva la base de datos y qué conoce el operador', () => {
     expect(content).toMatch(/no figura nombre ni correo/i);
     expect(content).toMatch(/no name or email appears on-chain/i);
-    expect(content).toMatch(/operador del sistema conserva la correspondencia entre votante y voto/i);
-    expect(content).toMatch(/system operator retains the correspondence between voter and vote/i);
+    // SCRUM-17: desde la migración 016 la base no guarda el vínculo tras el cierre,
+    // pero el operador lo conoce al procesar el voto. Ya no se dice que "conserva".
+    expect(content).toMatch(/no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero el operador la conoce en el momento de procesar el voto/i);
+    expect(content).toMatch(/does not keep the voter-to-vote correspondence once the election is closed, but the operator knows it at the moment the vote is processed/i);
+    expect(content).not.toMatch(/operador del sistema conserva la correspondencia/i);
+    expect(content).not.toMatch(/system operator retains the correspondence/i);
   });
 });

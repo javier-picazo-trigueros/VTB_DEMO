@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { DemoLoginModal } from '../components/DemoLoginModal';
+import { useDemoEnabled } from '../utils/useDemoEnabled.js';
 
 const TIERS = [
   {
@@ -76,7 +77,7 @@ const TIERS = [
 const FAQ = [
   {
     q: 'How does VTB prevent double voting?',
-    a: 'Each vote generates a unique HMAC-SHA256 nullifier derived from the voter\'s identity and the election ID. The nullifier is recorded on-chain: it is mathematically impossible to link it to a specific voter from the blockchain alone, while making any second vote attempt detectable and rejected.',
+    a: 'Each vote generates a unique HMAC-SHA256 nullifier derived from the voter\'s identity and the election ID. The nullifier is recorded on-chain: the chain shows no name or email, and any second vote attempt is detectable and rejected. The vote is pseudonymous, not anonymous: the database does not keep the voter-to-vote correspondence once the election is closed, but the operator knows it at the moment the vote is processed.',
   },
   {
     q: 'What blockchain network does VTB use?',
@@ -92,7 +93,7 @@ const FAQ = [
   },
   {
     q: 'Is the voter census stored on-chain?',
-    a: 'No. Voter identity stays in your institution\'s database (Web2). Only nullifiers and vote hashes are written to the blockchain — they do not identify the voter on-chain. This hybrid architecture preserves auditability without exposing identity in the blockchain.',
+    a: 'No. Voter identity stays in your institution\'s database (Web2). Only nullifiers and vote hashes are written to the blockchain: no name or email appears on-chain. The vote is not anonymous, though: the operator knows the voter-to-vote correspondence when the vote is processed, and the database only stops keeping it once the election is closed.',
   },
 ];
 
@@ -116,6 +117,7 @@ const CONTACT_EMAIL = '[RELLENAR: email de contacto]';
 export function Pricing() {
   const navigate = useNavigate();
   const [demoOpen, setDemoOpen] = useState(false);
+  const demoEnabled = useDemoEnabled();
   const [openFaq, setOpenFaq] = useState(null);
 
   return (
@@ -138,12 +140,14 @@ export function Pricing() {
           <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-8">
             Start free and scale as your institution grows. Every plan includes real blockchain auditability.
           </p>
-          <button
-            onClick={() => setDemoOpen(true)}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-lg shadow-blue-600/30"
-          >
-            🚀 Try Live Demo — No Registration
-          </button>
+          {demoEnabled && (
+            <button
+              onClick={() => setDemoOpen(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-lg shadow-blue-600/30"
+            >
+              🚀 Try Live Demo — No Registration
+            </button>
+          )}
         </motion.div>
       </section>
 
@@ -260,12 +264,14 @@ export function Pricing() {
           <p className="text-blue-100 mb-6 max-w-xl mx-auto">
             No registration. No credit card. Real blockchain voting with full audit trail in under 60 seconds.
           </p>
-          <button
-            onClick={() => setDemoOpen(true)}
-            className="px-8 py-3 rounded-2xl bg-white text-blue-700 font-bold hover:bg-blue-50 transition shadow-lg"
-          >
-            🎓 Launch Demo Now
-          </button>
+          {demoEnabled && (
+            <button
+              onClick={() => setDemoOpen(true)}
+              className="px-8 py-3 rounded-2xl bg-white text-blue-700 font-bold hover:bg-blue-50 transition shadow-lg"
+            >
+              🎓 Launch Demo Now
+            </button>
+          )}
         </motion.div>
       </section>
 

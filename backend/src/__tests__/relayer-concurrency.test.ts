@@ -146,8 +146,8 @@ describe('Punto 9: Concurrencia de relayer y timeout de confirmación', () => {
 
     // En estado intermedio (pending_confirmation), nullifier_audit NO debe tener fila aún
     const auditRows = await db.run<{ tx_hash: string; block_number: number | null; vote_source: string }>(
-      'SELECT tx_hash, block_number, vote_source FROM nullifier_audit WHERE election_id = ? AND user_id = ?',
-      [electionId, user.id],
+      'SELECT tx_hash, block_number, vote_source FROM nullifier_audit WHERE election_id = ?',
+      [electionId],
     );
     expect(auditRows).toHaveLength(0);
 

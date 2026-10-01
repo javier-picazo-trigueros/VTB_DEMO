@@ -8,6 +8,7 @@ import { DemoLoginModal } from "../components/DemoLoginModal";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { apiFetch } from "../utils/apiClient";
+import { useDemoEnabled } from "../utils/useDemoEnabled.js";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -30,6 +31,7 @@ export const Landing = () => {
   const [stats, setStats] = useState(null);
   const [failedLogos, setFailedLogos] = useState({});
   const [demoOpen, setDemoOpen] = useState(false);
+  const demoEnabled = useDemoEnabled();
 
   useEffect(() => {
     apiFetch('/api/stats')
@@ -146,7 +148,7 @@ export const Landing = () => {
             </motion.p>
 
             <motion.div variants={itemVariants} className="mb-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center flex-wrap">
-              {!isAuthenticated && (
+              {!isAuthenticated && demoEnabled && (
                 <button
                   onClick={() => setDemoOpen(true)}
                   className="rounded bg-brand-600 px-8 py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"

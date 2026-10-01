@@ -38,6 +38,8 @@ function createDiscrepancyMockPg(
   const handleQuery = async (sql: string, params: unknown[] = []): Promise<ResultadoConsulta> => {
     queryLogs.push({ sql, params });
 
+    if (/72 hours/.test(sql)) return { rows: [], rowCount: 0 };
+
     if (/FROM vote_attempts/i.test(sql) && /'pending'/.test(sql)) {
       return { rows: attempts.filter(a => a.status === 'pending'), rowCount: 1 };
     }
@@ -49,21 +51,19 @@ function createDiscrepancyMockPg(
     }
 
     if (/DELETE FROM vote_attempts/i.test(sql)) {
-      const id = Number(params[0]);
-      const idx = attempts.findIndex(a => a.id === id);
+      const idx = attempts.findIndex(a => a.user_id === Number(params[0]) && a.election_id === Number(params[1]));
       if (idx !== -1) attempts.splice(idx, 1);
       return { rows: [], rowCount: 1 };
     }
 
     if (/INSERT INTO nullifier_audit/i.test(sql)) {
       auditRows.push({
-        user_id: params[0],
         election_id: params[1],
         nullifier_hash: params[2],
         tx_hash: params[3],
         block_number: params[4],
         candidate_id: params[5],
-        vote_source: params[7],
+        vote_source: params[6],
       });
       return { rows: [], rowCount: 1 };
     }

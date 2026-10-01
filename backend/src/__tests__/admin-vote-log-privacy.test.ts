@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { getDatabase } from '../config/database.js';
-import { createAndLogin, createFixtureUser, createFixtureElection } from './helpers/fixtures.js';
+import { createAndLogin, createFixtureUser, createFixtureElection, insertVoteFixture } from './helpers/fixtures.js';
 
 const DOMAIN = `privacidad-${Date.now()}.test`;
 const NULLIFIER = `0x${'ab12'.repeat(16)}`;
@@ -32,11 +32,10 @@ beforeAll(async () => {
   const electionId = await createFixtureElection({});
   await db.exec('INSERT INTO election_access (election_id, email_domain) VALUES (?, ?)', [electionId, DOMAIN]);
   const cand = await db.get<{ id: number }>('SELECT id FROM candidates WHERE election_id = ? LIMIT 1', [electionId]);
-  await db.exec(
-    `INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, candidate_id, vote_source, generated_at)
-     VALUES (?, ?, ?, ?, ?, 'chain', '2026-09-25 10:37:12')`,
-    [voter.id, electionId, NULLIFIER, String(cand!.id), cand!.id],
-  );
+  await insertVoteFixture({
+    userId: voter.id, electionId, nullifier: NULLIFIER, candidateId: cand!.id,
+    voteSource: 'chain', generatedAt: '2026-09-25 10:37:00',
+  });
 });
 
 function expectNothingLinkable(json: string) {
@@ -50,12 +49,14 @@ function expectNothingLinkable(json: string) {
 }
 
 describe('GET /admin/audit — quién ha participado, no qué ha votado', () => {
-  it('lleva el email y el día, pero ni el nullifier ni la hora', async () => {
+  it('lleva el email y la elección, pero ni el nullifier ni la fecha ni la hora', async () => {
     const res = await admin.agent.get('/admin/audit');
     expect(res.status).toBe(200);
     const fila = res.body.audit.find((e: any) => e.email === voterEmail);
     expect(fila).toBeTruthy();
-    expect(fila.voted_on).toBe('2026-09-25');
+    // SCRUM-17: la participación no guarda fecha, ni siquiera el día.
+    expect(fila).not.toHaveProperty('voted_on');
+    expect(JSON.stringify(res.body)).not.toContain('2026-09-25');
     expect(fila).not.toHaveProperty('nullifier_hash');
     expect(fila).not.toHaveProperty('generated_at');
     expect(fila).not.toHaveProperty('id');

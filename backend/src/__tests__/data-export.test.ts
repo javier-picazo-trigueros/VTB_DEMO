@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { app } from '../app.js';
 import { getDatabase } from '../config/database.js';
-import { createAndLogin, createFixtureElection } from './helpers/fixtures.js';
+import { createAndLogin, createFixtureElection, insertVoteFixture } from './helpers/fixtures.js';
 
 const db = getDatabase();
 
@@ -22,7 +22,7 @@ describe('GET /auth/me/export', () => {
     expect(res.body.perfil.email).toBe(user.email);
     expect(res.body.perfil.name).toBe('Exportable Persona');
     expect(res.body.perfil.password_hash).toBeUndefined();
-    expect(Array.isArray(res.body.votos_emitidos)).toBe(true);
+    expect(Array.isArray(res.body.elecciones_participadas)).toBe(true);
     expect(Array.isArray(res.body.elecciones_censado)).toBe(true);
   });
 
@@ -41,7 +41,7 @@ describe('GET /auth/me/export', () => {
     expect(propias).toHaveLength(1);
   });
 
-  it('incluye el propio voto emitido (nullifier_audit) cuando existe', async () => {
+  it('dice en qué elecciones participó, y no incluye candidato, nullifier ni transacción', async () => {
     const user = await createAndLogin();
     const electionId = await createFixtureElection({ name: 'Elección Con Voto' });
     const candidato = await db.get<{ id: number }>(
@@ -49,18 +49,25 @@ describe('GET /auth/me/export', () => {
       [electionId],
     );
 
-    await db.exec(
-      `INSERT INTO nullifier_audit (user_id, election_id, nullifier_hash, vote_choice, candidate_id)
-       VALUES (?, ?, ?, ?, ?)`,
-      [user.id, electionId, `hash-export-${Date.now()}`, 'Candidata A', candidato!.id],
-    );
+    const nullifier = `hash-export-${Date.now()}`;
+    await insertVoteFixture({
+      userId: user.id, electionId, nullifier, candidateId: candidato!.id,
+      txHash: '0xtx-export-secreto', blockNumber: 123, voteSource: 'chain',
+    });
 
     const res = await user.agent.get('/auth/me/export');
 
     expect(res.status).toBe(200);
-    const voto = res.body.votos_emitidos.find((v: any) => v.election_id === electionId);
-    expect(voto).toBeTruthy();
-    expect(voto.candidate_name).toBe('Candidata A');
+    const participacion = res.body.elecciones_participadas.find((v: any) => v.election_id === electionId);
+    expect(participacion).toBeTruthy();
+    expect(participacion.election_name).toBe('Elección Con Voto');
+
+    // Nada del voto en ninguna forma: ni el campo antiguo ni los valores.
+    expect(res.body).not.toHaveProperty('votos_emitidos');
+    const json = JSON.stringify(res.body);
+    expect(json).not.toContain(nullifier);
+    expect(json).not.toContain('0xtx-export-secreto');
+    expect(json).not.toMatch(/candidate|nullifier|tx_hash|vote_choice/i);
   });
 
   it('sin sesión, responde 401', async () => {

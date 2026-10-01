@@ -33,7 +33,7 @@ import { TermsOfService } from './pages/legal/TermsOfService'
 import { CookiePolicy } from './pages/legal/CookiePolicy'
 import { AccessibilityStatement } from './pages/legal/AccessibilityStatement'
 
-const API_URL = import.meta.env.VITE_API_URL || '/backend'
+import { API_URL } from './utils/apiBase.js'
 
 /**
  * Componente ProtectedRoute:

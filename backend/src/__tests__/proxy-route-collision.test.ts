@@ -90,7 +90,7 @@ describe('Proxy route collision test — frontend pages vs backend proxy', () =>
   });
 
   it('4. Frontend apiClient and all API calls must use the dedicated prefix /backend', () => {
-    const apiClientPath = path.join(rootDir, 'frontend', 'src', 'utils', 'apiClient.js');
+    const apiClientPath = path.join(rootDir, 'frontend', 'src', 'utils', 'apiBase.js');
     const content = fs.readFileSync(apiClientPath, 'utf8');
 
     // Default API_URL must be '/backend'

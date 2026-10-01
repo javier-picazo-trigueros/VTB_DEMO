@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { DemoLoginModal } from './DemoLoginModal';
+import { useDemoEnabled } from '../utils/useDemoEnabled.js';
 
 export function DemoModeButton() {
   const [open, setOpen] = useState(false);
+  const demoEnabled = useDemoEnabled();
+
+  if (!demoEnabled) return null;
 
   return (
     <>

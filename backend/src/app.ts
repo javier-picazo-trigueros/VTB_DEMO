@@ -72,6 +72,17 @@ app.use(cookieParser());
 // CORS CONFIGURATION
 // ============================================================
 
+/**
+ * Origen rechazado por CORS. Tiene su propia clase para que el manejador de
+ * errores lo distinga de un fallo real: es tráfico ajeno, no un 500.
+ */
+class CorsOriginError extends Error {
+  constructor(origin: string) {
+    super(`Origin ${origin} not allowed`);
+    this.name = 'CorsOriginError';
+  }
+}
+
 const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -95,7 +106,7 @@ app.use(cors({
     }
 
     console.warn(`CORS blocked: ${origin}`);
-    return callback(new Error(`Origin ${origin} not allowed`));
+    return callback(new CorsOriginError(origin));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -125,6 +136,7 @@ const ALLOWED_WHILE_MUST_CHANGE = new Set([
   'POST /auth/login',
   'POST /auth/logout',
   'GET /auth/me',
+  'GET /auth/config',
   'PATCH /auth/change-password',
   'GET /health',
   'GET /api/health',
@@ -307,11 +319,11 @@ app.get('/api/stats', async (req: any, res: Response) => {
       studentEmails.map((u) => u.email.split('@')[1]).filter(Boolean)
     ).size;
     const blockchainTransactions = await db.get<{ count: number }>(
+      // Sin JOIN a users: los votos ya no llevan usuario (SCRUM-17). Las cuentas
+      // demo se excluyen por vote_source, no por el correo de quien votó.
       `SELECT COUNT(*) as count FROM nullifier_audit
-       JOIN users u ON nullifier_audit.user_id = u.id
-       WHERE nullifier_audit.tx_hash IS NOT NULL AND nullifier_audit.tx_hash != ''
-       AND nullifier_audit.block_number IS NOT NULL
-       AND u.email NOT LIKE '%@vtb.demo'`
+       WHERE vote_source = 'chain' AND tx_hash IS NOT NULL AND tx_hash != ''
+       AND block_number IS NOT NULL`
     );
     res.json({
       totalElections: totalElections?.count || 0,
@@ -359,8 +371,7 @@ app.get('/api/audit/public', async (req: any, res: Response) => {
          e.name as election_name
        FROM nullifier_audit na
        JOIN elections e ON na.election_id = e.id
-       JOIN users u ON na.user_id = u.id
-       WHERE u.email NOT LIKE '%@vtb.demo'
+       WHERE na.vote_source = 'chain'
        AND na.block_number IS NOT NULL
        ORDER BY na.generated_at DESC
        LIMIT 20`
@@ -432,6 +443,12 @@ app.get("/", (req: any, res: Response) => {
 });
 
 app.use((err: any, req: any, res: any, next: any) => {
+  // Un origen que CORS ya ha rechazado (y avisado con console.warn arriba) no es
+  // un error del servidor: 403, y sin "Error no manejado" en el log.
+  if (err instanceof CorsOriginError) {
+    res.status(403).json({ error: 'Origen no permitido' });
+    return;
+  }
   // Catch-all: cualquier rechazo no capturado llega aquí, incluidos los de
   // ethers si algún camino se escapa de su try. Saneado por defecto (A1).
   console.error("Error no manejado:", formatError(err));

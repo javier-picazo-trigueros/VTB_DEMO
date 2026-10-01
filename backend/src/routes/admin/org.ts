@@ -53,8 +53,10 @@ router.get("/dashboard", requireAdmin, async (req: Request, res: Response) => {
       [nowEpoch, nowEpoch]
     );
     const totalVotes = await db.get<{ count: number }>(
-      `SELECT COUNT(*) as count FROM nullifier_audit na
-       JOIN users u ON na.user_id = u.id WHERE 1=1
+      // Con dominio, se cuenta por participación: los votos ya no llevan usuario
+      // (SCRUM-17) y no se pueden filtrar por el correo de quien votó.
+      `SELECT COUNT(*) as count FROM election_participations ep
+       JOIN users u ON ep.user_id = u.id WHERE 1=1
        ${domainFilter ? "AND (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ?)" : ""}`,
       domainFilter ? [domainFilter, domainFilter] : []
     );
@@ -62,12 +64,17 @@ router.get("/dashboard", requireAdmin, async (req: Request, res: Response) => {
     // Sin el email de quien votó (SCRUM-17). Email + hora exacta se cruza con
     // la hora del evento VoteCast en la cadena, que lleva el candidato. "Un
     // voto en tal elección hace 30 s" ya es público; con la persona, no.
+    // Un voto ya no se puede atribuir a un dominio: se filtra por las
+    // elecciones del alcance de quien administra, igual que totalElections.
     const recentVotes = await db.run<any>(
       `SELECT na.generated_at, e.name as election_name
        FROM nullifier_audit na
-       JOIN users u ON na.user_id = u.id
        JOIN elections e ON na.election_id = e.id
-       ${domainFilter ? "WHERE (u.email LIKE '%@' || ? OR u.email LIKE '%@%.' || ?)" : ""}
+       ${domainFilter
+         ? `WHERE na.election_id IN (
+              SELECT ea.election_id FROM election_access ea
+               WHERE (ea.email_domain = ? OR ea.email_domain LIKE '%.' || ?))`
+         : ""}
        ORDER BY na.generated_at DESC LIMIT 5`,
       domainFilter ? [domainFilter, domainFilter] : []
     );
@@ -75,11 +82,11 @@ router.get("/dashboard", requireAdmin, async (req: Request, res: Response) => {
     const electionParticipation = await db.run<any>(
       `SELECT e.id, e.name,
          COUNT(DISTINCT ev.user_id) as total_voters,
-         COUNT(DISTINCT na.user_id) as votes_cast,
-         ROUND(COUNT(DISTINCT na.user_id) * 100.0 / NULLIF(COUNT(DISTINCT ev.user_id),0), 1) as rate
+         COUNT(DISTINCT ep.user_id) as votes_cast,
+         ROUND(COUNT(DISTINCT ep.user_id) * 100.0 / NULLIF(COUNT(DISTINCT ev.user_id),0), 1) as rate
        FROM elections e
        LEFT JOIN election_voters ev ON e.id = ev.election_id
-       LEFT JOIN nullifier_audit na ON e.id = na.election_id
+       LEFT JOIN election_participations ep ON e.id = ep.election_id
        WHERE e.is_active = TRUE
        GROUP BY e.id ORDER BY e.created_at DESC LIMIT 5`
     );

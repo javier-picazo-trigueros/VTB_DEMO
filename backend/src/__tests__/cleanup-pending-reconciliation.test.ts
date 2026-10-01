@@ -1,7 +1,7 @@
 /**
  * Test de reproducción y verificación para Punto 2:
  * El job de reconciliación (cleanupStaleVoteAttempts) debe resolver los votos pendientes:
- * 1. Si la transacción se mina (encontrado): confirmarlo e insertar nullifier_audit.
+ * 1. Si la transacción se mina (encontrado): confirmarlo e insertar participación y voto.
  * 2. Si la transacción se revierte o desaparece (no-esta): marcarlo como failed con detalle,
  *    permitiendo al usuario votar de nuevo (acquireVoteLock vuelve a tener éxito).
  */
@@ -23,10 +23,14 @@ interface AttemptRow {
 function createMockPg(initialAttempts: AttemptRow[]) {
   const attempts = [...initialAttempts];
   const auditRows: Array<Record<string, unknown>> = [];
+  const participaciones: Array<{ election_id: number; user_id: number }> = [];
   const queryLogs: Array<{ sql: string; params: unknown[] }> = [];
 
   const handleQuery = async (sql: string, params: unknown[] = []): Promise<ResultadoConsulta> => {
     queryLogs.push({ sql, params });
+
+    // 0. Purga por caducidad (SCRUM-17): en estos tests no caduca nada.
+    if (/72 hours/.test(sql)) return { rows: [], rowCount: 0 };
 
     // 1. SELECT stale pending attempts
     if (/FROM vote_attempts/i.test(sql) && /'pending'/.test(sql)) {
@@ -41,8 +45,7 @@ function createMockPg(initialAttempts: AttemptRow[]) {
 
     // 3. DELETE FROM vote_attempts (confirmed)
     if (/DELETE FROM vote_attempts/i.test(sql)) {
-      const id = Number(params[0]);
-      const idx = attempts.findIndex(a => a.id === id);
+      const idx = attempts.findIndex(a => a.user_id === Number(params[0]) && a.election_id === Number(params[1]));
       if (idx !== -1) {
         attempts.splice(idx, 1);
       }
@@ -60,26 +63,35 @@ function createMockPg(initialAttempts: AttemptRow[]) {
       return { rows: [], rowCount: 1 };
     }
 
-    // 5. INSERT into nullifier_audit
+    // 5. INSERT INTO election_participations (election_id, user_id)
+    if (/INSERT INTO election_participations/i.test(sql)) {
+      const [election_id, user_id] = [Number(params[0]), Number(params[1])];
+      if (participaciones.some(p => p.election_id === election_id && p.user_id === user_id)) {
+        return { rows: [], rowCount: 0 };
+      }
+      participaciones.push({ election_id, user_id });
+      return { rows: [], rowCount: 1 };
+    }
+
+    // 5a. INSERT into nullifier_audit: (id, election_id, nullifier_hash, tx_hash, block_number, candidate_id, vote_source)
     if (/INSERT INTO nullifier_audit/i.test(sql)) {
       auditRows.push({
-        user_id: params[0],
         election_id: params[1],
         nullifier_hash: params[2],
         tx_hash: params[3],
         block_number: params[4],
         candidate_id: params[5],
-        vote_source: params[7],
+        vote_source: params[6],
       });
       return { rows: [], rowCount: 1 };
     }
 
-    // 5b. SELECT id FROM nullifier_audit (check if already voted)
-    if (/SELECT id FROM nullifier_audit WHERE user_id/i.test(sql)) {
+    // 5b. SELECT 1 FROM election_participations (check if already voted)
+    if (/SELECT 1 FROM election_participations WHERE user_id/i.test(sql)) {
       const userId = Number(params[0]);
       const electionId = Number(params[1]);
-      const found = auditRows.some(a => Number(a.user_id) === userId && Number(a.election_id) === electionId);
-      return { rows: found ? [{ id: 1 }] : [], rowCount: found ? 1 : 0 };
+      const found = participaciones.some(p => p.user_id === userId && p.election_id === electionId);
+      return { rows: found ? [{ '?column?': 1 }] : [], rowCount: found ? 1 : 0 };
     }
 
     // 6. acquireVoteLock simulation (INSERT ... ON CONFLICT ... DO UPDATE ... WHERE status='failed')
@@ -136,12 +148,12 @@ function createMockPg(initialAttempts: AttemptRow[]) {
   };
 
   const client = new PgClient('postgresql://no-se-conecta', pool);
-  return { client, attempts, auditRows, queryLogs };
+  return { client, attempts, auditRows, participaciones, queryLogs };
 }
 
 describe('Punto 2: Reconciliación de votos pendientes (cleanupStaleVoteAttempts)', () => {
-  it('confirma el voto en base e inserta nullifier_audit cuando la tx se mina on-chain', async () => {
-    const { client, attempts, auditRows } = createMockPg([
+  it('confirma el voto en base e inserta participación y voto cuando la tx se mina on-chain', async () => {
+    const { client, attempts, auditRows, participaciones } = createMockPg([
       {
         id: 42,
         user_id: 101,
@@ -164,6 +176,9 @@ describe('Punto 2: Reconciliación de votos pendientes (cleanupStaleVoteAttempts
     expect(auditRows[0].tx_hash).toBe('0xmined123');
     expect(auditRows[0].block_number).toBe(9999);
     expect(auditRows[0].vote_source).toBe('chain');
+    // La participación va con el voto (SCRUM-17), y el voto no lleva la persona.
+    expect(participaciones).toEqual([{ election_id: 5, user_id: 101 }]);
+    expect(auditRows[0]).not.toHaveProperty('user_id');
 
     // No debe haber cerrojo pendiente tras confirmarse
     const hasLock = await client.hasPendingVoteLock(101, 5);

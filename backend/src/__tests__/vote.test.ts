@@ -76,6 +76,7 @@ async function addVoterToCensus(electionId: number, email: string) {
 async function cleanTestElection(electionId: number) {
   const db = getDatabase();
   await db.exec('DELETE FROM nullifier_audit     WHERE election_id = ?', [electionId]);
+  await db.exec('DELETE FROM election_participations WHERE election_id = ?', [electionId]);
   await db.exec('DELETE FROM election_voters     WHERE election_id = ?', [electionId]);
   await db.exec('DELETE FROM candidates          WHERE election_id = ?', [electionId]);
   await db.exec('DELETE FROM elections           WHERE id = ?',          [electionId]);
@@ -138,10 +139,11 @@ describe('Vote flow (vtb.demo accounts — no blockchain needed)', () => {
     expect(second.status).toBe(409);
   });
 
-  it('tras votar con cuenta demo, la elegibilidad NO dice que el voto esté en la cadena (C1)', async () => {
+  it('tras votar, la elegibilidad solo dice que ha participado: ni cadena ni demo (C1, SCRUM-17)', async () => {
     // La pantalla de "ya has votado" afirmaba "Tu voto ha sido registrado en la
-    // blockchain" también a las cuentas @vtb.demo, que toman un atajo sintético
-    // y nunca llegan a Sepolia. El frontend elige ahora el texto con estos campos.
+    // blockchain" también a las cuentas @vtb.demo. Para decirlo hacía falta
+    // buscar la transacción de esta persona en la base, que es un vínculo
+    // persona-voto: ahora solo se dice que ha participado.
     const { agent, csrf } = await loginAs('student@vtb.demo', 'demo123');
     const voto = await agent.post('/api/elections/register-vote')
       .set('X-CSRF-Token', csrf)
@@ -153,8 +155,9 @@ describe('Vote flow (vtb.demo accounts — no blockchain needed)', () => {
     expect(elig.status).toBe(200);
     expect(elig.body.eligible).toBe(false);
     expect(elig.body.reason).toBe('already_voted');
-    expect(elig.body.onChain).toBe(false);
-    expect(elig.body.isDemo).toBe(true);
+    expect(elig.body).not.toHaveProperty('onChain');
+    expect(elig.body).not.toHaveProperty('isDemo');
+    expect(elig.body).not.toHaveProperty('txHash');
   });
 
   it('no se puede votar sin estar en el censo — S1 cerrado (403)', async () => {

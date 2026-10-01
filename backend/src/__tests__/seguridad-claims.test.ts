@@ -49,21 +49,32 @@ describe('Punto 14: Corrección de afirmaciones y garantías en SEGURIDAD.md', (
     expect(content).toMatch(/solo puede\s+(contar|verificar)\s+lo que el contrato acept[oó]/i);
   });
 
-  it('no afirma que la base de datos deja de conservar la correspondencia tras el cierre (falso mientras nullifier_audit guarde user_id sin separar)', () => {
-    // Afirmación que estuvo en el documento y es falsa hoy: nullifier_audit guarda
-    // user_id, election_id y vote_choice en la misma fila, sin plazo de borrado,
-    // se cierre o no la elección. La sal efímera (services/electionSalt.ts) impide
-    // recalcular el nullifier tras el cierre, pero no borra esa fila ni separa el
-    // user_id del voto. Este test debe seguir fallando si la frase vuelve, y solo
-    // se relaja si algún día existe código que de verdad separe esa relación.
-    expect(content).not.toMatch(/la base de datos no conserva la correspondencia entre votante y voto/i);
-    expect(content).not.toMatch(/\bvoto an[oó]nimo\b/i);
+  it('dice exactamente qué garantiza la base de datos sobre la correspondencia votante-voto (SCRUM-17)', () => {
+    // Esta frase solo es verdad desde la migración 016, que separa la participación
+    // (election_participations) de los votos (nullifier_audit, sin user_id). Antes
+    // era falsa y un test prohibía escribirla; ahora el test exige que esté, y tal
+    // cual, sin adornos que la conviertan en otra afirmación.
+    expect(content).toMatch(
+      /la base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero el operador la conoce en el momento de procesar el voto/i,
+    );
+    expect(content).not.toMatch(/voto an[oó]nimo/i);
   });
 
-  it('reconoce que el operador conserva la correspondencia en nullifier_audit sin plazo de borrado, y que la sal no la separa', () => {
-    expect(content).toMatch(/el operador conserva la correspondencia entre votante y voto en `?nullifier_audit`?/i);
-    expect(content).toMatch(/sin plazo de borrado/i);
-    expect(content).toMatch(/separaci[oó]n de (esa relaci[oó]n|tablas)[^.]*pendiente/i);
+  it('dice lo que sigue sin cubrirse: sal durante la votación, vote_attempts y copias de seguridad', () => {
+    expect(content).toMatch(/durante la votaci[oó]n, el servidor puede calcular el testigo único de cualquier persona/i);
+    expect(content).toMatch(/`vote_attempts` guarda usuario y testigo único mientras un voto está pendiente/i);
+    expect(content).toMatch(/copias de seguridad anteriores a la migraci[oó]n/i);
+  });
+
+  it('reconoce que los registros de acceso de Render y Vercel permiten reconstruir el vínculo', () => {
+    expect(content).toMatch(/registros de acceso de las plataformas \(Render, Vercel\)/i);
+    expect(content).toMatch(/IP\s+y\s+la\s+hora\s+de\s+cada\s+petici[oó]n\s+de\s+voto/i);
+  });
+
+  it('ya no dice que nullifier_audit guarda user_id ni que la separación esté pendiente', () => {
+    expect(content).not.toMatch(/el operador conserva la correspondencia entre votante y voto en `?nullifier_audit`?/i);
+    expect(content).not.toMatch(/separaci[oó]n de (esa relaci[oó]n|tablas)[^.]*pendiente/i);
+    expect(content).not.toMatch(/en la misma fila,? (el identificador|`?user_id`?)/i);
   });
 
   it('reconoce que el sistema no es resistente a la coacción ni a la compra de votos', () => {

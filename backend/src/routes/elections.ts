@@ -4,11 +4,11 @@ import { getDbClient, VoteConflictError } from "../db/index.js";
 import { z } from "zod";
 import { generateNullifier, verifyToken, COOKIE_NAME_ACCESS } from "../utils/auth.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
-import { sendVoteConfirmation } from "../services/email/index.js";
 import { formatError } from "../utils/errors.js";
 import { isChainConfigured } from "../scripts/syncElections.js";
 import { getVotePort } from "../services/voteChain.js";
 import { isElectionInScopeFor } from "./admin/shared.js";
+import { hasParticipated, recordConfirmedVote } from "../db/voteRecord.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -272,11 +272,7 @@ router.get("/:id", async (req: Request, res: Response) => {
     // S10 fix: hasVoted real en lugar de hardcodeado a false
     let hasVoted = false;
     if (currentUserId !== null) {
-      const voted = await db.get<{ id: number }>(
-        "SELECT id FROM nullifier_audit WHERE user_id = ? AND election_id = ?",
-        [currentUserId, election.id],
-      );
-      hasVoted = Boolean(voted);
+      hasVoted = await hasParticipated(db, currentUserId, election.id);
     }
 
     res.json({
@@ -386,26 +382,14 @@ router.get("/:id/eligibility", requireAuth, async (req: Request, res: Response) 
       }
     }
 
-    // 5. Verificar que NO ha votado ya (en nullifier_audit)
-    const alreadyVoted = await db.get<{ id: number; tx_hash: string | null; block_number: number | null }>(
-      "SELECT id, tx_hash, block_number FROM nullifier_audit WHERE user_id = ? AND election_id = ?",
-      [userId, election.id]
-    );
-
-    if (alreadyVoted) {
-      // Estado real del voto en la cadena, para que la pantalla de "ya has votado"
-      // no afirme lo que no es. Antes solo se devolvía el motivo, y el frontend
-      // pintaba siempre "Tu voto ha sido registrado en la blockchain" — también a
-      // las cuentas @vtb.demo, que toman un atajo sintético y nunca llegan a
-      // Sepolia, mientras el comprobante de ese mismo voto decía lo contrario.
-      //
-      // block_number es el único criterio: solo existe si hubo recibo de una
-      // transacción real. Cubre a la vez el atajo demo y el fallback fuera de
-      // cadena, que también guardan un tx_hash sintético sin bloque. Es el mismo
-      // criterio que ya usa GET /:id/audit.
-      const isDemo = req.user!.email?.endsWith('@vtb.demo') ?? false;
-      const onChain = alreadyVoted.block_number !== null && !isDemo;
-      res.json({ eligible: false, reason: 'already_voted', onChain, isDemo });
+    // 5. Verificar que NO ha participado ya (election_participations)
+    //
+    // Solo se dice que ha participado. Antes se devolvía también si su voto
+    // estaba en la cadena, y eso obligaba a buscar la transacción de esta
+    // persona en la base: un vínculo persona-voto (SCRUM-17). El comprobante se
+    // da una sola vez, en la pantalla de confirmación del voto.
+    if (await hasParticipated(db, userId, election.id)) {
+      res.json({ eligible: false, reason: 'already_voted' });
       return;
     }
 
@@ -861,11 +845,7 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
     const nullifier = generateNullifier(decoded.userId, electionId, election.ephemeral_salt);
 
     // Verificar doble voto (aplica también para cuentas demo antes del shortcut)
-    const alreadyVoted = await db.get<{ id: number }>(
-      'SELECT id FROM nullifier_audit WHERE user_id = ? AND election_id = ?',
-      [decoded.userId, election.id]
-    );
-    if (alreadyVoted) {
+    if (await hasParticipated(db, decoded.userId, election.id)) {
       return res.status(409).json({ error: 'Ya has votado en esta elección' });
     }
 
@@ -892,12 +872,15 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       // prefijo 0x, indistinguible de un hash real para quien no consultara la
       // cadena, y /audit lo servía como si lo fuera (BC-21). Si no hay
       // transacción, el campo es NULL y vote_source dice de dónde sale el voto.
-      await db.exec(
-        `INSERT INTO nullifier_audit
-           (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, vote_source)
-         VALUES (?, ?, ?, ?, NULL, NULL, ?, 'demo')`,
-        [decoded.userId, electionId, nullifier, String(candidateId), candidateId]
-      );
+      await recordConfirmedVote(db, {
+        userId: decoded.userId,
+        electionId,
+        nullifierHash: nullifier,
+        candidateId,
+        txHash: null,
+        blockNumber: null,
+        voteSource: 'demo',
+      });
 
       return res.json({
         success: true,
@@ -970,47 +953,32 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       }
 
       if (!isPendingConfirmation) {
-        let auditInserted = false;
+        // Participación y voto en la MISMA transacción, que además borra la fila
+        // de vote_attempts (SCRUM-17). Si falla, el cerrojo queda 'pending' y la
+        // reconciliación lo resuelve desde el evento on-chain.
         try {
-          await db.exec(
-            `INSERT INTO nullifier_audit
-               (user_id, election_id, nullifier_hash, vote_choice, tx_hash, block_number, candidate_id, vote_source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'chain')`,
-            [
-              decoded.userId,
-              electionId,
-              nullifier,
-              String(candidateId),
-              txHash,
-              blockNumber,
-              candidateId,
-            ]
-          );
-          auditInserted = true;
-        } catch (auditError) {
-          console.error('AUDIT INSERT FAILED after successful blockchain tx:', txHash, 'userId:', decoded.userId);
-          console.error(auditError);
-        }
-
-        if (auditInserted) {
-          // Marcar el intento como confirmado (borra la fila de vote_attempts)
-          await db.releaseVoteLock(decoded.userId, electionId, 'confirmed').catch(() => {});
-
-          // Confirmación por email (fire-and-forget, no bloquea la respuesta)
-          if (!decoded.email?.endsWith('@vtb.demo')) {
-            const explorerBase = process.env.EXPLORER_URL;
-            sendVoteConfirmation({
-              to:           decoded.email,
-              name:         voter!.name ?? decoded.email,
-              electionName: election.name,
-              txHash:       txHash,
-              votedAt:      new Date(),
-              explorerUrl:  explorerBase ? `${explorerBase}/tx/${txHash}` : undefined,
-            });
+          const resultado = await recordConfirmedVote(db, {
+            userId: decoded.userId,
+            electionId,
+            nullifierHash: nullifier,
+            candidateId,
+            txHash,
+            blockNumber,
+            voteSource: 'chain',
+          });
+          if (resultado === 'ya-participaba') {
+            console.warn('Voto confirmado en cadena pero la participación ya existía:', txHash, `electionId=${electionId}`);
           }
+        } catch (auditError) {
+          console.error('AUDIT INSERT FAILED after successful blockchain tx:', txHash, `electionId=${electionId}`);
+          console.error(formatError(auditError));
         }
+
+        // Sin correo de confirmación (SCRUM-17): su fila en email_log, cruzada con
+        // la hora del voto, reconstruiría el vínculo persona-voto, y el hash de la
+        // transacción quedaría copiado en Resend y en el buzón.
       }
-      // Si isPendingConfirmation=true (o auditInserted=false), el cerrojo queda
+      // Si isPendingConfirmation=true (o el registro anterior falló), el cerrojo queda
       // 'pending' para que el job de limpieza lo resuelva/reconcilie desde el evento on-chain.
 
       res.json({
@@ -1034,7 +1002,8 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
       console.error(
         "Error al registrar voto en blockchain:",
         formatError(blockchainError),
-        `userId=${decoded.userId}`,
+        // Solo la elección: el usuario junto a ella (o a un txHash) es el vínculo
+        // persona-voto que SCRUM-17 quita de la base, y un log no debe recrearlo.
         `electionId=${electionId}`,
       );
 

@@ -67,10 +67,12 @@ describe('Punto 1: Estado intermedio pendiente (no confirmado) en timeout', () =
 
     // 1. nullifier_audit NO debe tener ninguna fila para esta elección
     const auditRows = await db.run(
-      'SELECT id FROM nullifier_audit WHERE election_id = ? AND user_id = ?',
-      [electionId, user.id],
+      'SELECT id FROM nullifier_audit WHERE election_id = ?',
+      [electionId],
     );
     expect(auditRows).toHaveLength(0);
+    // Ni participación: aún no está confirmado.
+    expect(await db.get('SELECT 1 FROM election_participations WHERE election_id = ? AND user_id = ?', [electionId, user.id])).toBeUndefined();
 
     // 2. Si el motor tiene vote_attempts, debe estar 'pending', no 'confirmed'
     const hasTable = await db.get(

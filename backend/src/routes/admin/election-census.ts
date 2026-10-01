@@ -208,35 +208,30 @@ router.post("/elections/:id/import-voters", requireAdmin, upload.single('file'),
 
 /**
  * @route GET /admin/audit
- * @desc  Quién ha participado en cada elección. NO qué ha votado.
+ * @desc  Quién ha participado en cada elección. NO qué ha votado, ni cuándo.
  *
- * Esta ruta devolvía, por cada votante, su email junto a su nullifier completo
- * y la hora exacta del voto. El nullifier es el mismo valor que el contrato
- * publica en el evento VoteCast, al lado del candidato: cualquier
- * administrador de una institución podía cruzar su panel con la cadena
- * pública y saber qué votó cada persona de su censo.
- *
- * Ahora se devuelve solo el día, sin nullifier, sin hora y sin el id de la
- * fila (un autoincremento que delataba el orden de los votos), y se ordena por
- * email dentro de cada día. Con la hora exacta o el orden, en una votación
- * pequeña bastaba comparar con la hora del evento en la cadena.
- *
- * Es el primer paso de SCRUM-17. El resto, separar la identidad del voto en la
- * propia base, está planificado aparte.
+ * Lee election_participations, que guarda solo (election_id, user_id): sin
+ * nullifier, sin candidato, sin transacción y, desde SCRUM-17, sin hora ni id.
+ * Esta ruta devolvía antes el nullifier completo y la hora exacta de cada voto
+ * junto al email; luego solo el día. Con el día basta, en una elección pequeña,
+ * para emparejar la participación con el bloque de la cadena, que lleva el
+ * candidato — así que el registro ya no guarda la fecha.
  */
 router.get("/audit", requireAdmin, async (req: Request, res: Response) => {
   try {
+    // Solo (persona, elección): el registro de participación no guarda hora
+    // (SCRUM-17). Con la hora, en una elección pequeña, se empareja con el
+    // bloque de la transacción, que lleva el candidato.
     let query = `
       SELECT
-        na.user_id,
+        u.id AS user_id,
         u.email,
         u.name,
-        na.election_id,
-        e.name as election_name,
-        na.generated_at
-      FROM nullifier_audit na
-      JOIN users u ON na.user_id = u.id
-      JOIN elections e ON na.election_id = e.id
+        ep.election_id,
+        e.name as election_name
+      FROM election_participations ep
+      JOIN users u ON ep.user_id = u.id
+      JOIN elections e ON ep.election_id = e.id
     `;
     const params: any[] = [];
 
@@ -246,33 +241,16 @@ router.get("/audit", requireAdmin, async (req: Request, res: Response) => {
       params.push(adminDomain, adminDomain);
     }
 
-    query += " ORDER BY na.generated_at DESC LIMIT 100";
+    // Por elección y email: un orden que no dice nada del orden de los votos.
+    query += " ORDER BY e.name ASC, u.email ASC LIMIT 100";
 
-    const rows = await db.run<{
+    const audit = await db.run<{
       user_id: number;
       email: string;
       name: string;
       election_id: number;
       election_name: string;
-      generated_at: string | Date;
     }>(query, params);
-
-    // Día en hora de Madrid, 'YYYY-MM-DD'. SQLite devuelve la fecha en UTC sin
-    // zona ('YYYY-MM-DD HH:MM:SS'); PostgreSQL, un Date.
-    const dia = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Madrid" });
-    const toDay = (v: string | Date) =>
-      dia.format(v instanceof Date ? v : new Date(v.includes("T") ? v : `${v.replace(" ", "T")}Z`));
-
-    const audit = rows
-      .map((r) => ({
-        user_id: r.user_id,
-        email: r.email,
-        name: r.name,
-        election_id: r.election_id,
-        election_name: r.election_name,
-        voted_on: toDay(r.generated_at),
-      }))
-      .sort((a, b) => b.voted_on.localeCompare(a.voted_on) || a.email.localeCompare(b.email));
 
     res.json({ audit });
   } catch (error) {
@@ -290,13 +268,13 @@ router.get("/stats/voters", requireAdmin, async (req: Request, res: Response) =>
       `SELECT
         e.id,
         e.name as election_name,
-        COUNT(DISTINCT na.id) as total_voters,
+        COUNT(DISTINCT ep.user_id) as total_voters,
         COUNT(DISTINCT ev.user_id) as total_voters_assigned,
-        ROUND(COUNT(DISTINCT na.id) * 100.0 / NULLIF(COUNT(DISTINCT ev.user_id), 0), 1) as participation_rate,
+        ROUND(COUNT(DISTINCT ep.user_id) * 100.0 / NULLIF(COUNT(DISTINCT ev.user_id), 0), 1) as participation_rate,
         e.is_active,
         e.created_at
       FROM elections e
-      LEFT JOIN nullifier_audit na ON e.id = na.election_id
+      LEFT JOIN election_participations ep ON e.id = ep.election_id
       LEFT JOIN election_voters ev ON e.id = ev.election_id
       GROUP BY e.id
       ORDER BY e.created_at DESC`
@@ -385,7 +363,7 @@ router.get("/elections/:id/stats", requireAdmin, async (req: Request, res: Respo
     const totalVotersNum = totalVotersRow?.count || 0;
 
     const candidateStats = await db.run<any>(
-      `SELECT c.id, c.name, c.description, COUNT(na.id) as votes
+      `SELECT c.id, c.name, c.description, COUNT(na.nullifier_hash) as votes
        FROM candidates c
        LEFT JOIN nullifier_audit na ON na.election_id = ? AND na.candidate_id = c.id
        WHERE c.election_id = ?
@@ -407,10 +385,10 @@ router.get("/elections/:id/stats", requireAdmin, async (req: Request, res: Respo
 
     const voters = await db.run<any>(
       `SELECT u.email,
-         CASE WHEN na.id IS NOT NULL THEN 1 ELSE 0 END as has_voted
+         CASE WHEN ep.user_id IS NOT NULL THEN 1 ELSE 0 END as has_voted
        FROM election_voters ev
        JOIN users u ON ev.user_id = u.id
-       LEFT JOIN nullifier_audit na ON na.election_id = ? AND na.user_id = u.id
+       LEFT JOIN election_participations ep ON ep.election_id = ? AND ep.user_id = u.id
        WHERE ev.election_id = ?
        ORDER BY has_voted DESC, u.email ASC`,
       [id, id]

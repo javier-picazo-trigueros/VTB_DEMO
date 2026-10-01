@@ -21,7 +21,7 @@ está hecho.**
 | La base de datos no es persistente | ⚠️ Parcial | Migración a PostgreSQL hecha en código (Javier, `a79640ab`). Falta confirmar copias de seguridad automáticas y su restauración — ver Fase 1 |
 | El token de sesión es robable | ✅ Resuelto | JWT en cookie `httpOnly`, ya estaba antes de este plan |
 | La clave privada está en una variable de entorno | ❌ Pendiente | Sigue en `process.env.PRIVATE_KEY`. Planificado: `SCRUM-25`, Sprint 3 |
-| El voto no es anónimo de verdad | ❌ Pendiente | `nullifier_audit` sigue guardando `user_id` + `candidate_id` en la misma fila. Planificado: `SCRUM-17`, Sprint 2 (separación operativa) y Fase 6 completa (Semaphore, criptográfica) |
+| El voto no es anónimo de verdad | ⚠️ Parcial | SCRUM-17 opción A hecha en la rama de Javier: participación (`election_participations`) y voto (`nullifier_audit`, sin `user_id`) en tablas separadas, migración 016. Cerrada la elección, la base no une persona y voto, pero el operador lo conoce al procesarlo. Sigue sin ser anónimo: falta Fase 6 (Semaphore, criptográfica) |
 
 ---
 
@@ -30,7 +30,7 @@ está hecho.**
 | Tarea del plan | Estado | Referencia |
 |---|---|---|
 | Migrar SQLite → PostgreSQL (Supabase) | ✅ Hecho | Javier, `a79640ab` — confirmado: `getDatabase()` ya no se usa en ninguna ruta, todo pasa por `getDbClient()` |
-| Restricciones anti-doble-voto en la propia BD | ✅ Hecho | `UNIQUE (user_id, election_id)` en `vote_attempts` y `nullifier_audit`, migración inicial |
+| Restricciones anti-doble-voto en la propia BD | ✅ Hecho | `UNIQUE (user_id, election_id)` en `vote_attempts`; clave primaria `(election_id, user_id)` en `election_participations` y `UNIQUE (election_id, nullifier_hash)` en `nullifier_audit` (migración 016) |
 | Migraciones versionadas | ✅ Hecho | `node-pg-migrate`, 14 migraciones. Las 009–013 son de Javier (contrato v2, sal de elección, seguimiento de tx, aceptación legal, retención); la 014 es mía (`d759944d`, registro de acciones) |
 | Copias de seguridad automáticas + prueba de restauración | ❌ Pendiente | Sin rastro en el repo ni en `DESPLIEGUE_RENDER.md` |
 | Separar entornos de desarrollo y producción | ✅ Hecho | Javier (`6f0c1cf2`, `bb3736a7`): desarrollo es SQLite local y el único Supabase es producción; `seed`/`seed:reset` exigen `NODE_ENV≠production` **y** `ALLOW_SEED_RESET=true`. Regla fijada en `CLAUDE.md` |

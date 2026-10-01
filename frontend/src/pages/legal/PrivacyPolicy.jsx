@@ -38,8 +38,10 @@ export function PrivacyPolicy() {
         rows={[
           ['Nombre, email, identificador de estudiante, escuela, titulación, año, grupo', 'Los aportas al autorregistrarte, o los importa el administrador de tu institución por CSV', 'Crear y gestionar la cuenta; verificar que puedes votar en una elección concreta'],
           ['Contraseña (solo su hash)', 'La eliges tú, o el sistema genera una temporal si el alta la hace un administrador (con cambio obligatorio en el primer acceso)', 'Autenticación'],
-          ['Candidato elegido, ligado a tu cuenta', 'Lo generas al votar', 'Registrar el voto y prevenir el doble voto (ver sección 4)'],
-          ['Historial de correos enviados (destinatario, plantilla, asunto)', 'Se genera al enviarte invitaciones, confirmaciones o enlaces de recuperación', 'Poder reenviar y depurar incidencias de entrega'],
+          ['Que has participado en una elección (tu cuenta y la elección, sin fecha ni hora)', 'Se genera al votar', 'Saber que ya has votado, impedir el doble voto y calcular la participación (ver sección 4)'],
+          ['Tu voto: candidato, testigo único y transacción, sin tu cuenta y con la hora solo al minuto', 'Se genera al votar', 'Registrar y contar el voto (ver sección 4)'],
+          ['Mientras un voto está pendiente de confirmar: tu cuenta y su testigo único', 'Se genera al votar', 'Confirmar el voto si la red tarda; se borra al confirmarse o caduca (sección 6)'],
+          ['Historial de correos enviados (destinatario, plantilla, asunto)', 'Se genera al enviarte invitaciones, avisos de elección o enlaces de recuperación. No se envía correo de confirmación del voto', 'Poder reenviar y depurar incidencias de entrega'],
           ['Cookies de sesión', 'Se generan al iniciar sesión', 'Mantenerte identificado; seguridad (CSRF)'],
           ['Solo si eres administrador: cada cambio que haces desde el panel (qué acción, sobre qué elemento, con qué resultado, cuándo y desde qué IP)', 'Se genera al usar el panel de administración, también si la acción se rechaza', 'Poder responder de quién creó, modificó o cerró cada elección si se impugna una votación'],
         ]}
@@ -90,13 +92,20 @@ export function PrivacyPolicy() {
       <P><b>Por qué esto limita el derecho de supresión:</b> una cadena de bloques pública es, por diseño, un
         registro que nadie —tampoco nosotros— puede alterar ni borrar. No podemos atender una solicitud de
         supresión sobre lo ya escrito en la cadena.</P>
-      <P><b>Sobre el seudónimo y quién puede relacionarlo contigo:</b> el testigo único no es anónimo. Nuestra base
-        de datos guarda, en la misma fila, tu identificador de usuario, la elección y el candidato elegido —{' '}
-        <b>sin plazo de borrado definido hoy</b>. Desde que la elección se cierra, una sal aleatoria propia de cada
-        elección impide recalcular el testigo único desde cero — pero eso no borra la fila ya escrita, solo cierra
-        una vía adicional de correlación. <b>No afirmamos que el voto sea anónimo.</b> Es un registro con
-        seudónimo, verificable por terceros, con doble voto prevenido criptográficamente — no secreto frente a
-        quien opera el sistema.</P>
+      <P><b>Sobre el seudónimo y quién puede relacionarlo contigo:</b> el testigo único no es anónimo.{' '}
+        <b>La base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero
+        el operador la conoce en el momento de procesar el voto.</b> Guardamos por separado que has participado
+        (tu cuenta y la elección, sin fecha ni hora) y los votos (candidato, testigo único y transacción, sin tu
+        cuenta y con la hora al minuto). Cuando la elección se cierra se destruye la sal aleatoria propia de esa
+        elección y ya no se puede recalcular el testigo único de nadie.</P>
+      <P><b>Lo que sigue sin cubrirse:</b> mientras la votación está abierta, el servidor puede calcular el testigo
+        único de cualquier persona; mientras un voto está pendiente de confirmar, una tabla interna une tu cuenta
+        con su testigo único (se borra al confirmarse y caduca a las 24 o 72 horas); las copias de seguridad
+        anteriores a esta separación conservan el vínculo hasta que caducan; y los registros de acceso de las
+        plataformas que alojan el servicio (Render, Vercel) guardan la IP y la hora de cada petición de voto
+        durante su plazo de retención (<Fill>[RELLENAR: plazo de cada proveedor]</Fill>), y con la hora del
+        bloque y los registros de inicio de sesión permiten reconstruir el vínculo. <b>No afirmamos que el voto sea
+        anónimo.</b> Es un registro verificable por terceros, con doble voto prevenido criptográficamente.</P>
 
       <H2>5. Cookies y almacenamiento local</H2>
       <P>Usamos cookies técnicas de sesión y, si tú lo pides activamente, datos guardados en tu navegador para
@@ -117,13 +126,16 @@ export function PrivacyPolicy() {
           ['Historial de correos enviados (email_log)', 'Se elimina a los 90 días'],
           ['Cuenta de usuario dada de baja', 'Se anonimiza a los 30 días de la baja (nombre, email e identificador dejan de ser legibles)'],
           ['Registro de acciones de administración (incluye la IP)', 'Se elimina a los 12 meses'],
-          ['Registro de voto (nullifier_audit): usuario, elección y candidato en la misma fila', 'Sin plazo definido hoy — ver sección 4'],
+          ['Participación (election_participations): tu cuenta y la elección, sin fecha ni hora', 'Mientras exista la cuenta; la cuenta se anonimiza a los 30 días de la baja'],
+          ['Voto (nullifier_audit): candidato, testigo único y transacción, sin cuenta', 'Sin plazo definido hoy — ver sección 4'],
+          ['Intento de voto en curso (vote_attempts): cuenta y testigo único', 'Se borra al confirmarse el voto; los fallidos a las 24 horas y los colgados a las 72 horas'],
+          ['Copias de seguridad de la base de datos anteriores a la separación (migración 016)', <>Conservan el vínculo hasta que caducan: <Fill key="bk">[RELLENAR: plazo de retención de copias del proveedor]</Fill></>],
         ]}
       />
       <ComplianceGap>
         Los plazos de la tabla están decididos e implementados; un abogado debe confirmar que son adecuados para
-        cada finalidad antes de darlos por definitivos. El plazo de <code>nullifier_audit</code> sigue siendo un
-        hueco real: hoy no tiene fecha de caducidad ni separación técnica del resto de la cuenta.
+        cada finalidad antes de darlos por definitivos. El plazo de <code>nullifier_audit</code> sigue sin definir, y
+        el de las copias de seguridad anteriores a la migración depende de la configuración del proveedor.
       </ComplianceGap>
 
       <H2>7. Tus derechos y cómo ejercerlos</H2>
@@ -133,8 +145,8 @@ export function PrivacyPolicy() {
           ['Acceso', 'Desde tu perfil, en la propia aplicación'],
           ['Rectificación de nombre, escuela, titulación, año y grupo', 'Desde tu perfil, en la propia aplicación'],
           ['Rectificación de email o identificador de estudiante', <>No es autoservicio. Solicítalo al administrador de tu institución o a <Fill key="c1">[RELLENAR: email de contacto]</Fill></>],
-          ['Supresión', <>Puedes pedir la baja de tu cuenta desde tu perfil, o escribiendo a <Fill key="c2">[RELLENAR]</Fill>. Se anonimiza a los 30 días. No alcanza a lo ya escrito en la cadena ni a <code>nullifier_audit</code> (sección 4)</>],
-          ['Portabilidad', 'Puedes descargar tus propios datos en JSON desde tu perfil'],
+          ['Supresión', <>Puedes pedir la baja de tu cuenta desde tu perfil, o escribiendo a <Fill key="c2">[RELLENAR]</Fill>. Se anonimiza a los 30 días. No alcanza a lo ya escrito en la cadena ni a los votos guardados sin tu cuenta (sección 4)</>],
+          ['Portabilidad', 'Puedes descargar tus propios datos en JSON desde tu perfil: tu perfil, en qué elecciones estás censado y en cuáles has participado. Nunca a quién votaste: la base no conserva esa correspondencia, y esta descarga no la reconstruye'],
           ['Oposición y limitación', <>Sin mecanismo automático — solicítalo a <Fill key="c3">[RELLENAR]</Fill>, indicando el motivo</>],
           ['Reclamación', <>Ante la <a key="aepd" href="https://www.aepd.es" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">Agencia Española de Protección de Datos</a> si no atendemos tu solicitud correctamente</>],
         ]}

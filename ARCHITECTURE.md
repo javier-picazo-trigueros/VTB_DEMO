@@ -153,8 +153,9 @@ There is **no demo bypass** or local synthetic vote mode:
 | `candidates`       | id, election_id, name, description, position      |
 | `election_voters`  | election_id, user_id (census)                     |
 | `vote_locks`       | user_id, election_id, nullifier, status (in_flight / confirmed / failed) |
-| `nullifier_audit`  | user_id, election_id, nullifier_hash, tx_hash, block_number, candidate_id, generated_at |
-| `vote_attempts`    | user_id, election_id, tx_hash, status, error_detail |
+| `election_participations` | election_id, user_id (quién ha votado; sin hora, sin id, sin nullifier) |
+| `nullifier_audit`  | id (UUID aleatorio), election_id, nullifier_hash, tx_hash, block_number, candidate_id, generated_at (al minuto), vote_source. Sin user_id (migración 016) |
+| `vote_attempts`    | user_id, election_id, nullifier_hash, tx_hash, status, error_detail. Se borra al confirmar el voto; caduca a las 24 h (fallidos) y 72 h (colgados) |
 | `refresh_tokens`   | id, user_id, token_hash, expires_at, revoked_at   |
 | `registration_requests` | email, full_name, student_id, status, reviewed_at |
 | `org_units`        | domain, unit_name                                 |

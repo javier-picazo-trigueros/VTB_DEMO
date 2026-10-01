@@ -537,8 +537,6 @@ Backend:
 | `npm run sync-blockchain` | Sync elections to configured chain |
 | `npm run migrate` | Apply pending PG migrations (requires `DB_CLIENT=postgres`) |
 | `npm run migrate:down` | Roll back the last PG migration |
-| `npm run db:migrate` | Copy data from SQLite to PostgreSQL |
-| `npm run db:rollback` | Copy data from PostgreSQL back to SQLite |
 
 Frontend:
 
@@ -662,11 +660,9 @@ To run with PostgreSQL instead of SQLite:
    ```bash
    npm run seed
    ```
-5. (Optional) Migrate existing SQLite data to PostgreSQL:
-   ```bash
-   DATABASE_PATH=./vtb.db npm run db:migrate
-   ```
-   To revert: `npm run db:rollback`.
+5. ~~Migrate existing SQLite data to PostgreSQL~~ — removed (SCRUM-17): the
+   `db:migrate` / `db:rollback` scripts copied `voter -> vote` links that
+   migration 016 deletes on purpose.
 
 ## Notes
 
@@ -687,12 +683,15 @@ is bypassed in the test environment by setting `max` to 1 000 000 when
 automated suite. A future integration test should spin up the app with the real
 limit and verify that the 4th vote attempt within a minute returns 429.
 
-### Cryptographic voter anonymity pending Semaphore
+### Voter anonymity: not provided, pending Semaphore
 
-The current implementation provides **operational** anonymity — the blockchain
-stores only `(nullifier, voteHash)`, not the voter's identity. However, the
-backend database does record the mapping between `user_id` and `election_id`
-in `nullifier_audit` for double-vote prevention. A fully anonymous system would
+The vote is **not anonymous**. The blockchain stores only `(nullifier, voteHash)`
+and the candidate, with no name or email, but that is pseudonymity. Since
+migration 016 the database keeps "this person has voted" (`election_participations`)
+apart from "there is a vote for this candidate" (`nullifier_audit`, without
+`user_id`), so once an election is closed no database row links a person to a
+vote. The operator still knows the mapping at the moment the vote is processed
+(see `SEGURIDAD.md` for what remains uncovered). A fully anonymous system would
 use a zero-knowledge circuit (e.g. [Semaphore](https://semaphore.pse.dev/)) so
 that even the backend cannot learn who voted for whom. Implementing Semaphore
 requires replacing the relayer model with client-side ZK proof generation — a

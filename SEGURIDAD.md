@@ -50,11 +50,34 @@ Los identificadores en la cadena no son una anonimización completa, sino una
 El testigo único de cada votante lo calcula hoy nuestro servidor a partir de la
 identidad del votante y de un secreto que custodiamos nosotros (HMAC-SHA256). **Quien tenga
 acceso a ese secreto puede saber qué voto de la cadena corresponde a qué persona.**
-Además, la base de datos de la aplicación guarda hoy, en la misma fila, el identificador
-del votante y su elección. Conociendo el momento del voto y los registros del servidor,
-el operador puede correlacionar votantes y votos emitidos.
+Desde la migración 016 (SCRUM-17) la base de datos guarda por separado *que una persona ha
+participado* (`election_participations`: elección y usuario, sin fecha ni hora) y *los votos*
+(`nullifier_audit`: testigo único, candidato, transacción y hora al minuto, con un id aleatorio
+y **sin `user_id`**). Cuando la elección cierra se destruye su sal efímera y ninguna fila de la
+base une ya a una persona con su candidato, su testigo único o su transacción.
 
-En términos prácticos: el operador conserva la correspondencia entre votante y voto en `nullifier_audit`, sin plazo de borrado — la fila con `user_id`, `election_id` y el candidato elegido no se anonimiza ni se elimina cuando la elección cierra. Desde la versión con sal efímera por elección, el testigo único deja de poder recalcularse desde cero una vez cerrada la elección y resueltos los votos pendientes (la sal se destruye entonces), pero eso no borra la correspondencia que la base ya tiene escrita: sigue estando ahí, en claro, en la misma fila. Separar esa relación en tablas distintas está pendiente.
+**La base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero el operador la conoce en el momento de procesar el voto.**
+
+Esa frase es exacta y tiene límites. Lo que sigue **sin** cubrirse:
+
+- **Durante la votación, el servidor puede calcular el testigo único de cualquier persona**,
+  porque la sal de la elección y el secreto existen mientras esté abierta.
+- **`vote_attempts` guarda usuario y testigo único mientras un voto está pendiente.** Se borra en la
+  misma transacción que confirma el voto; los intentos fallidos caducan a las 24 h y los que
+  quedan colgados a las 72 h (el borrado deja constancia en el log del servidor, sin el usuario).
+- **Las copias de seguridad anteriores a la migración** conservan el vínculo hasta que caducan.
+  La migración es irreversible a propósito; una copia previa no lo es.
+- **Los registros de acceso de las plataformas (Render, Vercel)** guardan la IP y la hora de cada
+  petición de voto durante su plazo de retención. Con la hora del bloque y los registros de login
+  permiten reconstruir el vínculo entre persona y voto. No dependen de nuestra base de datos.
+- **`nullifier_audit` sigue sin plazo de borrado**: los votos, sin usuario, se conservan.
+- La cadena es pública: el candidato y la hora exacta del bloque de cada voto son legibles
+  por cualquiera. Ver la coacción y la compra de votos más abajo.
+
+El voto **no es anónimo**: es un registro inmutable, con recuento verificable y doble voto
+prevenido criptográficamente mediante el testigo único. El comprobante (hash de la transacción)
+se muestra una sola vez, al votar, y no se envía por correo: la fila de `email_log` (destinatario,
+plantilla y fecha) se habría podido cruzar con la hora del voto.
 
 **Sobre Semaphore, ZK y consultas no secretas:**
 No hay ningún plan en marcha ni desarrollo activo para integrar Semaphore o pruebas
@@ -253,7 +276,7 @@ revisado en septiembre de 2026 para corregir las garantías de seguridad y el mo
 
 Debe entenderse que el sistema proporciona registro inmutable y recuento público de lo
 aceptado por el contrato, bajo un esquema de seudonimización apto para consultas no secretas.
-**El apartado 2.1 sigue plenamente vigente: el operador conserva la correspondencia entre votante y voto en `nullifier_audit`, sin plazo de borrado. La sal efímera impide recalcular el testigo único tras el cierre, pero no separa ni borra esa correspondencia ya escrita — la separación de tablas está pendiente.**
+**El apartado 2.1 sigue plenamente vigente: la base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero el operador la conoce en el momento de procesar el voto; durante la votación, en `vote_attempts` mientras un voto está pendiente y en las copias de seguridad anteriores a la migración 016, el vínculo sigue existiendo.**
 
 Los defectos concretos que sustentan lo dicho aquí están detallados en
 `AUDITORIA_BLOCKCHAIN.md`.
