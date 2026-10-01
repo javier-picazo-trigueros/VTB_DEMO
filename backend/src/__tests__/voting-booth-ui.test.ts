@@ -37,3 +37,19 @@ describe('el nombre del candidato se ve en modo oscuro', () => {
     expect(lista).toMatch(/dark:hover:bg-slate-700\/50/);
   });
 });
+
+describe('"votantes registrados" sale del censo', () => {
+  // Era un useState(0) que solo subía con eventos VoteCast recibidos en vivo: 0
+  // al abrir la página, mientras "0 de 3 votantes" (del censo) salía bien.
+  it('no hay un contador local de eventos: se lee participation.totalVoters', () => {
+    expect(booth).not.toMatch(/voteCount|setVoteCount/);
+    const i = booth.indexOf('votingBooth.votersRegistered');
+    const tarjeta = booth.slice(i - 900, i);
+    expect(tarjeta).toMatch(/participation \? participation\.totalVoters/);
+  });
+
+  it('el número de la tarjeta y el "N de M" salen del mismo campo de /results', () => {
+    expect(booth).toMatch(/totalVoters: Number\(data\.election\?\.totalVoters\)/);
+    expect(booth).toMatch(/total: participation\.totalVoters/);
+  });
+});

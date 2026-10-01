@@ -358,7 +358,6 @@ export const VotingBoothContent = () => {
   const [error, setError] = useState("");
   const [eligibilityError, setEligibilityError] = useState("");
   const [isListening, setIsListening] = useState(false);
-  const [voteCount, setVoteCount] = useState(0);
   const [voteStatus, setVoteStatus] = useState(null); // null | 'sending' | 'confirming' | 'success' | 'error'
   const [txData, setTxData] = useState(null);
   const [voteError, setVoteError] = useState(null);
@@ -486,7 +485,6 @@ export const VotingBoothContent = () => {
             { id: now + Math.random(), nullifier: String(nullifier), createdAt: now, timeText: calculateTimeAgo(now, t) },
             ...prev,
           ].slice(0, 8));
-          setVoteCount(prev => prev + 1);
         });
       } catch {
         setIsListening(false);
@@ -960,7 +958,11 @@ export const VotingBoothContent = () => {
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{voteCount}</p>
+                    {/* Censo de la elección (election_voters), de /results: el mismo
+                        número que el "N de M votantes" de la tarjeta de participación.
+                        Antes era un contador local de eventos de la cadena recibidos
+                        desde que se abría la página, y arrancaba siempre en 0. */}
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{participation ? participation.totalVoters : "—"}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{t("votingBooth.votersRegistered")}</p>
                   </div>
                   <div className={`p-2 rounded-full ${isListening ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-slate-100 dark:bg-slate-700"}`}>
