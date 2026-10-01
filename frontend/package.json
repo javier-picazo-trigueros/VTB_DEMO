@@ -4,7 +4,7 @@
   "description": "VTB (Vote Through Blockchain) - Frontend React con Vite, Tailwind y Web3",
   "type": "module",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "vite",
