@@ -9,6 +9,7 @@ import { motion } from 'framer-motion'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
+import { CheckCircleIcon, EyeIcon, EyeSlashIcon } from '../components/Icons'
 import { api, apiFetch } from '../utils/apiClient'
 import { PASSWORD_MIN_LENGTH } from '../utils/passwordPolicy'
 
@@ -162,7 +163,7 @@ export const RegisterRequest = () => {
         >
           {autoApproved ? (
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
-              <div className="text-5xl mb-4">✅</div>
+              <CheckCircleIcon className="w-14 h-14 mx-auto mb-4 text-green-600 dark:text-green-400" />
               <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">
                 Account automatically approved!
               </h2>
@@ -179,7 +180,7 @@ export const RegisterRequest = () => {
 
           ) : submitted ? (
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
-              <div className="text-5xl mb-4">✅</div>
+              <CheckCircleIcon className="w-14 h-14 mx-auto mb-4 text-green-600 dark:text-green-400" />
               <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">
                 Request submitted
               </h2>
@@ -321,8 +322,8 @@ export const RegisterRequest = () => {
                       <label className={labelCls}>{t("register.password")}</label>
                       <div className="relative">
                         <input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange} disabled={loading} className={inputCls} placeholder={`Min. ${PASSWORD_MIN_LENGTH} characters`} required />
-                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-sm">
-                          {showPassword ? '🙈' : '👁️'}
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-sm">
+                          {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
                         </button>
                       </div>
                     </div>

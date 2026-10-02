@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Navbar } from '../components/Navbar';
+import { LinkIcon } from '../components/Icons';
 import { apiFetch } from '../utils/apiClient';
 
 export function Transparency() {
@@ -22,8 +23,8 @@ export function Transparency() {
       <Navbar />
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
-          <p className="text-blue-600 dark:text-blue-300 text-sm font-bold mb-3">
-            🔗 {t('transparency.badge')}
+          <p className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-300 text-sm font-bold mb-3">
+            <LinkIcon className="w-4 h-4" /> {t('transparency.badge')}
           </p>
           <h1 className="text-4xl sm:text-5xl font-black mb-4 text-slate-900 dark:text-white">
             {t('transparency.title')}

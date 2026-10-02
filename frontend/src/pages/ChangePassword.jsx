@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
+import { CheckCircleIcon } from '../components/Icons'
 import { api } from '../utils/apiClient'
 import { PASSWORD_MIN_LENGTH } from '../utils/passwordPolicy'
 
@@ -59,7 +60,7 @@ export function ChangePassword() {
         >
           {success ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-              <div className="text-5xl mb-4">✅</div>
+              <CheckCircleIcon className="w-14 h-14 mx-auto mb-4 text-green-600 dark:text-green-400" />
               <h2 className="text-xl font-bold text-green-600 dark:text-green-400 mb-2">{t('changePassword.success')}</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm">{t('changePassword.successDesc')}</p>
             </motion.div>

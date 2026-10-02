@@ -145,7 +145,7 @@ export function Pricing() {
               onClick={() => setDemoOpen(true)}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-lg shadow-blue-600/30"
             >
-              🚀 Try Live Demo — No Registration
+              Try Live Demo — No Registration
             </button>
           )}
         </motion.div>
@@ -269,7 +269,7 @@ export function Pricing() {
               onClick={() => setDemoOpen(true)}
               className="px-8 py-3 rounded-2xl bg-white text-blue-700 font-bold hover:bg-blue-50 transition shadow-lg"
             >
-              🎓 Launch Demo Now
+              Launch Demo Now
             </button>
           )}
         </motion.div>

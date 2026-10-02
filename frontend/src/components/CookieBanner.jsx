@@ -77,7 +77,6 @@ export function CookieBanner() {
             <div className="flex flex-col sm:flex-row items-start gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg" aria-hidden="true">🍪</span>
                   <h3 className="font-semibold text-white text-sm">{t('cookies.title')}</h3>
                 </div>
                 <p className="text-slate-400 text-xs leading-relaxed">

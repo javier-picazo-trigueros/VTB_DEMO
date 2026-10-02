@@ -12,6 +12,10 @@ import QRCode from 'react-qr-code';
 import { api } from "../utils/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { ActionLogTab } from "../components/ActionLogTab";
+import {
+  ChartBarIcon, InboxIcon, UsersIcon, CheckCircleIcon, TrendUpIcon, LockIcon, ClipboardListIcon,
+  GlobeIcon, BuildingIcon, BoltIcon, LinkIcon, WarningIcon,
+} from "../components/Icons";
 
 /**
  * Clases completas y literales para los KPI de estadísticas.
@@ -46,7 +50,7 @@ const KPI_TONES = {
  * dentro, React lo trataba como un componente nuevo en cada render (y eslint
  * lo marcaba en cada uso, react-hooks/static-components).
  */
-function TabButton({ id, label, icon, badge, active, onSelect }) {
+function TabButton({ id, label, icon: Icon, badge, active, onSelect }) {
   return (
     <button
       // Los tres objetivos del tutorial son botones de pestaña: están siempre en
@@ -56,11 +60,11 @@ function TabButton({ id, label, icon, badge, active, onSelect }) {
       data-tour={id === "inbox" ? "requests-tab" : id === "stats" ? "stats-tab" : id === "elections" ? "create-election" : undefined}
       onClick={() => onSelect(id)}
       className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${active
-          ? "bg-emerald-500 text-white"
-          : "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+          ? "bg-brand-600 text-white"
+          : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
         }`}
     >
-      {icon} {label}
+      {Icon && <Icon className="w-4 h-4" />} {label}
       {badge != null && (
         <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
           {badge}
@@ -741,13 +745,13 @@ export const AdminPanel = () => {
 
         {/* Tabs */}
         <div className="mt-8 flex flex-wrap gap-3 mb-8">
-          <TabButton id="dashboard" active={activeTab === "dashboard"} onSelect={setActiveTab} label={t("admin.dashboard")} icon="📊" />
-          <TabButton id="inbox" active={activeTab === "inbox"} onSelect={setActiveTab} label={t("admin.requests")} icon="📬" badge={pendingBadge > 0 ? pendingBadge : null} />
-          <TabButton id="users" active={activeTab === "users"} onSelect={setActiveTab} label={t("admin.users")} icon="👥" />
-          <TabButton id="elections" active={activeTab === "elections"} onSelect={setActiveTab} label={t("admin.elections")} icon="🗳️" />
-          <TabButton id="stats" active={activeTab === "stats"} onSelect={setActiveTab} label={t("admin.statistics")} icon="📈" />
-          <TabButton id="audit" active={activeTab === "audit"} onSelect={setActiveTab} label={t("admin.audit")} icon="🔐" />
-          <TabButton id="actions" active={activeTab === "actions"} onSelect={setActiveTab} label={t("admin.actionLogTab")} icon="📝" />
+          <TabButton id="dashboard" active={activeTab === "dashboard"} onSelect={setActiveTab} label={t("admin.dashboard")} icon={ChartBarIcon} />
+          <TabButton id="inbox" active={activeTab === "inbox"} onSelect={setActiveTab} label={t("admin.requests")} icon={InboxIcon} badge={pendingBadge > 0 ? pendingBadge : null} />
+          <TabButton id="users" active={activeTab === "users"} onSelect={setActiveTab} label={t("admin.users")} icon={UsersIcon} />
+          <TabButton id="elections" active={activeTab === "elections"} onSelect={setActiveTab} label={t("admin.elections")} icon={CheckCircleIcon} />
+          <TabButton id="stats" active={activeTab === "stats"} onSelect={setActiveTab} label={t("admin.statistics")} icon={TrendUpIcon} />
+          <TabButton id="audit" active={activeTab === "audit"} onSelect={setActiveTab} label={t("admin.audit")} icon={LockIcon} />
+          <TabButton id="actions" active={activeTab === "actions"} onSelect={setActiveTab} label={t("admin.actionLogTab")} icon={ClipboardListIcon} />
         </div>
 
         {/* Content */}
@@ -808,16 +812,16 @@ export const AdminPanel = () => {
                   <div className="flex flex-wrap gap-2">
                     {isSuperAdmin ? (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm font-medium">
-                        🌐 Super admin — todas las instituciones
+                        <GlobeIcon className="w-4 h-4" /> Super admin — todas las instituciones
                       </span>
                     ) : adminDomain && (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium">
-                        🏛️ Gestionando: @{adminDomain}
+                        <BuildingIcon className="w-4 h-4" /> Gestionando: @{adminDomain}
                       </span>
                     )}
                     {!isSuperAdmin && stats.pendingRequests > 0 && (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-sm font-medium">
-                        📬 {stats.pendingRequests} solicitudes pendientes
+                        <InboxIcon className="w-4 h-4" /> {stats.pendingRequests} solicitudes pendientes
                       </span>
                     )}
                   </div>
@@ -825,12 +829,12 @@ export const AdminPanel = () => {
                   {/* KPI Cards */}
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     {[
-                      { key: "totalUsers", icon: "👥", value: stats.totalUsers, badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", subKey: "registeredAccounts" },
-                      { key: "pendingRequests", icon: "📬", value: stats.pendingRequests, badgeClass: stats.pendingRequests > 0 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", subKey: "awaitingApproval" },
-                      { key: "totalElections", icon: "🗳️", value: stats.totalElections, badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300", subKey: "allElections" },
-                      { key: "activeElections", icon: "⚡", value: stats.activeElections, badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300", subKey: "currentlyRunning" },
-                      { key: "totalVotes", icon: "🔐", value: stats.totalVotes, badgeClass: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300", subKey: "nullifiersIssued" },
-                    ].map(({ key, icon, value, badgeClass, subKey }) => (
+                      { key: "totalUsers", icon: UsersIcon, value: stats.totalUsers, badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", subKey: "registeredAccounts" },
+                      { key: "pendingRequests", icon: InboxIcon, value: stats.pendingRequests, badgeClass: stats.pendingRequests > 0 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", subKey: "awaitingApproval" },
+                      { key: "totalElections", icon: CheckCircleIcon, value: stats.totalElections, badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300", subKey: "allElections" },
+                      { key: "activeElections", icon: BoltIcon, value: stats.activeElections, badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300", subKey: "currentlyRunning" },
+                      { key: "totalVotes", icon: LockIcon, value: stats.totalVotes, badgeClass: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300", subKey: "nullifiersIssued" },
+                    ].map(({ key, icon: Icon, value, badgeClass, subKey }) => (
                       <motion.div
                         key={key}
                         whileHover={{ scale: 1.02 }}
@@ -845,7 +849,7 @@ export const AdminPanel = () => {
                         className="cursor-pointer bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-150 hover:-translate-y-0.5"
                       >
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-2xl">{icon}</span>
+                          <Icon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
                           <span className={`text-xs font-medium px-2 py-1 rounded-full ${badgeClass}`}>
                             {t(`admin.${key}`)}
                           </span>
@@ -863,7 +867,9 @@ export const AdminPanel = () => {
                         ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
                         : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
                     }`}>
-                      <span className="text-2xl">{blockchainStatus.connected ? '⛓️' : '⚠️'}</span>
+                      {blockchainStatus.connected
+                        ? <LinkIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                        : <WarningIcon className="w-6 h-6 text-amber-600 dark:text-amber-400" />}
                       <div className="flex-1 min-w-0">
                         <p className={`font-semibold ${blockchainStatus.connected ? 'text-emerald-800 dark:text-emerald-200' : 'text-amber-800 dark:text-amber-200'}`}>
                           {blockchainStatus.connected ? 'Blockchain conectada' : 'Blockchain no disponible'}
@@ -1270,7 +1276,7 @@ export const AdminPanel = () => {
                           className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                         />
                         <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
-                          <span aria-hidden="true">⚠️</span>
+                          <WarningIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
                           <span>Este nombre se publica para siempre en una cadena de bloques pública (Ethereum) y no se puede borrar ni corregir después. No pongas nombres, apellidos ni ningún otro dato personal.</span>
                         </p>
                       </div>
@@ -1356,10 +1362,10 @@ export const AdminPanel = () => {
                         {/* Target type buttons */}
                         <div className="flex gap-2 mb-3 flex-wrap">
                           {[
-                            { value: 'all', label: '🌐 Todos en mi dominio' },
-                            { value: 'school', label: '🏫 Por facultad / escuela' },
-                            { value: 'org_unit', label: '🏛️ Unidad organizativa concreta' },
-                            { value: 'domain', label: '📧 Dominio de email' },
+                            { value: 'all', label: 'Todos en mi dominio' },
+                            { value: 'school', label: 'Por facultad / escuela' },
+                            { value: 'org_unit', label: 'Unidad organizativa concreta' },
+                            { value: 'domain', label: 'Dominio de email' },
                           ].map(({ value, label }) => (
                             <button
                               key={value}
@@ -1605,10 +1611,10 @@ export const AdminPanel = () => {
                                   {(() => {
                                     const chainStatus = election.chain_status || 'pending';
                                     const badge = {
-                                      synced:  { cls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200', label: `⛓️ En blockchain #${election.election_id_blockchain}` },
-                                      syncing: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: '⏳ Registrando en blockchain…' },
-                                      pending: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: '⏳ Pendiente de blockchain' },
-                                      failed:  { cls: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200', label: '⚠️ Error al registrar en blockchain' },
+                                      synced:  { cls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200', label: `En blockchain #${election.election_id_blockchain}` },
+                                      syncing: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: 'Registrando en blockchain…' },
+                                      pending: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: 'Pendiente de blockchain' },
+                                      failed:  { cls: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200', label: 'Error al registrar en blockchain' },
                                     }[chainStatus] || { cls: 'bg-slate-100 text-slate-700', label: chainStatus };
                                     const title = chainStatus === 'failed' ? (election.chain_error || '') : (election.chain_tx_hash || '');
                                     return (
@@ -1619,12 +1625,12 @@ export const AdminPanel = () => {
                                   })()}
                                   {election.voter_role === 'admin' && (
                                     <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium">
-                                      ⚙️ Solo admins
+                                      Solo admins
                                     </span>
                                   )}
                                   {election.voter_role === 'both' && (
                                     <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium">
-                                      👥 Todos
+                                      Todos
                                     </span>
                                   )}
                                   {election.targets && election.targets.length > 0
@@ -1656,7 +1662,7 @@ export const AdminPanel = () => {
                                   onClick={() => handleEditElection(election)}
                                   className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded-lg transition font-medium text-sm w-36"
                                 >
-                                  ✏️ Editar
+                                  Editar
                                 </button>
                                 <button
                                   onClick={() => setExpandedElection(expandedElection === election.id ? null : election.id)}
@@ -1668,7 +1674,7 @@ export const AdminPanel = () => {
                                   onClick={() => setQrElection(election)}
                                   className="px-4 py-2 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-300 rounded-lg transition font-medium text-sm w-36"
                                 >
-                                  📱 Código QR
+                                  Código QR
                                 </button>
                               </div>
                             </div>
@@ -2068,12 +2074,12 @@ export const AdminPanel = () => {
                   {/* KPI Row */}
                   <div className="grid grid-cols-3 gap-4">
                     {[
-                      { label: 'Censo', value: selectedElectionStats.stats.totalVoters, icon: '👥', tone: KPI_TONES.blue },
-                      { label: 'Votos emitidos', value: selectedElectionStats.stats.totalVotes, icon: '🗳️', tone: KPI_TONES.emerald },
-                      { label: 'Participación', value: `${selectedElectionStats.stats.participationRate}%`, icon: '📊', tone: KPI_TONES.purple },
-                    ].map(({ label, value, icon, tone }) => (
+                      { label: 'Censo', value: selectedElectionStats.stats.totalVoters, icon: UsersIcon, tone: KPI_TONES.blue },
+                      { label: 'Votos emitidos', value: selectedElectionStats.stats.totalVotes, icon: CheckCircleIcon, tone: KPI_TONES.emerald },
+                      { label: 'Participación', value: `${selectedElectionStats.stats.participationRate}%`, icon: ChartBarIcon, tone: KPI_TONES.purple },
+                    ].map(({ label, value, icon: Icon, tone }) => (
                       <div key={label} className={`${tone.box} rounded-xl p-4 text-center`}>
-                        <p className="text-2xl mb-1">{icon}</p>
+                        <Icon className="w-6 h-6 mx-auto mb-1 opacity-70" />
                         <p className={`text-2xl font-bold ${tone.value}`}>{value}</p>
                         <p className={`text-xs ${tone.label} mt-0.5`}>{label}</p>
                       </div>
@@ -2120,7 +2126,7 @@ export const AdminPanel = () => {
                               <tr key={c.id} className="border-t border-slate-100 dark:border-slate-700">
                                 <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-xs">#{i + 1}</td>
                                 <td className="py-3 px-4 text-slate-900 dark:text-white font-medium">
-                                  {isWinner && <span className="mr-1.5">👑</span>}
+                                  {isWinner && <span className="mr-2 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">Ganador</span>}
                                   {c.name}
                                   {c.description && <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{c.description}</span>}
                                 </td>
@@ -2249,7 +2255,7 @@ export const AdminPanel = () => {
             className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-sm"
           >
             <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">📱 Código QR</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Código QR</h2>
               <button
                 onClick={() => setQrElection(null)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded"
@@ -2309,7 +2315,7 @@ export const AdminPanel = () => {
                   className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
                 <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
-                  <span aria-hidden="true">⚠️</span>
+                  <WarningIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>El nombre original ya puede estar publicado para siempre en una cadena de bloques pública. Cambiarlo aquí no lo corrige allí, y no debe contener datos personales.</span>
                 </p>
               </div>

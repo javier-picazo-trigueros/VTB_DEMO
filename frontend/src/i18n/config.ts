@@ -288,12 +288,12 @@ const resources = {
         sessionExpired: "Your session has expired. Please sign in again.",
         or: "or",
         continueWithGoogle: "Continue with Google",
-        demoAccounts: "🔑 Demo Accounts",
-        superAdmin: "🔧 Super Admin (all domains)",
-        ufvAdmin: "👨‍💼 UFV Admin (@ufv.es)",
-        ufvStudent: "🎓 UFV Student",
-        eduAdmin: "👨‍💼 EDU Admin (@universidad.edu)",
-        eduStudent: "🎓 EDU Student",
+        demoAccounts: "Demo Accounts",
+        superAdmin: "Super Admin (all domains)",
+        ufvAdmin: "UFV Admin (@ufv.es)",
+        ufvStudent: "UFV Student",
+        eduAdmin: "EDU Admin (@universidad.edu)",
+        eduStudent: "EDU Student",
         ssoTitle: "SSO Simulation",
         ssoDesc: "In production, Google OAuth would allow you to sign in automatically with your institutional account. For this demo, please use the test credentials above.",
         gotIt: "Got it"
@@ -301,14 +301,14 @@ const resources = {
 
       // REGISTER
       register: {
-        title: "🚀 Request Access",
+        title: "Request Access",
         subtitle: "Fill out this form to request a voting account. Choose your password now — once approved by an admin, you can log in immediately.",
         name: "Full Name",
         email: "Institutional Email",
         password: "Password",
         confirmPassword: "Confirm Password",
         studentId: "Student / Employee ID",
-        register: "📤 Submit Request",
+        register: "Submit Request",
         submitting: "Submitting...",
         registerSuccessTitle: "Request Submitted!",
         registerSuccessDesc1: "Your registration request has been submitted successfully.",
@@ -316,7 +316,7 @@ const resources = {
         registerError: "Error creating account",
         haveAccount: "Already have an account?",
         loginHere: "Sign in",
-        backToLogin: "🔐 Back to Login"
+        backToLogin: "Back to Login"
       },
 
       // ADMIN PANEL
@@ -651,7 +651,7 @@ const resources = {
         current: "Current password",
         next: "New password",
         confirm: "Confirm new password",
-        save: "🔑 Save",
+        save: "Save",
         saving: "Saving…",
         success: "Password changed!",
         successDesc: "Redirecting to dashboard…",
@@ -964,12 +964,12 @@ const resources = {
         sessionExpired: "Tu sesión ha expirado. Por favor, inicia sesión de nuevo.",
         or: "o",
         continueWithGoogle: "Continuar con Google",
-        demoAccounts: "🔑 Cuentas Demo",
-        superAdmin: "🔧 Super Admin (todos los dominios)",
-        ufvAdmin: "👨‍💼 Admin UFV (@ufv.es)",
-        ufvStudent: "🎓 Estudiante UFV",
-        eduAdmin: "👨‍💼 Admin EDU (@universidad.edu)",
-        eduStudent: "🎓 Estudiante EDU",
+        demoAccounts: "Cuentas Demo",
+        superAdmin: "Super Admin (todos los dominios)",
+        ufvAdmin: "Admin UFV (@ufv.es)",
+        ufvStudent: "Estudiante UFV",
+        eduAdmin: "Admin EDU (@universidad.edu)",
+        eduStudent: "Estudiante EDU",
         ssoTitle: "Simulación SSO",
         ssoDesc: "En producción, Google OAuth permitiría iniciar sesión automáticamente con la cuenta institucional. Para esta demo, usa las credenciales de prueba de arriba.",
         gotIt: "Entendido"
@@ -977,14 +977,14 @@ const resources = {
 
       // REGISTER
       register: {
-        title: "🚀 Solicitar Acceso",
+        title: "Solicitar Acceso",
         subtitle: "Completa este formulario para solicitar una cuenta de votante. Elige tu contraseña ahora — una vez que un administrador la apruebe, podrás iniciar sesión de inmediato.",
         name: "Nombre Completo",
         email: "Correo Institucional",
         password: "Contraseña",
         confirmPassword: "Confirmar Contraseña",
         studentId: "Número de Estudiante / Empleado",
-        register: "📤 Enviar Solicitud",
+        register: "Enviar Solicitud",
         submitting: "Enviando...",
         registerSuccessTitle: "¡Solicitud Enviada!",
         registerSuccessDesc1: "Tu solicitud de registro ha sido enviada exitosamente.",
@@ -992,7 +992,7 @@ const resources = {
         registerError: "Error al crear cuenta",
         haveAccount: "¿Ya tienes cuenta?",
         loginHere: "Iniciar sesión",
-        backToLogin: "🔐 Volver al Login"
+        backToLogin: "Volver al Login"
       },
 
       // ADMIN PANEL
@@ -1325,7 +1325,7 @@ const resources = {
         current: "Contraseña actual",
         next: "Nueva contraseña",
         confirm: "Confirmar nueva contraseña",
-        save: "🔑 Guardar",
+        save: "Guardar",
         saving: "Guardando…",
         success: "¡Contraseña cambiada!",
         successDesc: "Redirigiendo al dashboard…",

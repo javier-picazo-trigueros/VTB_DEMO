@@ -7,6 +7,7 @@ import { Navbar } from "../components/Navbar";
 import LoadingSpinner from "../components/LoadingSpinner";
 import i18n from "../i18n/config";
 import { api, apiFetch } from "../utils/apiClient";
+import { WarningIcon } from "../components/Icons";
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://localhost:8545";
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "";
 const EXPLORER_URL = import.meta.env.VITE_EXPLORER_URL || "http://localhost:8545";
@@ -820,7 +821,7 @@ export const VotingBoothContent = () => {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center"
           >
-            <div className="text-4xl mb-3">⚠️</div>
+            <WarningIcon className="w-10 h-10 mx-auto mb-3 text-red-600 dark:text-red-400" />
             <h3 className="font-bold text-red-800 dark:text-red-300 mb-1">
               {voteError.message}
             </h3>
