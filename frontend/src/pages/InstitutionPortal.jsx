@@ -12,6 +12,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
+import { CheckCircleIcon, ShieldCheckIcon, BuildingIcon, WarningIcon } from "../components/Icons";
 import { api, apiFetch } from "../utils/apiClient";
 
 
@@ -131,7 +132,7 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
           id="portal-voter-btn"
           className="group text-left p-6 rounded-2xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200"
         >
-          <div className="text-3xl mb-3">🗳️</div>
+          <CheckCircleIcon className="w-8 h-8 mb-3 text-gray-700 dark:text-gray-200" />
           <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
             {t("login.voterPortalTitle")}
           </h3>
@@ -155,7 +156,7 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
           id="portal-admin-btn"
           className="group text-left p-6 rounded-2xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200"
         >
-          <div className="text-3xl mb-3">⚙️</div>
+          <ShieldCheckIcon className="w-8 h-8 mb-3 text-gray-700 dark:text-gray-200" />
           <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
             {t("login.adminPortalTitle")}
           </h3>
@@ -328,14 +329,14 @@ const PortalLoginForm = ({ primaryColor, domain }) => {
 };
 
 // ─── Shared error/empty page shell ────────────────────────────────────────────
-const SimpleShell = ({ emoji, title, message, domain, onBack }) => (
+const SimpleShell = ({ icon: Icon, title, message, domain, onBack }) => (
   <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-8">
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       className="max-w-md text-center"
     >
-      <div className="text-6xl mb-6">{emoji}</div>
+      <Icon className="w-14 h-14 mx-auto mb-6 text-gray-400 dark:text-gray-500" />
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">{title}</h1>
       <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">{message}</p>
       {domain && (
@@ -409,7 +410,7 @@ export const InstitutionPortal = () => {
   if (status === "not_found") {
     return (
       <SimpleShell
-        emoji="🏛️"
+        icon={BuildingIcon}
         title="Institution Not Found"
         message="We couldn't find an institution registered for this domain. Please check the URL and try again."
         domain={domain}
@@ -421,7 +422,7 @@ export const InstitutionPortal = () => {
   if (status === "error") {
     return (
       <SimpleShell
-        emoji="⚠️"
+        icon={WarningIcon}
         title="Something went wrong"
         message="Failed to load the institutional portal. Please try again later."
         onBack={() => navigate("/landing")}

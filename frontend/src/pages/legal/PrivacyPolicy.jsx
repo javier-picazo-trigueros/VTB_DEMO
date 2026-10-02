@@ -110,7 +110,7 @@ export function PrivacyPolicy() {
       <H2>5. Cookies y almacenamiento local</H2>
       <P>Usamos cookies técnicas de sesión y, si tú lo pides activamente, datos guardados en tu navegador para
         recordar tu idioma o tu tema visual. No hace falta tu consentimiento para ninguno de los dos — ver la{' '}
-        <Link to="/legal/cookies" className="text-blue-600 dark:text-blue-400 hover:underline">Política de
+        <Link to="/legal/cookies" className="text-brand-600 dark:text-brand-300 hover:underline">Política de
         Cookies</Link> completa.</P>
 
       <H2>6. Plazos de conservación</H2>
@@ -148,7 +148,7 @@ export function PrivacyPolicy() {
           ['Supresión', <>Puedes pedir la baja de tu cuenta desde tu perfil, o escribiendo a <Fill key="c2">[RELLENAR]</Fill>. Se anonimiza a los 30 días. No alcanza a lo ya escrito en la cadena ni a los votos guardados sin tu cuenta (sección 4)</>],
           ['Portabilidad', 'Puedes descargar tus propios datos en JSON desde tu perfil: tu perfil, en qué elecciones estás censado y en cuáles has participado. Nunca a quién votaste: la base no conserva esa correspondencia, y esta descarga no la reconstruye'],
           ['Oposición y limitación', <>Sin mecanismo automático — solicítalo a <Fill key="c3">[RELLENAR]</Fill>, indicando el motivo</>],
-          ['Reclamación', <>Ante la <a key="aepd" href="https://www.aepd.es" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">Agencia Española de Protección de Datos</a> si no atendemos tu solicitud correctamente</>],
+          ['Reclamación', <>Ante la <a key="aepd" href="https://www.aepd.es" target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-300 hover:underline">Agencia Española de Protección de Datos</a> si no atendemos tu solicitud correctamente</>],
         ]}
       />
 

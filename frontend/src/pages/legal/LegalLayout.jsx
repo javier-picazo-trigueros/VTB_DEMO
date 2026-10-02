@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Navbar } from '../../components/Navbar';
+import { WarningIcon } from '../../components/Icons';
 
 const LEGAL_LINKS = [
   { to: '/legal/privacidad', label: 'Política de privacidad' },
@@ -77,7 +78,7 @@ export function LegalLayout({ title, lastUpdated, children }) {
       <Navbar />
       <main className="flex-1 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
         <div className="flex items-start gap-3 mb-6 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-2xl px-5 py-4">
-          <span className="text-lg" aria-hidden="true">⚠️</span>
+          <WarningIcon className="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="text-sm text-amber-900 dark:text-amber-200">
             <p className="font-semibold">Borrador — pendiente de revisión legal.</p>
             <p>
@@ -102,7 +103,7 @@ export function LegalLayout({ title, lastUpdated, children }) {
           </p>
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
             {LEGAL_LINKS.map(link => (
-              <Link key={link.to} to={link.to} className="text-blue-600 dark:text-blue-400 hover:underline">
+              <Link key={link.to} to={link.to} className="text-brand-600 dark:text-brand-300 hover:underline">
                 {link.label}
               </Link>
             ))}

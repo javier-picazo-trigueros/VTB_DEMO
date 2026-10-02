@@ -14,6 +14,18 @@ describe('Punto 12: Eliminación de afirmaciones falsas en i18n/config.ts', () =
   const configPath = path.resolve(__dirname, '../../../frontend/src/i18n/config.ts');
   const content = fs.readFileSync(configPath, 'utf8');
 
+  it('el texto de la cabina dice que en la cadena queda el candidato, sin afirmar anonimato (es y en)', () => {
+    // v2: el evento VoteCast lleva el candidato en claro. El texto antiguo decía
+    // que se almacenaban "nullifier y hash de voto" y que no identificaban al votante.
+    expect(content).not.toMatch(/Se almacenan nullifier y hash de voto/i);
+    expect(content).not.toMatch(/Nullifier and vote hash are stored/i);
+    expect(content).toMatch(/anonymousInfo: "En la cadena queda un identificador \(nullifier\) y el candidato elegido; no aparece tu nombre ni tu correo\."/);
+    expect(content).toMatch(/anonymousInfo: "The chain records an identifier \(nullifier\) and the chosen candidate; your name and email do not appear\."/);
+    // y el PDF de auditoría exportado no repite la afirmación vieja
+    const pdf = fs.readFileSync(path.resolve(__dirname, '../../../frontend/src/pages/ElectionResults.jsx'), 'utf8');
+    expect(pdf).not.toMatch(/vote hash on-chain do not identify/i);
+  });
+
   it('no afirma que el nullifier se calcula localmente (es HMAC en backend)', () => {
     expect(content).not.toMatch(/calcula localmente/i);
     expect(content).not.toMatch(/computed locally/i);

@@ -7,6 +7,7 @@ import { Navbar } from "../components/Navbar";
 import LoadingSpinner from "../components/LoadingSpinner";
 import i18n from "../i18n/config";
 import { api, apiFetch } from "../utils/apiClient";
+import { WarningIcon } from "../components/Icons";
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://localhost:8545";
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || "";
 const EXPLORER_URL = import.meta.env.VITE_EXPLORER_URL || "http://localhost:8545";
@@ -96,7 +97,7 @@ const VoteProgressModal = ({ status, t }) => {
               <div
                 key={s.key}
                 className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
-                  i <= idx ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"
+                  i <= idx ? "bg-brand-600" : "bg-slate-200 dark:bg-slate-600"
                 }`}
               />
             );
@@ -147,17 +148,21 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
       <h2 className="text-center text-xl font-bold text-slate-900 dark:text-white mb-1">
         {txData.pendingConfirmation
           ? (t("votingBooth.pendingConfirmationTitle") || "Voto en Proceso")
+          : txData.isDemo
+          ? t("votingBooth.voteRegisteredDemo")
           : t("votingBooth.voteRegistered")}
       </h2>
       <p className="text-center text-sm text-slate-500 dark:text-slate-400 mb-5">
         {txData.pendingConfirmation
           ? (t("votingBooth.pendingConfirmationSubtitle") || "Transacción enviada a la blockchain")
+          : txData.isDemo
+          ? t("votingBooth.voteRegisteredDemoSub")
           : t("votingBooth.transactionHash")}
       </p>
 
       {txData.isDemo && (
         <div className="mb-3 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+          <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
           {t("votingBooth.receiptDemoBadge")}
         </div>
       )}
@@ -169,6 +174,10 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         </div>
       )}
 
+      {/* Un voto de demostración no tiene transacción: ni hash que guardar ni
+          botón de copiar (antes salía una caja vacía bajo "¡registrado en blockchain!"). */}
+      {!txData.isDemo && txData.txHash && (
+      <>
       <p className="mb-3 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-xs font-medium text-center">
         {t("votingBooth.receiptSaveWarning")}
       </p>
@@ -184,6 +193,8 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         <ClipboardIcon />
         {copied ? t("results.copied") : t("votingBooth.copyTxHash")}
       </button>
+      </>
+      )}
 
       {!txData.isDemo && txData.txHash && explorerUrl && (txData.blockNumber !== null || txData.pendingConfirmation) ? (
         <a
@@ -205,14 +216,14 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
           {t("votingBooth.localDemoVote")}
         </p>
       ) : txData.isDemo ? (
-        <p className="text-center text-xs text-blue-600 dark:text-blue-400 mb-3 px-2">
+        <p className="text-center text-xs text-brand-600 dark:text-brand-300 mb-3 px-2">
           {t("votingBooth.receiptDemoNote")}
         </p>
       ) : null}
 
       <button
         onClick={onViewResults}
-        className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold"
+        className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl transition font-semibold"
       >
         {t("votingBooth.viewResults")}
       </button>
@@ -249,7 +260,7 @@ const VoteErrorModal = ({ voteError, t, onRetry, onBack }) => (
       <div className="flex gap-3">
         <button
           onClick={onRetry}
-          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold text-sm"
+          className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl transition font-semibold text-sm"
         >
           {t("votingBooth.retry")}
         </button>
@@ -358,7 +369,6 @@ export const VotingBoothContent = () => {
   const [error, setError] = useState("");
   const [eligibilityError, setEligibilityError] = useState("");
   const [isListening, setIsListening] = useState(false);
-  const [voteCount, setVoteCount] = useState(0);
   const [voteStatus, setVoteStatus] = useState(null); // null | 'sending' | 'confirming' | 'success' | 'error'
   const [txData, setTxData] = useState(null);
   const [voteError, setVoteError] = useState(null);
@@ -486,7 +496,6 @@ export const VotingBoothContent = () => {
             { id: now + Math.random(), nullifier: String(nullifier), createdAt: now, timeText: calculateTimeAgo(now, t) },
             ...prev,
           ].slice(0, 8));
-          setVoteCount(prev => prev + 1);
         });
       } catch {
         setIsListening(false);
@@ -550,11 +559,17 @@ export const VotingBoothContent = () => {
   const handleVote = async () => {
     if (!selectedCandidate || !electionId) return;
 
+    // Fuera del try y cancelado en el finally. Antes solo se cancelaba si la
+    // petición salía bien: con un fallo rápido (503 elección sin registrar, 409
+    // ya has votado) el error se pintaba y 300 ms después el temporizador lo
+    // pisaba con "Confirmando transacción…", que no se iba nunca.
+    let confirmTimer;
+
     try {
       setVoteError(null);
       setVoteStatus("sending");
 
-      const confirmTimer = setTimeout(() => {
+      confirmTimer = setTimeout(() => {
         setVoteStatus("confirming");
       }, 300);
 
@@ -562,8 +577,6 @@ export const VotingBoothContent = () => {
         '/api/elections/register-vote',
         { electionId: parseInt(electionId), candidateId: selectedCandidate },
       );
-      clearTimeout(confirmTimer);
-
       const isPending = response.data?.pendingConfirmation === true || response.data?.status === 'pending_confirmation';
       setTxData({
         txHash: response.data.txHash,
@@ -638,6 +651,8 @@ export const VotingBoothContent = () => {
       }
       setVoteStatus("error");
       if (err.response?.status === 401) setTimeout(() => navigate("/login"), 2000);
+    } finally {
+      clearTimeout(confirmTimer);
     }
   };
 
@@ -731,7 +746,7 @@ export const VotingBoothContent = () => {
             </p>
             <button
               onClick={() => navigate(`/results/${electionId}`)}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition text-sm"
+              className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-semibold transition text-sm"
             >
               {t("votingBooth.viewResults")}
             </button>
@@ -786,7 +801,7 @@ export const VotingBoothContent = () => {
           >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                <svg className="w-5 h-5 text-brand-600 dark:text-brand-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                 </svg>
               </div>
@@ -806,7 +821,7 @@ export const VotingBoothContent = () => {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center"
           >
-            <div className="text-4xl mb-3">⚠️</div>
+            <WarningIcon className="w-10 h-10 mx-auto mb-3 text-red-600 dark:text-red-400" />
             <h3 className="font-bold text-red-800 dark:text-red-300 mb-1">
               {voteError.message}
             </h3>
@@ -881,7 +896,7 @@ export const VotingBoothContent = () => {
                   )}
 
                   {/* Candidate list — left-border selection pattern, no scale animations */}
-                  <div className="divide-y divide-warm-100 border border-warm-200 rounded overflow-hidden">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded overflow-hidden">
                     {candidates.map((candidate) => {
                       const selected = selectedCandidate === candidate.id;
                       return (
@@ -889,26 +904,33 @@ export const VotingBoothContent = () => {
                           key={candidate.id}
                           onClick={() => setSelectedCandidate(candidate.id)}
                           disabled={inProgress}
-                          className={`w-full px-4 py-3.5 text-left transition-colors duration-100 flex items-center gap-4 ${
+                          className={`relative w-full px-4 py-3.5 text-left transition-colors duration-100 flex items-center gap-4 ${
                             selected
-                              ? "border-l-[3px] border-l-brand-600 bg-brand-50/40 pl-[13px]"
-                              : "border-l-[3px] border-l-transparent hover:bg-warm-50"
+                              ? "bg-brand-50/40 dark:bg-brand-600/25"
+                              : "hover:bg-warm-50 dark:hover:bg-slate-700/50"
                           }`}
                         >
+                          {/* Barra de selección. No es un border-l: junto al borde
+                              superior que pone divide-y, un borde izquierdo
+                              transparente se unía en diagonal y dejaba un trozo
+                              blanco a la izquierda de la segunda tarjeta. */}
+                          {selected && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-brand-600" />}
                           {/* Radio circle */}
                           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                            selected ? "border-brand-600 bg-brand-600" : "border-slate-300"
+                            selected ? "border-brand-600 bg-brand-600" : "border-slate-300 dark:border-slate-500"
                           }`}>
                             {selected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={`font-medium text-sm ${
-                              selected ? "text-brand-700" : "text-slate-800"
+                              selected
+                                ? "text-brand-700 dark:text-brand-100"
+                                : "text-slate-900 dark:text-white"
                             }`}>
                               {candidate.name}
                             </p>
                             {candidate.description && (
-                              <p className="text-xs text-slate-400 mt-0.5 truncate">
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                                 {candidate.description}
                               </p>
                             )}
@@ -930,7 +952,7 @@ export const VotingBoothContent = () => {
                       className={`w-full py-3 rounded font-semibold text-sm transition-colors ${
                         selectedCandidate && !inProgress
                           ? "bg-brand-600 hover:bg-brand-700 text-white"
-                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                          : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 cursor-not-allowed"
                       }`}
                     >
                       {inProgress
@@ -940,7 +962,7 @@ export const VotingBoothContent = () => {
                         : t("votingBooth.selectOption")}
                     </button>
                     {!selectedCandidate && (
-                      <p className="text-center text-xs text-slate-400 mt-2">
+                      <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-2">
                         {t("votingBooth.selectOption")}
                       </p>
                     )}
@@ -958,7 +980,11 @@ export const VotingBoothContent = () => {
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{voteCount}</p>
+                    {/* Censo de la elección (election_voters), de /results: el mismo
+                        número que el "N de M votantes" de la tarjeta de participación.
+                        Antes era un contador local de eventos de la cadena recibidos
+                        desde que se abría la página, y arrancaba siempre en 0. */}
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{participation ? participation.totalVoters : "—"}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{t("votingBooth.votersRegistered")}</p>
                   </div>
                   <div className={`p-2 rounded-full ${isListening ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-slate-100 dark:bg-slate-700"}`}>
@@ -993,7 +1019,7 @@ export const VotingBoothContent = () => {
                         animate={{ x: 0, opacity: 1 }}
                         className="px-3 py-2 bg-slate-50 dark:bg-slate-700/60 rounded-lg"
                       >
-                        <span className="font-mono text-xs text-blue-600 dark:text-blue-400">
+                        <span className="font-mono text-xs text-brand-600 dark:text-brand-300">
                           {truncateHash(vote.nullifier, 6, 4)} — {vote.timeText}
                         </span>
                       </motion.div>
@@ -1008,13 +1034,13 @@ export const VotingBoothContent = () => {
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                       {t("votingBooth.currentParticipation")}
                     </span>
-                    <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                    <span className="text-sm font-bold text-brand-600 dark:text-brand-300">
                       {participation.participationRate.toFixed(1)}%
                     </span>
                   </div>
                   <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-3">
                     <div
-                      className="bg-blue-600 h-3 rounded-full transition-all duration-700"
+                      className="bg-brand-600 h-3 rounded-full transition-all duration-700"
                       style={{ width: `${Math.min(participation.participationRate, 100)}%` }}
                     />
                   </div>
@@ -1082,7 +1108,7 @@ class ErrorBoundary extends React.Component {
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition"
+              className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-semibold transition"
             >
               {i18n.t("dashboard.reload")}
             </button>

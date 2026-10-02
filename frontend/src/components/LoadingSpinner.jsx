@@ -50,7 +50,7 @@ export default function LoadingSpinner({
           animate={{ opacity: 1, y: 0 }}
           className="mt-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm text-center"
         >
-          ⏱️ Loading is taking longer than expected.<br />
+          Loading is taking longer than expected.<br />
           The connection may be slow.
         </motion.div>
       )}

@@ -7,7 +7,7 @@ export function CookiePolicy() {
         No mostramos ningún aviso de cookies al llegar a VTB. No es un descuido: todo lo que usamos es, o bien
         estrictamente necesario, o bien algo que solo guardamos cuando tú lo pides de forma activa — las dos
         categorías que la{' '}
-        <a href="https://www.aepd.es/guias/guia-cookies.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+        <a href="https://www.aepd.es/guias/guia-cookies.pdf" target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-300 hover:underline">
           guía de cookies de la AEPD
         </a>{' '}
         exime de pedir consentimiento (art. 22.1 LSSI-CE). No hay nada que aceptar ni rechazar.
