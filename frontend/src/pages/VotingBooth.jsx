@@ -548,11 +548,17 @@ export const VotingBoothContent = () => {
   const handleVote = async () => {
     if (!selectedCandidate || !electionId) return;
 
+    // Fuera del try y cancelado en el finally. Antes solo se cancelaba si la
+    // petición salía bien: con un fallo rápido (503 elección sin registrar, 409
+    // ya has votado) el error se pintaba y 300 ms después el temporizador lo
+    // pisaba con "Confirmando transacción…", que no se iba nunca.
+    let confirmTimer;
+
     try {
       setVoteError(null);
       setVoteStatus("sending");
 
-      const confirmTimer = setTimeout(() => {
+      confirmTimer = setTimeout(() => {
         setVoteStatus("confirming");
       }, 300);
 
@@ -560,8 +566,6 @@ export const VotingBoothContent = () => {
         '/api/elections/register-vote',
         { electionId: parseInt(electionId), candidateId: selectedCandidate },
       );
-      clearTimeout(confirmTimer);
-
       const isPending = response.data?.pendingConfirmation === true || response.data?.status === 'pending_confirmation';
       setTxData({
         txHash: response.data.txHash,
@@ -636,6 +640,8 @@ export const VotingBoothContent = () => {
       }
       setVoteStatus("error");
       if (err.response?.status === 401) setTimeout(() => navigate("/login"), 2000);
+    } finally {
+      clearTimeout(confirmTimer);
     }
   };
 

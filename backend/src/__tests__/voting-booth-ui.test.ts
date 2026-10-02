@@ -72,3 +72,20 @@ describe('detalles de la lista de candidatos y del botón', () => {
     expect(boton).toMatch(/bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300/);
   });
 });
+
+describe('el temporizador de "Confirmando transacción" se cancela siempre', () => {
+  // Con un fallo rápido (503 elección sin registrar, 409) el error se pintaba y
+  // 300 ms después el temporizador lo pisaba: "Confirmando transacción…" para siempre.
+  const inicio = booth.indexOf('const handleVote = async');
+  const fin = booth.indexOf('\n  };', booth.indexOf('finally', inicio) > 0 ? booth.indexOf('finally', inicio) : inicio);
+  const handleVote = booth.slice(inicio, fin === -1 ? inicio + 6000 : fin);
+
+  it('se declara fuera del try y se cancela en un finally', () => {
+    expect(handleVote).toMatch(/let confirmTimer;/);
+    expect(handleVote).toMatch(/finally \{\s*clearTimeout\(confirmTimer\);/);
+  });
+
+  it('no se cancela solo en el camino feliz', () => {
+    expect((handleVote.match(/clearTimeout\(confirmTimer\)/g) ?? []).length).toBe(1);
+  });
+});
