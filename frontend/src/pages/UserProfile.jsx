@@ -70,7 +70,9 @@ export function UserProfile() {
     }
   };
 
-  const loadProfile = async () => {
+  // Declaración de función y no `const`: el useEffect de arriba la llama, y
+  // con `const` se usaba antes de declararla (react-hooks/immutability).
+  async function loadProfile() {
     setLoading(true);
     setError('');
     try {
@@ -114,7 +116,7 @@ export function UserProfile() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleSaveProfile = async () => {
     setSaving(true);

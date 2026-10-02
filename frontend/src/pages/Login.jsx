@@ -38,19 +38,22 @@ export const Login = () => {
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [sessionExpired, setSessionExpired] = useState(false);
+  // Sale de la URL al montar, no de un efecto (react-hooks/set-state-in-effect).
+  const [sessionExpired, setSessionExpired] = useState(() => searchParams.get("reason") === "expired");
   const [logoClicks, setLogoClicks] = useState(0);
   const [showDevPanel, setShowDevPanel] = useState(false);
   const [showDemoVoters, setShowDemoVoters] = useState(false);
   const [showDemoAdmins, setShowDemoAdmins] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
 
+  // El aviso de sesión caducada se oculta solo a los 8 segundos. Ahora se
+  // cancela si la página se desmonta antes, en vez de dejar el temporizador
+  // vivo.
   useEffect(() => {
-    if (searchParams.get("reason") === "expired") {
-      setSessionExpired(true);
-      setTimeout(() => setSessionExpired(false), 8000);
-    }
-  }, [searchParams]);
+    if (!sessionExpired) return undefined;
+    const timer = setTimeout(() => setSessionExpired(false), 8000);
+    return () => clearTimeout(timer);
+  }, [sessionExpired]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;

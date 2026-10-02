@@ -30,7 +30,9 @@ const StatusDot = ({ status }) => {
 
 const Countdown = ({ endTime }) => {
   const { t } = useTranslation();
-  const [remaining, setRemaining] = useState(endTime - Math.floor(Date.now() / 1000));
+  // Inicializador perezoso: Date.now() se llama una vez al montar, no en cada
+  // render (react-hooks/purity).
+  const [remaining, setRemaining] = useState(() => endTime - Math.floor(Date.now() / 1000));
   const ref = useRef(null);
   useEffect(() => {
     ref.current = setInterval(() => setRemaining(endTime - Math.floor(Date.now() / 1000)), 1000);
@@ -172,7 +174,9 @@ export const Dashboard = () => {
   }, [isAuthenticated]);
 
 
-  const loadElections = async () => {
+  // Declaración de función y no `const`: el useEffect de arriba la llama, y
+  // con `const` se usaba antes de declararla (react-hooks/immutability).
+  async function loadElections() {
     setIsLoading(true);
     setError("");
     try {
@@ -199,7 +203,7 @@ export const Dashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
 
   if (!isAuthenticated) return null;

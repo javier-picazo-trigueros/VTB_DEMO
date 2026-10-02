@@ -18,7 +18,10 @@ export const RegisterRequest = () => {
   const [searchParams] = useSearchParams()
   const domainFromUrl = searchParams.get('domain') || ''
 
-  const [schoolsData, setSchoolsData] = useState([])
+  // Escuelas y titulaciones del dominio del email. Se guardan junto al dominio
+  // del que salieron: si el email cambia, los datos viejos dejan de valer sin
+  // tener que vaciarlos dentro de un efecto (react-hooks/set-state-in-effect).
+  const [schoolsFor, setSchoolsFor] = useState({ domain: null, data: [] })
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -40,17 +43,15 @@ export const RegisterRequest = () => {
   const [showPassword, setShowPassword] = useState(false)
 
   // Reload schools/degrees whenever the email domain changes (fall back to URL ?domain= param)
+  const schoolsDomain = formData.email.includes('@') ? formData.email.split('@')[1] : domainFromUrl
+  const schoolsData = schoolsDomain && schoolsFor.domain === schoolsDomain ? schoolsFor.data : []
   useEffect(() => {
-    const domain = formData.email.includes('@') ? formData.email.split('@')[1] : domainFromUrl
-    if (!domain) {
-      setSchoolsData([])
-      return
-    }
-    apiFetch(`/api/schools-degrees?domain=${encodeURIComponent(domain)}`)
+    if (!schoolsDomain) return
+    apiFetch(`/api/schools-degrees?domain=${encodeURIComponent(schoolsDomain)}`)
       .then(r => r.json())
-      .then(data => setSchoolsData(data.schools_degrees || []))
-      .catch(() => setSchoolsData([]))
-  }, [formData.email, domainFromUrl])
+      .then(data => setSchoolsFor({ domain: schoolsDomain, data: data.schools_degrees || [] }))
+      .catch(() => setSchoolsFor({ domain: schoolsDomain, data: [] }))
+  }, [schoolsDomain])
 
   const handleChange = (e) => {
     const { name, value } = e.target

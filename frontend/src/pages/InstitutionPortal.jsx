@@ -370,9 +370,13 @@ export const InstitutionPortal = () => {
     if (isAuthenticated) navigate("/dashboard", { replace: true });
   }, [isAuthenticated, navigate]);
 
+  // Sin dominio en la URL no hay nada que buscar: se deriva aquí en vez de
+  // ponerlo dentro del efecto (react-hooks/set-state-in-effect).
+  const shownStatus = domain ? status : "not_found";
+
   // Fetch institution branding
   useEffect(() => {
-    if (!domain) { setStatus("not_found"); return; }
+    if (!domain) return; // sin dominio, shownStatus ya es "not_found"
 
     const ctrl = new AbortController();
 
@@ -398,7 +402,7 @@ export const InstitutionPortal = () => {
   }, [domain]);
 
   // ── Early render states ────────────────────────────────────────────────────
-  if (status === "loading") {
+  if (shownStatus === "loading") {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <LoadingSpinner color="#3b82f6" />
@@ -406,7 +410,7 @@ export const InstitutionPortal = () => {
     );
   }
 
-  if (status === "not_found") {
+  if (shownStatus === "not_found") {
     return (
       <SimpleShell
         emoji="🏛️"
@@ -418,7 +422,7 @@ export const InstitutionPortal = () => {
     );
   }
 
-  if (status === "error") {
+  if (shownStatus === "error") {
     return (
       <SimpleShell
         emoji="⚠️"
