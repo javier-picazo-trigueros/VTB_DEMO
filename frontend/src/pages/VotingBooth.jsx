@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { ethers } from "ethers";
 import { Navbar } from "../components/Navbar";
 import LoadingSpinner from "../components/LoadingSpinner";
 import i18n from "../i18n/config";
@@ -384,28 +383,36 @@ export const VotingBoothContent = () => {
     setEligibilityError("");
     setAlreadyVoted(false);
 
+    // Las dos peticiones salen a la vez (SCRUM-33). Antes la de candidatos
+    // esperaba a la de elegibilidad, y en 3G cada viaje cuesta más de medio
+    // segundo. Cada una se envuelve para que un fallo no quede sin capturar
+    // mientras se espera a la otra; el tratamiento de errores es el de antes.
+    const settle = (p) => p.then((res) => ({ res }), (err) => ({ err }));
+    const eligibilityReq = settle(api.get(`/api/elections/${electionId}/eligibility`));
+    const electionReq = settle(api.get(`/api/elections/${electionId}`));
+
     try {
       // 1. Verificar elegibilidad
-      try {
-        const eligRes = await api.get(`/api/elections/${electionId}/eligibility`);
-        if (!eligRes.data.eligible) {
-          const reason = eligRes.data.reason;
-          if (reason === "already_voted") {
-            // Solo se sabe que ha participado (SCRUM-17): el comprobante se dio una
-            // sola vez, en la pantalla de confirmación del voto.
-            setAlreadyVoted(true);
-          } else {
-            setEligibilityError(getEligibilityMessage(reason, t));
-          }
-        }
-      } catch (eligErr) {
-        console.error("Error checking eligibility:", eligErr);
-        if (eligErr.response?.status === 401) { navigate("/login"); return; }
+      const elig = await eligibilityReq;
+      if (elig.err) {
+        console.error("Error checking eligibility:", elig.err);
+        if (elig.err.response?.status === 401) { navigate("/login"); return; }
         setEligibilityError(t("errors.eligibilityCheckFailed"));
+      } else if (!elig.res.data.eligible) {
+        const reason = elig.res.data.reason;
+        if (reason === "already_voted") {
+          // Solo se sabe que ha participado (SCRUM-17): el comprobante se dio una
+          // sola vez, en la pantalla de confirmación del voto.
+          setAlreadyVoted(true);
+        } else {
+          setEligibilityError(getEligibilityMessage(reason, t));
+        }
       }
 
       // 2. Obtener candidatos
-      const { data } = await api.get(`/api/elections/${electionId}`);
+      const elec = await electionReq;
+      if (elec.err) throw elec.err;
+      const { data } = elec.res;
 
       if (!data?.election) {
         setError(t("errors.electionNotFound"));
@@ -463,6 +470,12 @@ export const VotingBoothContent = () => {
 
     const setupListener = async () => {
       try {
+        if (disposed) return;
+        // ethers se carga aquí y no arriba (SCRUM-33): pesa unos 100 kB
+        // comprimidos y solo hace falta para este directo de votos. Importado
+        // arriba, la papeleta no se pintaba hasta descargarlo, y para votar no
+        // se usa (el voto va por el servidor).
+        const { ethers } = await import('ethers');
         if (disposed) return;
         const isWebSocket = RPC_URL.startsWith('wss://') || RPC_URL.startsWith('ws://');
         provider = isWebSocket

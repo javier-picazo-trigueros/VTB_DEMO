@@ -5,33 +5,92 @@
  * Configura las rutas y el contexto de autenticación.
  */
 
+import { Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { Footer } from './components/Footer'
-import { NotFound } from './pages/NotFound'
 
-// Páginas
-import { Landing } from './pages/Landing'
-import { Login } from './pages/Login'
-import { RegisterRequest } from './pages/RegisterRequest'
-import { Dashboard } from './pages/Dashboard'
-import ElectionResults from './pages/ElectionResults'
-import { AdminPanel } from './pages/AdminPanel'
-import { VotingBooth } from './pages/VotingBooth'
-import { InstitutionPortal } from './pages/InstitutionPortal'
-import { ChangePassword } from './pages/ChangePassword'
-import { UserProfile } from './pages/UserProfile'
-import { Transparency } from './pages/Transparency'
-import { Pricing } from './pages/Pricing'
-import { ForgotPassword } from './pages/ForgotPassword'
-import { ResetPassword } from './pages/ResetPassword'
-import { PrivacyPolicy } from './pages/legal/PrivacyPolicy'
-import { LegalNotice } from './pages/legal/LegalNotice'
-import { TermsOfService } from './pages/legal/TermsOfService'
-import { CookiePolicy } from './pages/legal/CookiePolicy'
-import { AccessibilityStatement } from './pages/legal/AccessibilityStatement'
+/**
+ * Páginas cargadas bajo demanda (SCRUM-33).
+ *
+ * Antes se importaban todas aquí arriba y Vite las metía en un único fichero
+ * de más de 1 MB (333 kB comprimido): quien abría el enlace de su votación
+ * desde el móvil descargaba también el panel de administración, los gráficos
+ * de resultados y los textos legales antes de ver la papeleta. Ahora cada
+ * página es su propio fichero y solo se descarga al visitarla.
+ *
+ * Las páginas exportan con nombre (`export function Login`), y React.lazy
+ * necesita un `default`: de ahí el `pick`.
+ *
+ * Si falla la descarga de una página se recarga la web una vez. Pasa tras
+ * cada despliegue en Vercel: quien tenía la web abierta pide ficheros con el
+ * nombre antiguo, que ya no existen, y sin esto vería la pantalla de error al
+ * cambiar de página. La marca en sessionStorage evita un bucle de recargas si
+ * el fallo es otro (sin conexión, por ejemplo): a la segunda, el error llega
+ * al ErrorBoundary.
+ */
+const RELOAD_FLAG = 'vtb-chunk-reload'
+
+function page(loader, pick = 'default') {
+  return lazy(() =>
+    loader()
+      .then((m) => {
+        try { sessionStorage.removeItem(RELOAD_FLAG) } catch { /* sin sessionStorage */ }
+        return { default: m[pick] }
+      })
+      .catch((err) => {
+        let alreadyReloaded = false
+        try { alreadyReloaded = sessionStorage.getItem(RELOAD_FLAG) === '1' } catch { /* sin sessionStorage */ }
+        if (!alreadyReloaded) {
+          try { sessionStorage.setItem(RELOAD_FLAG, '1') } catch { /* sin sessionStorage */ }
+          window.location.reload()
+          return new Promise(() => {}) // la recarga ya está en marcha
+        }
+        throw err
+      }),
+  )
+}
+
+const Landing = page(() => import('./pages/Landing'), 'Landing')
+const Login = page(() => import('./pages/Login'), 'Login')
+const RegisterRequest = page(() => import('./pages/RegisterRequest'), 'RegisterRequest')
+const Dashboard = page(() => import('./pages/Dashboard'), 'Dashboard')
+const ElectionResults = page(() => import('./pages/ElectionResults'))
+const AdminPanel = page(() => import('./pages/AdminPanel'), 'AdminPanel')
+const VotingBooth = page(() => import('./pages/VotingBooth'), 'VotingBooth')
+const InstitutionPortal = page(() => import('./pages/InstitutionPortal'), 'InstitutionPortal')
+const ChangePassword = page(() => import('./pages/ChangePassword'), 'ChangePassword')
+const UserProfile = page(() => import('./pages/UserProfile'), 'UserProfile')
+const Transparency = page(() => import('./pages/Transparency'), 'Transparency')
+const Pricing = page(() => import('./pages/Pricing'), 'Pricing')
+const ForgotPassword = page(() => import('./pages/ForgotPassword'), 'ForgotPassword')
+const ResetPassword = page(() => import('./pages/ResetPassword'), 'ResetPassword')
+const NotFound = page(() => import('./pages/NotFound'), 'NotFound')
+const PrivacyPolicy = page(() => import('./pages/legal/PrivacyPolicy'), 'PrivacyPolicy')
+const LegalNotice = page(() => import('./pages/legal/LegalNotice'), 'LegalNotice')
+const TermsOfService = page(() => import('./pages/legal/TermsOfService'), 'TermsOfService')
+const CookiePolicy = page(() => import('./pages/legal/CookiePolicy'), 'CookiePolicy')
+const AccessibilityStatement = page(() => import('./pages/legal/AccessibilityStatement'), 'AccessibilityStatement')
+
+// Quien abre el enlace de su votación necesita la cabina sí o sí: se empieza a
+// descargar ya, a la vez que se comprueba la sesión, en vez de esperar a que
+// ProtectedRoute la pida. En 3G son dos viajes en paralelo en lugar de en serie.
+// Es el mismo import que el de `page()`, así que el fichero se descarga una vez.
+if (typeof window !== 'undefined' && window.location.pathname.startsWith('/voting/')) {
+  import('./pages/VotingBooth').catch(() => { /* lo reintenta page() al renderizar */ })
+}
+
+/** Indicador mientras llega una página o se comprueba la sesión. */
+const PageLoader = () => (
+  <div className="min-h-screen bg-warm-50 dark:bg-slate-900 flex items-center justify-center">
+    <div className="text-center" role="status">
+      <div className="w-6 h-6 border-2 border-warm-200 border-t-brand-600 rounded-full animate-spin mx-auto mb-3" />
+      <p className="text-slate-400 text-sm">Cargando…</p>
+    </div>
+  </div>
+)
 
 import { API_URL } from './utils/apiBase.js'
 
@@ -41,14 +100,7 @@ import { API_URL } from './utils/apiBase.js'
  */
 const ProtectedRoute = ({ element, requiredRole = null }) => {
   const { isAuthenticated, hasRole, loading } = useAuth()
-  if (loading) return (
-    <div className="min-h-screen bg-warm-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-6 h-6 border-2 border-warm-200 border-t-brand-600 rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-slate-400 text-sm">Cargando…</p>
-      </div>
-    </div>
-  )
+  if (loading) return <PageLoader />
   if (!isAuthenticated) {
     return <Navigate to="/login?reason=expired" replace />
   }
@@ -100,6 +152,7 @@ const AppContent = () => {
         error: { iconTheme: { primary: '#ef4444', secondary: '#f1f5f9' } },
       }}
     />
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       {/* Rutas píƒºblicas */}
       <Route path="/" element={<Navigate to="/landing" />} />
@@ -149,6 +202,7 @@ const AppContent = () => {
       {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
     <Footer />
     </>
   )

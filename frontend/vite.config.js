@@ -4,21 +4,11 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  build: {
-    rollupOptions: {
-      output: {
-        // Vite 8's bundler (Rolldown) dropped the object-map shorthand for
-        // manualChunks — solo admite función. Mismo resultado que antes.
-        manualChunks(id) {
-          // Recharts (~350 KB) and framer-motion (~150 KB) are heavy animation/chart
-          // libraries used only in results and voting pages — keep them out of the
-          // main bundle so the initial voter load is faster.
-          if (id.includes('node_modules/recharts')) return 'recharts'
-          if (id.includes('node_modules/framer-motion')) return 'framer-motion'
-        },
-      },
-    },
-  },
+  // Sin manualChunks (SCRUM-33). Separaba recharts y framer-motion a mano para
+  // sacarlos del fichero principal, pero al forzarlos a un fichero propio Vite
+  // los precargaba en TODAS las páginas: la papeleta descargaba los 114 kB de
+  // recharts sin usarlos. Desde que cada página se carga bajo demanda
+  // (App.jsx), el empaquetador ya los pone solo donde se usan.
   server: {
     port: 3000,
     strictPort: true,
