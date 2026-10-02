@@ -31,7 +31,7 @@ const KPI_TONES = {
   blue: {
     box:   'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800',
     value: 'text-blue-700 dark:text-blue-300',
-    label: 'text-blue-600 dark:text-blue-400',
+    label: 'text-brand-600 dark:text-brand-300',
   },
   emerald: {
     box:   'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800',
@@ -890,7 +890,7 @@ export const AdminPanel = () => {
                       <button
                         onClick={handleSyncBlockchain}
                         disabled={syncing}
-                        className="shrink-0 text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition font-medium"
+                        className="shrink-0 text-xs px-3 py-1.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg transition font-medium"
                       >
                         {syncing ? 'Sincronizando…' : 'Sincronizar elecciones'}
                       </button>
@@ -932,10 +932,10 @@ export const AdminPanel = () => {
                                   <td className="py-2 text-slate-800 dark:text-slate-200 font-medium truncate max-w-[140px]">{ep.name}</td>
                                   <td className="py-2 text-right text-slate-600 dark:text-slate-400">{ep.total_voters}</td>
                                   <td className="py-2 text-right text-slate-600 dark:text-slate-400">{ep.votes_cast}</td>
-                                  <td className="py-2 text-right font-semibold text-blue-600 dark:text-blue-400">{ep.rate ?? 0}%</td>
+                                  <td className="py-2 text-right font-semibold text-brand-600 dark:text-brand-300">{ep.rate ?? 0}%</td>
                                   <td className="py-2 pl-3 w-24">
                                     <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2">
-                                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(ep.rate ?? 0, 100)}%` }} />
+                                      <div className="bg-brand-500 h-2 rounded-full" style={{ width: `${Math.min(ep.rate ?? 0, 100)}%` }} />
                                     </div>
                                   </td>
                                 </tr>
@@ -1100,7 +1100,7 @@ export const AdminPanel = () => {
                         whileTap={{ scale: 0.95 }}
                         type="submit"
                         disabled={loading}
-                        className="md:col-span-2 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50"
+                        className="md:col-span-2 py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg transition disabled:opacity-50"
                       >
                         {loading ? t("admin.creatingUser") : t("admin.createNewUser")}
                       </motion.button>
@@ -1134,7 +1134,7 @@ export const AdminPanel = () => {
                       />
                       <label
                         htmlFor="csv-users-import"
-                        className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
+                        className="cursor-pointer px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 transition"
                       >
                         Importar CSV de usuarios
                       </label>
@@ -1335,7 +1335,7 @@ export const AdminPanel = () => {
                               onClick={() => setNewElection(p => ({ ...p, voter_role: value }))}
                               className={`p-3 rounded-lg border text-left transition ${
                                 newElection.voter_role === value
-                                  ? 'bg-blue-600 border-blue-600 text-white'
+                                  ? 'bg-brand-600 border-blue-600 text-white'
                                   : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-blue-400'
                               }`}
                             >
@@ -1373,7 +1373,7 @@ export const AdminPanel = () => {
                               onClick={() => setNewElection(p => ({ ...p, target_type: value, target_values: [], target_schools: [] }))}
                               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                                 newElection.target_type === value
-                                  ? 'bg-blue-600 text-white'
+                                  ? 'bg-brand-600 text-white'
                                   : 'bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300'
                               }`}
                             >
@@ -1424,7 +1424,7 @@ export const AdminPanel = () => {
                               </div>
                             )}
                             {(newElection.target_schools || []).length > 0 && (
-                              <p className="text-xs text-blue-600 mt-2">
+                              <p className="text-xs text-brand-600 mt-2">
                                 {newElection.target_schools.length} facultad(es) seleccionada(s)
                               </p>
                             )}
@@ -1471,7 +1471,7 @@ export const AdminPanel = () => {
                               </div>
                             )}
                             {(newElection.target_values || []).length > 0 && (
-                              <p className="text-xs text-blue-600 mt-2">
+                              <p className="text-xs text-brand-600 mt-2">
                                 {newElection.target_values.length} unidad(es) seleccionada(s)
                               </p>
                             )}
@@ -1526,7 +1526,7 @@ export const AdminPanel = () => {
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Candidatos</label>
                         <div className="border border-slate-300 dark:border-slate-600 p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                           <div className="flex justify-end mb-3">
-                            <button type="button" onClick={handleAddCandidateField} className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
+                            <button type="button" onClick={handleAddCandidateField} className="text-sm bg-brand-500 text-white px-3 py-1 rounded hover:bg-brand-600 transition">
                               + Añadir candidato
                             </button>
                           </div>
@@ -1562,7 +1562,7 @@ export const AdminPanel = () => {
                         whileTap={{ scale: 0.98 }}
                         type="submit"
                         disabled={loading}
-                        className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition disabled:opacity-50"
+                        className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
                       >
                         {loading ? "Creando…" : "Crear elección"}
                       </motion.button>
@@ -1660,19 +1660,19 @@ export const AdminPanel = () => {
                                 </button>
                                 <button
                                   onClick={() => handleEditElection(election)}
-                                  className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded-lg transition font-medium text-sm w-36"
+                                  className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition font-medium text-sm w-36"
                                 >
                                   Editar
                                 </button>
                                 <button
                                   onClick={() => setExpandedElection(expandedElection === election.id ? null : election.id)}
-                                  className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition font-medium text-sm w-36"
+                                  className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition font-medium text-sm w-36"
                                 >
                                   Gestionar censo
                                 </button>
                                 <button
                                   onClick={() => setQrElection(election)}
-                                  className="px-4 py-2 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-300 rounded-lg transition font-medium text-sm w-36"
+                                  className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition font-medium text-sm w-36"
                                 >
                                   Código QR
                                 </button>
@@ -1692,7 +1692,7 @@ export const AdminPanel = () => {
                                       value={manageCensus.email}
                                       onChange={e => setManageCensus({ ...manageCensus, email: e.target.value })}
                                     />
-                                    <button onClick={() => handleAddVoter(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Añadir votante</button>
+                                    <button onClick={() => handleAddVoter(election.id)} className="px-3 py-2 bg-brand-600 text-white rounded text-sm hover:bg-brand-700 transition">Añadir votante</button>
                                   </div>
                                   <div className="flex gap-2">
                                     <input
@@ -1702,7 +1702,7 @@ export const AdminPanel = () => {
                                       value={manageCensus.domain}
                                       onChange={e => setManageCensus({ ...manageCensus, domain: e.target.value })}
                                     />
-                                    <button onClick={() => handleAddDomain(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Añadir dominio</button>
+                                    <button onClick={() => handleAddDomain(election.id)} className="px-3 py-2 bg-brand-600 text-white rounded text-sm hover:bg-brand-700 transition">Añadir dominio</button>
                                   </div>
                                 </div>
                                 {/* CSV Import */}
@@ -1723,7 +1723,7 @@ export const AdminPanel = () => {
                                   />
                                   <label
                                     htmlFor={`csv-import-${election.id}`}
-                                    className="cursor-pointer px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
+                                    className="cursor-pointer px-3 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 transition"
                                   >
                                     Importar CSV
                                   </label>
@@ -1774,7 +1774,7 @@ export const AdminPanel = () => {
                             )}
                             {stat.participation_rate != null && (
                               <p className="text-sm text-slate-600 dark:text-slate-400">
-                                <span className="font-semibold text-blue-600 dark:text-blue-400">{stat.participation_rate}%</span> de participación
+                                <span className="font-semibold text-brand-600 dark:text-brand-300">{stat.participation_rate}%</span> de participación
                               </p>
                             )}
                           </div>
@@ -1900,7 +1900,7 @@ export const AdminPanel = () => {
                         <button
                           key={s}
                           onClick={() => setInboxStatusFilter(s)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${inboxStatusFilter === s ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${inboxStatusFilter === s ? 'bg-brand-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
                         >
                           {{ pending: 'Pendientes', approved: 'Aprobadas', rejected: 'Rechazadas', all: 'Todas' }[s]} {s !== 'all' && `(${registrationRequests.filter(r => r.status === s).length})`}
                         </button>
@@ -1972,7 +1972,7 @@ export const AdminPanel = () => {
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => handleApproveRequest(request.id, request.email)}
                                 disabled={loading}
-                                className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
+                                className="flex-1 py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
                               >
                                 ✓ Aprobar
                               </motion.button>
@@ -2134,9 +2134,9 @@ export const AdminPanel = () => {
                                 <td className="py-3 px-4 text-right">
                                   <div className="flex items-center justify-end gap-2">
                                     <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${c.percentage}%` }} />
+                                      <div className="h-full bg-brand-500 rounded-full" style={{ width: `${c.percentage}%` }} />
                                     </div>
-                                    <span className="text-blue-600 dark:text-blue-400 font-medium text-xs w-10 text-right">{c.percentage}%</span>
+                                    <span className="text-brand-600 dark:text-brand-300 font-medium text-xs w-10 text-right">{c.percentage}%</span>
                                   </div>
                                 </td>
                               </tr>
@@ -2192,7 +2192,7 @@ export const AdminPanel = () => {
                   <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
                     <button
                       onClick={() => { setSelectedElectionStats(null); navigate(`/results/${selectedElectionStats.election.id}`); }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
+                      className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium transition"
                     >
                       Ver resultados públicos
                     </button>
@@ -2279,7 +2279,7 @@ export const AdminPanel = () => {
                   navigator.clipboard.writeText(`${window.location.origin}/voting/${qrElection.id}`);
                   toast.success('Enlace copiado al portapapeles');
                 }}
-                className="w-full py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition text-sm"
+                className="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition text-sm"
               >
                 Copiar enlace
               </button>
@@ -2312,7 +2312,7 @@ export const AdminPanel = () => {
                   type="text"
                   value={editingElection.name}
                   onChange={e => setEditingElection(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none"
                 />
                 <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
                   <WarningIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -2325,7 +2325,7 @@ export const AdminPanel = () => {
                   rows={3}
                   value={editingElection.description}
                   onChange={e => setEditingElection(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none resize-none"
                 />
               </div>
               <div>
@@ -2334,7 +2334,7 @@ export const AdminPanel = () => {
                   type="datetime-local"
                   value={editingElection.end_time}
                   onChange={e => setEditingElection(prev => ({ ...prev, end_time: e.target.value }))}
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none"
                 />
               </div>
               <div className="flex gap-3 pt-2">
@@ -2346,7 +2346,7 @@ export const AdminPanel = () => {
                 </button>
                 <button
                   onClick={handleSaveEditElection}
-                  className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition"
+                  className="flex-1 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold transition"
                 >
                   Guardar cambios
                 </button>

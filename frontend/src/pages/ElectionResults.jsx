@@ -595,7 +595,7 @@ const ElectionResults = () => {
                           onClick={() => setChartType(type)}
                           className={`px-3 py-1 rounded text-sm capitalize font-medium transition ${
                             chartType === type
-                              ? 'bg-blue-600 text-white'
+                              ? 'bg-brand-600 text-white'
                               : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                           }`}
                         >
@@ -631,7 +631,7 @@ const ElectionResults = () => {
                             return (
                               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 shadow-lg">
                                 <p className="font-semibold text-slate-900 dark:text-white mb-1">{label}</p>
-                                <p className="text-sm text-blue-600">Votes: {payload[0].value}</p>
+                                <p className="text-sm text-brand-600">Votes: {payload[0].value}</p>
                                 <p className="text-sm text-slate-500">{(payload[0].payload.percentage || 0).toFixed(1)}%</p>
                               </div>
                             );
@@ -694,7 +694,7 @@ const ElectionResults = () => {
                                   </span>
                                 )}
                               </td>
-                              <td className="text-right px-3 py-3 font-mono text-blue-600 dark:text-blue-400 font-semibold">
+                              <td className="text-right px-3 py-3 font-mono text-brand-600 dark:text-brand-300 font-semibold">
                                 {c.votes}
                               </td>
                               <td className="text-right px-3 py-3 text-slate-600 dark:text-slate-400">
@@ -784,7 +784,7 @@ const ElectionResults = () => {
                                     href={explorerLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                    className="font-mono text-xs text-brand-600 dark:text-brand-300 hover:underline"
                                     title={record.txHash}
                                   >
                                     {truncateHash(record.txHash)} ↗

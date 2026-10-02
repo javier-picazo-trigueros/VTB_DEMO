@@ -97,7 +97,7 @@ const VoteProgressModal = ({ status, t }) => {
               <div
                 key={s.key}
                 className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
-                  i <= idx ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"
+                  i <= idx ? "bg-brand-600" : "bg-slate-200 dark:bg-slate-600"
                 }`}
               />
             );
@@ -162,7 +162,7 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
 
       {txData.isDemo && (
         <div className="mb-3 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+          <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
           {t("votingBooth.receiptDemoBadge")}
         </div>
       )}
@@ -216,14 +216,14 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
           {t("votingBooth.localDemoVote")}
         </p>
       ) : txData.isDemo ? (
-        <p className="text-center text-xs text-blue-600 dark:text-blue-400 mb-3 px-2">
+        <p className="text-center text-xs text-brand-600 dark:text-brand-300 mb-3 px-2">
           {t("votingBooth.receiptDemoNote")}
         </p>
       ) : null}
 
       <button
         onClick={onViewResults}
-        className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold"
+        className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl transition font-semibold"
       >
         {t("votingBooth.viewResults")}
       </button>
@@ -260,7 +260,7 @@ const VoteErrorModal = ({ voteError, t, onRetry, onBack }) => (
       <div className="flex gap-3">
         <button
           onClick={onRetry}
-          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold text-sm"
+          className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl transition font-semibold text-sm"
         >
           {t("votingBooth.retry")}
         </button>
@@ -746,7 +746,7 @@ export const VotingBoothContent = () => {
             </p>
             <button
               onClick={() => navigate(`/results/${electionId}`)}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition text-sm"
+              className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-semibold transition text-sm"
             >
               {t("votingBooth.viewResults")}
             </button>
@@ -801,7 +801,7 @@ export const VotingBoothContent = () => {
           >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                <svg className="w-5 h-5 text-brand-600 dark:text-brand-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                 </svg>
               </div>
@@ -1019,7 +1019,7 @@ export const VotingBoothContent = () => {
                         animate={{ x: 0, opacity: 1 }}
                         className="px-3 py-2 bg-slate-50 dark:bg-slate-700/60 rounded-lg"
                       >
-                        <span className="font-mono text-xs text-blue-600 dark:text-blue-400">
+                        <span className="font-mono text-xs text-brand-600 dark:text-brand-300">
                           {truncateHash(vote.nullifier, 6, 4)} — {vote.timeText}
                         </span>
                       </motion.div>
@@ -1034,13 +1034,13 @@ export const VotingBoothContent = () => {
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                       {t("votingBooth.currentParticipation")}
                     </span>
-                    <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                    <span className="text-sm font-bold text-brand-600 dark:text-brand-300">
                       {participation.participationRate.toFixed(1)}%
                     </span>
                   </div>
                   <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-3">
                     <div
-                      className="bg-blue-600 h-3 rounded-full transition-all duration-700"
+                      className="bg-brand-600 h-3 rounded-full transition-all duration-700"
                       style={{ width: `${Math.min(participation.participationRate, 100)}%` }}
                     />
                   </div>
@@ -1108,7 +1108,7 @@ class ErrorBoundary extends React.Component {
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition"
+              className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-semibold transition"
             >
               {i18n.t("dashboard.reload")}
             </button>

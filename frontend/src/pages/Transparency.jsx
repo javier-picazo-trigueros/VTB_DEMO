@@ -23,7 +23,7 @@ export function Transparency() {
       <Navbar />
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
-          <p className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-300 text-sm font-bold mb-3">
+          <p className="inline-flex items-center gap-1.5 text-brand-600 dark:text-brand-300 text-sm font-bold mb-3">
             <LinkIcon className="w-4 h-4" /> {t('transparency.badge')}
           </p>
           <h1 className="text-4xl sm:text-5xl font-black mb-4 text-slate-900 dark:text-white">
@@ -68,7 +68,7 @@ export function Transparency() {
                       className="border-t border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
                     >
                       <td className="px-5 py-4 text-slate-800 dark:text-slate-200">{tx.election_name}</td>
-                      <td className="px-5 py-4 font-mono text-xs text-blue-600 dark:text-blue-300">{tx.nullifier_display}</td>
+                      <td className="px-5 py-4 font-mono text-xs text-brand-600 dark:text-brand-300">{tx.nullifier_display}</td>
                       <td className="px-5 py-4 font-mono text-xs text-slate-500 dark:text-slate-400">
                         {tx.tx_hash || <span className="italic text-slate-400 dark:text-slate-600">{t('transparency.pending')}</span>}
                       </td>

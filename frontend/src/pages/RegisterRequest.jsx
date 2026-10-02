@@ -146,8 +146,8 @@ export const RegisterRequest = () => {
     setError('')
   }
 
-  const inputCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:opacity-50"
-  const selectCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+  const inputCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none disabled:opacity-50"
+  const selectCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none"
   const labelCls = "block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
 
   return (
@@ -172,7 +172,7 @@ export const RegisterRequest = () => {
               </p>
               <button
                 onClick={() => navigate('/login')}
-                className="w-full py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors mt-4"
+                className="w-full py-2 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold transition-colors mt-4"
               >
                 Log in now
               </button>
@@ -189,7 +189,7 @@ export const RegisterRequest = () => {
               </p>
               <button
                 onClick={() => navigate('/login')}
-                className="w-full py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors"
+                className="w-full py-2 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold transition-colors"
               >
                 {t("register.backToLogin")}
               </button>
@@ -343,15 +343,15 @@ export const RegisterRequest = () => {
                     checked={acceptedTerms}
                     onChange={(e) => { setAcceptedTerms(e.target.checked); setError('') }}
                     disabled={loading}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-500 flex-shrink-0"
                   />
                   <span>
                     He leído y acepto los{' '}
-                    <Link to="/legal/terminos" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                    <Link to="/legal/terminos" target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-300 hover:underline">
                       Términos y Condiciones
                     </Link>{' '}
                     y la{' '}
-                    <Link to="/legal/privacidad" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                    <Link to="/legal/privacidad" target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-300 hover:underline">
                       Política de Privacidad
                     </Link>.
                   </span>
@@ -360,7 +360,7 @@ export const RegisterRequest = () => {
                 <button
                   type="submit"
                   disabled={loading || !formData.fullName || !formData.email || !formData.studentId || !formData.password || !acceptedTerms}
-                  className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <><div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> {t("register.submitting")}</>
@@ -372,7 +372,7 @@ export const RegisterRequest = () => {
 
               <div className="mt-5 text-center text-sm text-slate-600 dark:text-slate-400">
                 {t("register.haveAccount")}{' '}
-                <button onClick={() => navigate('/login')} className="text-blue-600 dark:text-blue-400 hover:underline font-semibold">
+                <button onClick={() => navigate('/login')} className="text-brand-600 dark:text-brand-300 hover:underline font-semibold">
                   {t("register.loginHere")}
                 </button>
               </div>

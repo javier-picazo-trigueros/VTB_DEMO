@@ -157,7 +157,7 @@ export const Login = () => {
           <button
             type="button"
             className={`mb-2 text-5xl font-black tracking-tight transition ${
-              theme === "dark" ? "text-white hover:text-blue-400" : "text-slate-900 hover:text-blue-600"
+              theme === "dark" ? "text-white hover:text-blue-400" : "text-slate-900 hover:text-brand-600"
             }`}
             onClick={() => navigate("/landing")}
           >
@@ -207,7 +207,7 @@ export const Login = () => {
           <button
             onClick={() => navigate("/register-request")}
             className={`ml-1 underline ${
-              theme === "dark" ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"
+              theme === "dark" ? "text-blue-400 hover:text-blue-300" : "text-brand-600 hover:text-brand-700"
             }`}
           >
             {t("login.registerHere")}
@@ -236,7 +236,7 @@ export const Login = () => {
 
   const isVoter = portal === "voter";
   const accentBg = isVoter ? "from-blue-600 to-blue-700" : "from-emerald-600 to-emerald-700";
-  const accentRing = isVoter ? "focus:ring-blue-500" : "focus:ring-emerald-500";
+  const accentRing = isVoter ? "focus:ring-brand-500" : "focus:ring-emerald-500";
   const accentDemoBtn = isVoter
     ? "border-blue-200 bg-blue-50 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/20 dark:hover:bg-blue-900/40"
     : "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40";
@@ -406,7 +406,7 @@ export const Login = () => {
             <button
               type="button"
               onClick={() => navigate("/register-request")}
-              className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+              className="font-semibold text-brand-600 hover:underline dark:text-blue-400"
             >
               {t("login.registerHere")}
             </button>
@@ -428,7 +428,7 @@ function PortalButton({ theme, tone, label, description, cta, icon, onClick }) {
       className={`group rounded-2xl border p-8 text-left transition-all duration-300 hover:scale-105 ${
         theme === "dark"
           ? isBlue
-            ? "border-white/10 bg-white/5 hover:border-blue-500/50 hover:bg-blue-600/20 hover:shadow-2xl hover:shadow-blue-500/20"
+            ? "border-white/10 bg-white/5 hover:border-blue-500/50 hover:bg-brand-600/20 hover:shadow-2xl hover:shadow-blue-500/20"
             : "border-white/10 bg-white/5 hover:border-emerald-500/50 hover:bg-emerald-600/20 hover:shadow-2xl hover:shadow-emerald-500/20"
           : isBlue
             ? "border-slate-300/40 bg-white/60 hover:border-blue-400/60 hover:bg-blue-100/60 hover:shadow-lg hover:shadow-blue-300/20"
@@ -446,7 +446,7 @@ function PortalButton({ theme, tone, label, description, cta, icon, onClick }) {
       <p className={`text-sm leading-relaxed ${theme === "dark" ? "text-slate-400" : "text-slate-700"}`}>{description}</p>
       <div
         className={`mt-6 flex items-center gap-2 text-sm font-medium transition-all group-hover:gap-3 ${
-          isBlue ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"
+          isBlue ? "text-brand-600 dark:text-brand-300" : "text-emerald-600 dark:text-emerald-400"
         }`}
       >
         {cta} <span>→</span>

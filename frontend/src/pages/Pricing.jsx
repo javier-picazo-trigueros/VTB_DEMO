@@ -143,7 +143,7 @@ export function Pricing() {
           {demoEnabled && (
             <button
               onClick={() => setDemoOpen(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-lg shadow-blue-600/30"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-semibold transition shadow-lg shadow-blue-600/30"
             >
               Try Live Demo — No Registration
             </button>
@@ -168,7 +168,7 @@ export function Pricing() {
             >
               {tier.badge && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <span className="px-4 py-1 rounded-full bg-blue-600 text-white text-xs font-bold shadow-lg">
+                  <span className="px-4 py-1 rounded-full bg-brand-600 text-white text-xs font-bold shadow-lg">
                     {tier.badge}
                   </span>
                 </div>
@@ -197,7 +197,7 @@ export function Pricing() {
                 }}
                 className={`w-full py-3 rounded-2xl font-semibold text-sm transition ${
                   tier.badge
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
+                    ? 'bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-blue-600/20'
                     : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-900 dark:text-white'
                 }`}
               >
@@ -291,7 +291,7 @@ export function Pricing() {
           </p>
           <a
             href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Institution demo request — VTB')}`}
-            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-lg shadow-blue-600/20"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-semibold transition shadow-lg shadow-blue-600/20"
           >
             {CONTACT_EMAIL}
           </a>

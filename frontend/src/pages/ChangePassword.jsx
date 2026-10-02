@@ -45,7 +45,7 @@ export function ChangePassword() {
     }
   }
 
-  const inputCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:opacity-50"
+  const inputCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none disabled:opacity-50"
   const labelCls = "block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
 
   return (
@@ -105,7 +105,7 @@ export function ChangePassword() {
                   <button
                     type="submit"
                     disabled={loading || !form.current || !form.next || !form.confirm}
-                    className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {loading ? (
                       <><div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> {t('changePassword.saving')}</>

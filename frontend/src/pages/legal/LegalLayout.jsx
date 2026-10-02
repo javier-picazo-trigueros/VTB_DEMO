@@ -103,7 +103,7 @@ export function LegalLayout({ title, lastUpdated, children }) {
           </p>
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
             {LEGAL_LINKS.map(link => (
-              <Link key={link.to} to={link.to} className="text-blue-600 dark:text-blue-400 hover:underline">
+              <Link key={link.to} to={link.to} className="text-brand-600 dark:text-brand-300 hover:underline">
                 {link.label}
               </Link>
             ))}
