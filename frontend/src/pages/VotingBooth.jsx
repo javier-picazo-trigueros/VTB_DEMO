@@ -147,11 +147,15 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
       <h2 className="text-center text-xl font-bold text-slate-900 dark:text-white mb-1">
         {txData.pendingConfirmation
           ? (t("votingBooth.pendingConfirmationTitle") || "Voto en Proceso")
+          : txData.isDemo
+          ? t("votingBooth.voteRegisteredDemo")
           : t("votingBooth.voteRegistered")}
       </h2>
       <p className="text-center text-sm text-slate-500 dark:text-slate-400 mb-5">
         {txData.pendingConfirmation
           ? (t("votingBooth.pendingConfirmationSubtitle") || "Transacción enviada a la blockchain")
+          : txData.isDemo
+          ? t("votingBooth.voteRegisteredDemoSub")
           : t("votingBooth.transactionHash")}
       </p>
 
@@ -169,6 +173,10 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         </div>
       )}
 
+      {/* Un voto de demostración no tiene transacción: ni hash que guardar ni
+          botón de copiar (antes salía una caja vacía bajo "¡registrado en blockchain!"). */}
+      {!txData.isDemo && txData.txHash && (
+      <>
       <p className="mb-3 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-xs font-medium text-center">
         {t("votingBooth.receiptSaveWarning")}
       </p>
@@ -184,6 +192,8 @@ const VoteSuccessModal = ({ txData, copied, explorerUrl, onDashboard, onViewResu
         <ClipboardIcon />
         {copied ? t("results.copied") : t("votingBooth.copyTxHash")}
       </button>
+      </>
+      )}
 
       {!txData.isDemo && txData.txHash && explorerUrl && (txData.blockNumber !== null || txData.pendingConfirmation) ? (
         <a

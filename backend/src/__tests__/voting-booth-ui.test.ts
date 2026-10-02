@@ -89,3 +89,21 @@ describe('el temporizador de "Confirmando transacción" se cancela siempre', () 
     expect((handleVote.match(/clearTimeout\(confirmTimer\)/g) ?? []).length).toBe(1);
   });
 });
+
+describe('pantalla de confirmación de un voto de demostración', () => {
+  // Salía "¡Voto registrado en blockchain!" con una caja de hash vacía, un botón
+  // de copiar y "Guarda este hash ahora", todo sobre un voto que no tiene transacción.
+  const modal = booth.slice(booth.indexOf('const VoteSuccessModal'), booth.indexOf('const VoteSuccessModal') + 4500);
+
+  it('el título y el subtítulo de un voto demo no hablan de blockchain ni de hash', () => {
+    expect(modal).toMatch(/txData\.isDemo\s*\?\s*t\("votingBooth\.voteRegisteredDemo"\)/);
+    expect(modal).toMatch(/txData\.isDemo\s*\?\s*t\("votingBooth\.voteRegisteredDemoSub"\)/);
+    expect(i18n).toMatch(/voteRegisteredDemo: "¡Voto de demostración registrado!"/);
+    expect(i18n).toMatch(/voteRegisteredDemo: "Demo vote registered!"/);
+  });
+
+  it('el aviso de guardar el hash, la caja del hash y "Copiar" solo se pintan si hay transacción', () => {
+    expect(modal).toMatch(/\{!txData\.isDemo && txData\.txHash && \(\s*<>\s*<p[^>]*>\s*\{t\("votingBooth\.receiptSaveWarning"\)\}/);
+    expect(modal).toMatch(/votingBooth\.copyTxHash[\s\S]{0,120}<\/>\s*\)\}/);
+  });
+});
