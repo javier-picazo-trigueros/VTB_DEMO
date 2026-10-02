@@ -121,7 +121,10 @@ const AppContent = () => {
     try {
       await fetch(`${API_URL}/health`)
       window.location.reload()
-    } catch {}
+    } catch {
+      // El backend sigue sin responder: el aviso se queda en pantalla y el
+      // usuario puede volver a pulsar "Reintentar".
+    }
   }
 
   return (
