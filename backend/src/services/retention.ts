@@ -17,6 +17,7 @@
  * sin dar ningún error.
  */
 import type { DbClient } from '../db/client.js';
+import { withTransaction } from '../db/index.js';
 
 const REJECTED_REQUESTS_RETENTION_DAYS = 30;
 const EMAIL_LOG_RETENTION_DAYS = 90;
@@ -82,22 +83,37 @@ export async function purgeExpiredAuthTokens(db: DbClient): Promise<number> {
  */
 export async function anonymizeDeletedAccounts(db: DbClient): Promise<number> {
   const cutoff = cutoffDaysAgo(DELETED_ACCOUNT_ANONYMIZE_DAYS);
-  const candidatos = await db.run<{ id: number }>(
-    `SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < ? AND anonymized_at IS NULL`,
+  const candidatos = await db.run<{ id: number; email: string }>(
+    `SELECT id, email FROM users WHERE deleted_at IS NOT NULL AND deleted_at < ? AND anonymized_at IS NULL`,
     [cutoff],
   );
 
   let anonimizadas = 0;
-  for (const { id } of candidatos) {
-    const res = await db.exec(
-      `UPDATE users
-          SET email = ?, name = 'Usuario eliminado', student_id = ?,
-              school = NULL, degree = NULL, year = NULL, study_group = NULL,
-              password_hash = ?, anonymized_at = CURRENT_TIMESTAMP
-        WHERE id = ? AND anonymized_at IS NULL`,
-      [`deleted-${id}@anonimizado.invalid`, `DELETED-${id}`, `anonimizado:${id}:${Date.now()}`, id],
-    );
-    if (res.changes > 0) anonimizadas++;
+  for (const { id, email } of candidatos) {
+    // Las tres cosas juntas o ninguna (SCRUM-123). email_whitelist y
+    // registration_requests guardaban el nombre y el identificador de la
+    // persona junto a su email: anonimizar solo users los dejaba legibles para
+    // siempre. Y la entrada de la lista blanca, sin usar, aprobaba en el acto a
+    // cualquiera que se registrase después con ese email, con su propia
+    // contraseña: podía ocupar el sitio de esa persona en el censo.
+    //
+    // LOWER(): las filas antiguas pueden tener el email con mayúsculas, y una
+    // limpieza que se salte una de ellas deja abierto justo lo que se cierra.
+    const changed = await withTransaction(async (tx) => {
+      const res = await tx.exec(
+        `UPDATE users
+            SET email = ?, name = 'Usuario eliminado', student_id = ?,
+                school = NULL, degree = NULL, year = NULL, study_group = NULL,
+                password_hash = ?, anonymized_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND anonymized_at IS NULL`,
+        [`deleted-${id}@anonimizado.invalid`, `DELETED-${id}`, `anonimizado:${id}:${Date.now()}`, id],
+      );
+      if (res.changes === 0) return false;
+      await tx.exec('DELETE FROM email_whitelist WHERE LOWER(email) = LOWER(?)', [email]);
+      await tx.exec('DELETE FROM registration_requests WHERE LOWER(email) = LOWER(?)', [email]);
+      return true;
+    });
+    if (changed) anonimizadas++;
   }
   return anonimizadas;
 }
