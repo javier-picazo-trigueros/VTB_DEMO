@@ -19,6 +19,18 @@ const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 const truncateHash = (h) =>
   h && h.length > 16 ? h.slice(0, 10) + '...' + h.slice(-6) : (h || '—');
 
+/** Iconos de línea, en vez de emojis, para que la pantalla case con el resto de la app. */
+const BallotIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+const ShieldIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+  </svg>
+);
+
 const ElectionResults = () => {
   const { t } = useTranslation();
   const { id } = useParams();
@@ -392,7 +404,7 @@ const ElectionResults = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
@@ -405,12 +417,13 @@ const ElectionResults = () => {
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{election?.name}</h1>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${
                   election?.status === 'active'
                     ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                     : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
                 }`}>
-                  {election?.status === 'active' ? `🟢 ${t('results.liveElection')}` : `⏹ ${t('results.electionClosed')}`}
+                  {election?.status === 'active' && <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                  {election?.status === 'active' ? t('results.liveElection') : t('results.electionClosed')}
                 </span>
                 {results.verificacion ? (
                   <>
@@ -421,22 +434,22 @@ const ElectionResults = () => {
                     )}
                     {results.verificacion.estado === 'parcial' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs font-medium" title={results.verificacion.detalle}>
-                        ⚠️ Parcial ({results.verificacion.votosNoVerificables} votos no en cadena)
+                        Parcial ({results.verificacion.votosNoVerificables} votos no en cadena)
                       </span>
                     )}
                     {results.verificacion.estado === 'discrepancia' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 rounded-full text-xs font-medium" title={results.verificacion.detalle}>
-                        ⚠️ Discrepancia con blockchain
+                        Discrepancia con blockchain
                       </span>
                     )}
                     {results.verificacion.estado === 'sin-respuesta' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full text-xs font-medium" title={results.verificacion.detalle}>
-                        ⏳ Sin respuesta de blockchain
+                        Sin respuesta de blockchain
                       </span>
                     )}
                     {results.verificacion.estado === 'no-aplica' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full text-xs font-medium" title={results.verificacion.detalle}>
-                        ⚪ No registrada en blockchain
+                        No registrada en blockchain
                       </span>
                     )}
                   </>
@@ -461,18 +474,18 @@ const ElectionResults = () => {
               {/* PDF Export */}
               <button
                 onClick={exportPDF}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium transition"
               >
-                📄 Export PDF
+                Export PDF
               </button>
 
               {/* QR Code — only for active elections */}
               {election?.status === 'active' && (
                 <button
                   onClick={() => setShowQR(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium transition"
                 >
-                  📱 QR Code
+                  QR Code
                 </button>
               )}
 
@@ -483,9 +496,9 @@ const ElectionResults = () => {
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-sm transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium transition"
               >
-                {copied ? `✓ ${t('results.copied')}` : `🔗 ${t('results.share')}`}
+                {copied ? `✓ ${t('results.copied')}` : t('results.share')}
               </button>
             </div>
           </div>
@@ -499,11 +512,11 @@ const ElectionResults = () => {
           className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
         >
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 text-center">
-            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{safeRate.toFixed(1)}%</p>
+            <p className="text-3xl font-bold text-brand-600 dark:text-brand-300">{safeRate.toFixed(1)}%</p>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('results.participation')}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 text-center">
-            <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{totalVotes}</p>
+            <p className="text-3xl font-bold text-slate-900 dark:text-white">{totalVotes}</p>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('results.votesCast')}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 text-center">
@@ -511,7 +524,7 @@ const ElectionResults = () => {
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('results.totalCensus')}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 text-center">
-            <p className={`text-3xl font-bold ${election?.status === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400'}`}>
+            <p className="text-3xl font-bold text-slate-900 dark:text-white">
               {election?.status === 'active' ? t('results.liveElection') : t('results.electionClosed')}
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('results.statusLabel')}</p>
@@ -521,8 +534,8 @@ const ElectionResults = () => {
         {/* Tabs */}
         <div className="flex gap-3 mb-6">
           {[
-            { id: 'results', label: `📊 ${t('results.finalResultsTab')}` },
-            { id: 'audit', label: `🔐 ${t('results.auditTab')}` },
+            { id: 'results', label: t('results.finalResultsTab') },
+            { id: 'audit', label: t('results.auditTab') },
           ].map(({ id: tabId, label }) => (
             <button
               key={tabId}
@@ -532,8 +545,8 @@ const ElectionResults = () => {
               }}
               className={`px-4 py-2 rounded-lg font-medium transition ${
                 activeTab === tabId
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
             >
               {label}
@@ -550,7 +563,7 @@ const ElectionResults = () => {
             {(election?.status === 'active' || results?.tallyHidden) ? (
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-8 text-center">
                 <div className="max-w-lg mx-auto space-y-4">
-                  <div className="text-4xl">🗳️</div>
+                  <BallotIcon className="w-10 h-10 mx-auto text-slate-400 dark:text-slate-500" />
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white">
                     {election?.status === 'active'
                       ? (t('results.activeNoticeTitle') || 'Votación en curso')
@@ -594,7 +607,7 @@ const ElectionResults = () => {
 
                   {candidates.length === 0 || totalVotes === 0 ? (
                     <div className="text-center py-12 text-slate-400 dark:text-slate-500">
-                      <div className="text-4xl mb-3">🗳️</div>
+                      <BallotIcon className="w-10 h-10 mx-auto mb-3 text-slate-400 dark:text-slate-500" />
                       <p>{t('results.noVotesCast')}</p>
                       <p className="text-sm mt-1">{t('results.noVotesCastDesc')}</p>
                     </div>
@@ -677,7 +690,7 @@ const ElectionResults = () => {
                                 {c.name}
                                 {isWinner && (
                                   <span className="ml-2 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
-                                    👑 {t('results.winner')}
+                                    {t('results.winner')}
                                   </span>
                                 )}
                               </td>
@@ -715,7 +728,7 @@ const ElectionResults = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
 
             <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 flex items-start gap-3">
-              <span className="text-xl">🔒</span>
+              <ShieldIcon className="w-5 h-5 mt-0.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
               <div>
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">{t('results.privacyTitle')}</p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
@@ -730,9 +743,9 @@ const ElectionResults = () => {
               </p>
               <button
                 onClick={exportCSV}
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition font-medium text-sm"
+                className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg transition font-medium text-sm"
               >
-                📥 Export CSV
+                Export CSV
               </button>
             </div>
 
