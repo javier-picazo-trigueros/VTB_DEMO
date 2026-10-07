@@ -170,7 +170,7 @@ export function generateToken(
 ): string {
   const payload: JwtPayload = { userId, email, role };
   if (adminDomain) payload.adminDomain = adminDomain;
-  return jwt.sign(payload, REQUIRED_JWT_SECRET, { expiresIn: '15m' });
+  return jwt.sign(payload, REQUIRED_JWT_SECRET, { expiresIn: '15m', algorithm: 'HS256' });
 }
 
 /**
@@ -187,7 +187,7 @@ export function verifyToken(
   adminDomain?: string | null;
 } | null {
   try {
-    const decoded = jwt.verify(token, REQUIRED_JWT_SECRET) as JwtPayload;
+    const decoded = jwt.verify(token, REQUIRED_JWT_SECRET, { algorithms: ['HS256'] }) as JwtPayload;
     return {
       userId: decoded.userId,
       email: decoded.email,
