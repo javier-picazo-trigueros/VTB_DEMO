@@ -26,7 +26,7 @@ Eso vaciaba la tesis del proyecto. Un tribunal electoral que no se fíe de
 nosotros no tenía nada que comprobar.
 
 Además el v1 tenía tres problemas de control de acceso, detallados en
-`AUDITORIA_BLOCKCHAIN.md`:
+`docs/historico/AUDITORIA_BLOCKCHAIN.md`:
 
 - `castVote` no exigía autorización: cualquiera podía inflar el recuento (BC-01).
 - El owner podía cerrar y reabrir una elección a mitad de votación (BC-06).
@@ -110,14 +110,19 @@ la base en condiciones de hacerlo sin perder el histórico.
 
 El contrato está desplegado en Sepolia
 (`0x124759Cc8bb31AAD866930dCd3caE6f148e4F607`, bloque 11724119) pero **todavía
-no es operativo**:
+no está en servicio**. Comprobado en la cadena el 07-10-2026:
 
-1. El relayer autorizado en el contrato no es la clave del backend, así que
-   `castVote` revertiría con `ERR: not authorized relayer`. Lo arregla el owner
-   con `setRelayer`.
-2. El backend sigue apuntando al contrato v1 y `DEPLOY_BLOCK` no está definida.
-3. El contrato está sin verificar en Etherscan, así que un tercero solo ve
-   bytecode y no puede leer las reglas.
+1. **Hecho:** el relayer del backend (`0x5D73…D572`) está autorizado
+   (`isRelayer` = true desde el 23-09-2026) y es distinto del owner
+   (`0x8780…9d6b`). Ya no revertiría con `ERR: not authorized relayer`.
+2. **Hecho:** el contrato figura como verificado en Etherscan (muestra el
+   nombre `ElectionRegistryV2`; `sepolia.json` lo registra como verificado).
+3. **Pendiente:** apuntar producción al v2 (`CONTRACT_ADDRESS` y
+   `DEPLOY_BLOCK=11724119` en Render). Las cinco elecciones de producción
+   (ids 24 a 28 en la cadena) siguen en el v1 y el v2 tiene
+   `getElectionCount()` = 0.
+4. **Pendiente:** crear la primera elección en el v2 y recontarla con
+   `RECUENTO_INDEPENDIENTE.md`.
 
-Hasta que eso se cierre, `SETUP.md` no documenta el arranque con el v2: no se
-ha podido comprobar en un clon limpio.
+Hasta que eso se cierre, `SETUP.md` documenta las variables del v2 pero el
+arranque completo con él no se ha podido comprobar en un clon limpio.

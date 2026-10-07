@@ -1,5 +1,8 @@
 # Auditoría de la capa blockchain — VTB
 
+> **Documento histórico (27-08-2026, contrato v1).** Foto de ese día: lo que describe como abierto puede estar ya cerrado, y los hechos (direcciones, contrato, claves) son los de entonces. Se conserva porque el código y otros documentos citan sus hallazgos por id (P1-xx, BC-xx, C-1, A-1, M-1…). El estado actual está en `SEGURIDAD.md`, `CLAUDE.md` y `docs/PROGRESO_PLAN.md`.
+
+
 **Fecha:** 2026-08-27
 **Alcance:** `blockchain/` completo + toda la integración Web3 del backend y del frontend.
 **Método:** lectura de código + **consultas en vivo contra el contrato desplegado en Sepolia**
@@ -17,7 +20,7 @@ Hay un hallazgo que domina a todos los demás y conviene leerlo antes que nada:
 > `totalVotes == 0` en las 18. Nunca se ha registrado un solo voto en la cadena.**
 
 Verificado consultando `getElection(1..18)` en vivo. Como `totalVotes` solo se incrementa
-dentro de `castVote` ([VTB.sol:194](blockchain/contracts/VTB.sol#L194)), un contador a cero en
+dentro de `castVote` ([VTB.sol:194](../../blockchain/contracts/VTB.sol#L194)), un contador a cero en
 todas las elecciones demuestra que `castVote` no se ha ejecutado nunca con éxito. La causa
 está identificada (BC-21: 22 de las cuentas semilla son `@vtb.demo` y toman un atajo
 sintético antes de tocar la cadena). O sea: hoy la capa blockchain es decorativa.
@@ -30,41 +33,41 @@ Los problemas serios son de diseño y de integración, no de bugs de Solidity.
 
 | ID | Severidad | ¿Rompe o es mejora? | Dónde | Hallazgo |
 |----|-----------|---------------------|-------|----------|
-| BC-01 | **CRÍTICO** | Rompe | [VTB.sol:181-185](blockchain/contracts/VTB.sol#L181-L185) | `castVote` no tiene control de acceso: cualquiera puede inflar el recuento |
+| BC-01 | **CRÍTICO** | Rompe | [VTB.sol:181-185](../../blockchain/contracts/VTB.sol#L181-L185) | `castVote` no tiene control de acceso: cualquiera puede inflar el recuento |
 | BC-02 | **CRÍTICO** | Rompe | Estado en vivo | Cero votos on-chain en las 18 elecciones. La capa está muerta |
-| BC-03 | **CRÍTICO** | Rompe | [database.ts:77-86](backend/src/config/database.ts#L77-L86) | `user_id` + `candidate_id` en la misma fila: secreto del voto = 0 |
-| BC-12 | **CRÍTICO** | Rompe | [VotingBooth.jsx:526-528](frontend/src/pages/VotingBooth.jsx#L526-L528) | El `voteHash` no es un compromiso: el salt se pierde, nadie puede abrirlo nunca |
-| BC-28 | **CRÍTICO** | Rompe | [elections.ts:521-578](backend/src/routes/elections.ts#L521-L578) | `/audit` público sin auth y con `txHash` sintético indistinguible del real |
-| BC-04 | ALTO | Rompe | [VTB.sol:196-201](blockchain/contracts/VTB.sol#L196-L201), [281-288](blockchain/contracts/VTB.sol#L281-L288) | `voteHistory` sin cota + `getVoteHistory` devuelve todo → DoS de auditoría |
-| BC-05 | ALTO | Rompe | [elections.ts:37-43](backend/src/routes/elections.ts#L37-L43) | Relayer == deployer == owner: una sola clave caliente con poderes de admin |
+| BC-03 | **CRÍTICO** | Rompe | [database.ts:77-86](../../backend/src/config/database.ts#L77-L86) | `user_id` + `candidate_id` en la misma fila: secreto del voto = 0 |
+| BC-12 | **CRÍTICO** | Rompe | [VotingBooth.jsx:526-528](../../frontend/src/pages/VotingBooth.jsx#L526-L528) | El `voteHash` no es un compromiso: el salt se pierde, nadie puede abrirlo nunca |
+| BC-28 | **CRÍTICO** | Rompe | [elections.ts:521-578](../../backend/src/routes/elections.ts#L521-L578) | `/audit` público sin auth y con `txHash` sintético indistinguible del real |
+| BC-04 | ALTO | Rompe | [VTB.sol:196-201](../../blockchain/contracts/VTB.sol#L196-L201), [281-288](../../blockchain/contracts/VTB.sol#L281-L288) | `voteHistory` sin cota + `getVoteHistory` devuelve todo → DoS de auditoría |
+| BC-05 | ALTO | Rompe | [elections.ts:37-43](../../backend/src/routes/elections.ts#L37-L43) | Relayer == deployer == owner: una sola clave caliente con poderes de admin |
 | BC-10 | ALTO | Rompe | Etherscan | Contrato **no verificado** en Sepolia (comprobado) |
-| BC-11 | ALTO | Rompe | [auth.ts:126-137](backend/src/utils/auth.ts#L126-L137) | El nullifier es trivialmente desanonimizable si se filtra `NULLIFIER_SECRET` |
-| BC-16 | ALTO | Rompe | [elections.ts:741](backend/src/routes/elections.ts#L741) | `tx.wait()` sin timeout y con 1 confirmación |
-| BC-17 | ALTO | Rompe | [elections.ts:734-738](backend/src/routes/elections.ts#L734-L738) | Cero gestión de nonce: votación concurrente rompe el relayer |
-| BC-19 | ALTO | Rompe | [elections.ts:741-761](backend/src/routes/elections.ts#L741-L761) | Ninguna defensa frente a reorganización de cadena |
-| BC-21 | ALTO | Rompe | [elections.ts:667-687](backend/src/routes/elections.ts#L667-L687) | Atajo demo: 22 cuentas nunca llegan a la cadena, con txHash falso |
-| BC-22 | ALTO | Rompe | [elections.ts:822-843](backend/src/routes/elections.ts#L822-L843) | Fallback silencioso: voto fuera de cadena presentado como éxito |
+| BC-11 | ALTO | Rompe | [auth.ts:126-137](../../backend/src/utils/auth.ts#L126-L137) | El nullifier es trivialmente desanonimizable si se filtra `NULLIFIER_SECRET` |
+| BC-16 | ALTO | Rompe | [elections.ts:741](../../backend/src/routes/elections.ts#L741) | `tx.wait()` sin timeout y con 1 confirmación |
+| BC-17 | ALTO | Rompe | [elections.ts:734-738](../../backend/src/routes/elections.ts#L734-L738) | Cero gestión de nonce: votación concurrente rompe el relayer |
+| BC-19 | ALTO | Rompe | [elections.ts:741-761](../../backend/src/routes/elections.ts#L741-L761) | Ninguna defensa frente a reorganización de cadena |
+| BC-21 | ALTO | Rompe | [elections.ts:667-687](../../backend/src/routes/elections.ts#L667-L687) | Atajo demo: 22 cuentas nunca llegan a la cadena, con txHash falso |
+| BC-22 | ALTO | Rompe | [elections.ts:822-843](../../backend/src/routes/elections.ts#L822-L843) | Fallback silencioso: voto fuera de cadena presentado como éxito |
 | BC-27 | ALTO | Rompe | `frontend/.env` (`VITE_RPC_URL`) | La API key de Alchemy va en el bundle del navegador, y es la misma del backend |
-| BC-29 | ALTO | Rompe | [VotingBooth.jsx:445](frontend/src/pages/VotingBooth.jsx#L445) | ABI del evento incorrecto → topic0 distinto → el feed en vivo nunca dispara |
-| BC-30 | ALTO | Rompe | [elections.ts:449-471](backend/src/routes/elections.ts#L449-L471), [506](backend/src/routes/elections.ts#L506) | Los resultados salen 100% de la BD; `onChainVerified` es un badge engañoso |
-| BC-07 | MEDIO | Rompe | [admin.ts:693](backend/src/routes/admin.ts#L693), [syncElections.ts:80-81](backend/src/scripts/syncElections.ts#L80-L81) | La ventana on-chain no es la ventana real de la elección |
-| BC-18 | MEDIO | Rompe | [elections.ts:734-738](backend/src/routes/elections.ts#L734-L738) | Sin `gasLimit` ni política de fees ni reintento con bump |
-| BC-20 | MEDIO | Rompe | [elections.ts:868-871](backend/src/routes/elections.ts#L868-L871) | `details: blockchainError.message` crudo al cliente |
-| BC-23 | MEDIO | Rompe | [index.ts:247](backend/src/index.ts#L247) | `queryFilter` sin rango de bloques: revienta en Sepolia (reproducido) |
-| BC-24 | MEDIO | Rompe | [index.ts:251-256](backend/src/index.ts#L251-L256) | Fallo de RPC indistinguible de "no votó" → marca `failed` |
-| BC-25 | MEDIO | Rompe | [syncElections.ts:56-66](backend/src/scripts/syncElections.ts#L56-L66), [elections.ts:184-208](backend/src/routes/elections.ts#L184-L208) | Mapeo de IDs por posición del array, sin verificar contra la cadena |
-| BC-06 | MEDIO | Mejora | [VTB.sol:159-166](blockchain/contracts/VTB.sol#L159-L166) | El owner puede cerrar una elección en curso (censura, no manipulación) |
+| BC-29 | ALTO | Rompe | [VotingBooth.jsx:445](../../frontend/src/pages/VotingBooth.jsx#L445) | ABI del evento incorrecto → topic0 distinto → el feed en vivo nunca dispara |
+| BC-30 | ALTO | Rompe | [elections.ts:449-471](../../backend/src/routes/elections.ts#L449-L471), [506](../../backend/src/routes/elections.ts#L506) | Los resultados salen 100% de la BD; `onChainVerified` es un badge engañoso |
+| BC-07 | MEDIO | Rompe | admin.ts:693, [syncElections.ts:80-81](../../backend/src/scripts/syncElections.ts#L80-L81) | La ventana on-chain no es la ventana real de la elección |
+| BC-18 | MEDIO | Rompe | [elections.ts:734-738](../../backend/src/routes/elections.ts#L734-L738) | Sin `gasLimit` ni política de fees ni reintento con bump |
+| BC-20 | MEDIO | Rompe | [elections.ts:868-871](../../backend/src/routes/elections.ts#L868-L871) | `details: blockchainError.message` crudo al cliente |
+| BC-23 | MEDIO | Rompe | [index.ts:247](../../backend/src/index.ts#L247) | `queryFilter` sin rango de bloques: revienta en Sepolia (reproducido) |
+| BC-24 | MEDIO | Rompe | [index.ts:251-256](../../backend/src/index.ts#L251-L256) | Fallo de RPC indistinguible de "no votó" → marca `failed` |
+| BC-25 | MEDIO | Rompe | [syncElections.ts:56-66](../../backend/src/scripts/syncElections.ts#L56-L66), [elections.ts:184-208](../../backend/src/routes/elections.ts#L184-L208) | Mapeo de IDs por posición del array, sin verificar contra la cadena |
+| BC-06 | MEDIO | Mejora | [VTB.sol:159-166](../../blockchain/contracts/VTB.sol#L159-L166) | El owner puede cerrar una elección en curso (censura, no manipulación) |
 | BC-15 | MEDIO | Mejora | Diseño | Todas las tx salen de una EOA: correlación de timing desanonimiza |
-| BC-08 | BAJO | Mejora | [admin.ts:698](backend/src/routes/admin.ts#L698) | Lee `electionCount()` post-tx en vez del evento del receipt: carrera |
+| BC-08 | BAJO | Mejora | admin.ts:698 | Lee `electionCount()` post-tx en vez del evento del receipt: carrera |
 | BC-09 | BAJO | Mejora | `blockchain/test/` | No existe. Cero tests del contrato |
-| BC-13 | BAJO | Mejora | [VTB.sol:105-108](blockchain/contracts/VTB.sol#L105-L108) | Sin `transferOwnership`, sin pausa, sin evento de ownership |
-| BC-14 | BAJO | Mejora | [elections.ts:123-178](backend/src/routes/elections.ts#L123-L178) | `/blockchain-sync-status` es público sin auth |
+| BC-13 | BAJO | Mejora | [VTB.sol:105-108](../../blockchain/contracts/VTB.sol#L105-L108) | Sin `transferOwnership`, sin pausa, sin evento de ownership |
+| BC-14 | BAJO | Mejora | [elections.ts:123-178](../../backend/src/routes/elections.ts#L123-L178) | `/blockchain-sync-status` es público sin auth |
 
 ---
 
 # PARTE 1 — El contrato
 
-Archivo único: [blockchain/contracts/VTB.sol](blockchain/contracts/VTB.sol), 296 líneas,
+Archivo único: [blockchain/contracts/VTB.sol](../../blockchain/contracts/VTB.sol), 296 líneas,
 Solidity `^0.8.24`, optimizer activado, 200 runs, evmVersion `paris`.
 Sin herencia, sin librerías, sin OpenZeppelin, sin proxy.
 
@@ -73,18 +76,18 @@ Sin herencia, sin librerías, sin OpenZeppelin, sin proxy.
 Lo que **sí** garantiza, y lo garantiza de verdad:
 
 1. **Un nullifier no puede usarse dos veces en la misma elección.**
-   [VTB.sol:188-191](blockchain/contracts/VTB.sol#L188-L191). El check es correcto y la
+   [VTB.sol:188-191](../../blockchain/contracts/VTB.sol#L188-L191). El check es correcto y la
    escritura es atómica en la misma tx. Esto es sólido.
 2. **Inmutabilidad de lo escrito.** No hay ninguna función que borre o modifique
    `votes`, `totalVotes` o `voteHistory`. Ni el owner. Verificado leyendo las 296 líneas:
-   `votes[...]` se escribe solo en [L193](blockchain/contracts/VTB.sol#L193),
-   `totalVotes` solo se incrementa en [L194](blockchain/contracts/VTB.sol#L194), y
-   `voteHistory` solo recibe `push` en [L196](blockchain/contracts/VTB.sol#L196).
+   `votes[...]` se escribe solo en [L193](../../blockchain/contracts/VTB.sol#L193),
+   `totalVotes` solo se incrementa en [L194](../../blockchain/contracts/VTB.sol#L194), y
+   `voteHistory` solo recibe `push` en [L196](../../blockchain/contracts/VTB.sol#L196).
 3. **Marca temporal fiable.** `block.timestamp` y `block.number` los pone el bloque, no el
-   backend ([L199-L200](blockchain/contracts/VTB.sol#L199-L200)). Un voto no se puede
+   backend ([L199-L200](../../blockchain/contracts/VTB.sol#L199-L200)). Un voto no se puede
    antedatar.
 4. **Trazabilidad pública.** El evento `VoteCast` queda indexado por `electionId` y
-   `nullifier` ([L27-L32](blockchain/contracts/VTB.sol#L27-L32)), lo que permite filtrar
+   `nullifier` ([L27-L32](../../blockchain/contracts/VTB.sol#L27-L32)), lo que permite filtrar
    sin escanear todo.
 
 Lo que **no** garantiza, y el comentario de cabecera del propio archivo sugiere que sí:
@@ -101,7 +104,7 @@ Lo que **no** garantiza, y el comentario de cabecera del propio archivo sugiere 
 5. **No garantiza el secreto del voto.** El contrato no lo rompe, pero tampoco lo protege:
    quien lo rompe es la BD (BC-03).
 
-> El comentario de [VTB.sol:19](blockchain/contracts/VTB.sol#L19) dice
+> El comentario de [VTB.sol:19](../../blockchain/contracts/VTB.sol#L19) dice
 > *"Blockchain provides a public, immutable audit trail without revealing identity"*.
 > La parte de *immutable* es cierta. La de *audit trail* solo lo sería si el recuento
 > derivase de la cadena, y no lo hace (BC-30).
@@ -111,7 +114,7 @@ Lo que **no** garantiza, y el comentario de cabecera del propio archivo sugiere 
 **Sí, la valida on-chain.** Esto es lo que hace bien y merece decirse claramente.
 
 El modificador `electionIsActive`
-([VTB.sol:91-99](blockchain/contracts/VTB.sol#L91-L99)) comprueba las tres cosas:
+([VTB.sol:91-99](../../blockchain/contracts/VTB.sol#L91-L99)) comprueba las tres cosas:
 
 ```solidity
 require(elections[_id].active, "ERR: election not active");
@@ -122,7 +125,7 @@ require(
 );
 ```
 
-y se aplica a `castVote` en [L185](blockchain/contracts/VTB.sol#L185), después de
+y se aplica a `castVote` en [L185](../../blockchain/contracts/VTB.sol#L185), después de
 `electionExists` (el orden de modificadores es el correcto). No confía en el backend.
 
 **Pero** — y aquí está el matiz (BC-07) — la ventana que valida **no es la ventana real de
@@ -130,18 +133,18 @@ la elección**. Tres sitios distintos meten ventanas falseadas:
 
 | Origen | Qué escribe on-chain | Línea |
 |--------|----------------------|-------|
-| `admin.ts` al crear elección | `start = max(start_time_BD, ahora + 120s)` | [admin.ts:693](backend/src/routes/admin.ts#L693) |
-| `syncElections.ts` | `start = max(start_BD, ahora+120)`, `end = max(end_BD, ahora+30 días)` | [syncElections.ts:80-81](backend/src/scripts/syncElections.ts#L80-L81) |
-| `createElections.ts` | `start = ahora + 1h`, `end = ahora + 1 año` | [createElections.ts:18-19](blockchain/scripts/createElections.ts#L18-L19) |
+| `admin.ts` al crear elección | `start = max(start_time_BD, ahora + 120s)` | admin.ts:693 |
+| `syncElections.ts` | `start = max(start_BD, ahora+120)`, `end = max(end_BD, ahora+30 días)` | [syncElections.ts:80-81](../../backend/src/scripts/syncElections.ts#L80-L81) |
+| `createElections.ts` | `start = ahora + 1h`, `end = ahora + 1 año` | createElections.ts:18-19 |
 
 El motivo técnico es real: `createElection` exige `_startTime >= block.timestamp`
-([VTB.sol:126](blockchain/contracts/VTB.sol#L126)), así que no puedes registrar una elección
+([VTB.sol:126](../../blockchain/contracts/VTB.sol#L126)), así que no puedes registrar una elección
 que ya empezó. Pero la solución elegida (empujar el inicio al futuro y estirar el final)
 tiene dos consecuencias:
 
 - Hay una **ventana ciega de 120 segundos** tras crear una elección en la que la BD dice
   "activa" y la cadena rechaza con `ERR: election out of time window`. Ese error cae en el
-  `catch` de [elections.ts:799](backend/src/routes/elections.ts#L799), que **no** lo
+  `catch` de [elections.ts:799](../../backend/src/routes/elections.ts#L799), que **no** lo
   reconoce como `isElectionMissing`, así que el votante recibe un 500 genérico.
 - El `end` on-chain puede ser **meses posterior** al cierre real. Confirmado en vivo: la
   elección on-chain 5 (`VTB Demo Sandbox Election`) tiene `end = 1787733108`
@@ -155,10 +158,10 @@ inventada por el backend. Es correcta técnicamente e inútil como garantía.
 
 | Función | Restricción | Línea |
 |---------|-------------|-------|
-| `createElection` | `onlyOwner` | [L124](blockchain/contracts/VTB.sol#L124) |
-| `setElectionStatus` | `onlyOwner` | [L149](blockchain/contracts/VTB.sol#L149) |
-| `closeElection` | `onlyOwner` | [L161](blockchain/contracts/VTB.sol#L161) |
-| **`castVote`** | **NINGUNA** | [L185](blockchain/contracts/VTB.sol#L185) |
+| `createElection` | `onlyOwner` | [L124](../../blockchain/contracts/VTB.sol#L124) |
+| `setElectionStatus` | `onlyOwner` | [L149](../../blockchain/contracts/VTB.sol#L149) |
+| `closeElection` | `onlyOwner` | [L161](../../blockchain/contracts/VTB.sol#L161) |
+| **`castVote`** | **NINGUNA** | [L185](../../blockchain/contracts/VTB.sol#L185) |
 | `getElection`, `getVoteCount`, `getTotalVotes`, `hasVoted`, `getVoteHash`, `getVoteHistory`, `getElectionCount` | públicas (son `view`) | L213-L295 |
 
 ### El problema
@@ -187,7 +190,7 @@ Esto significa que:
   un tercero sin acceso a vuestro sistema.
 
 La arquitectura descrita en la cabecera del contrato (backend como relayer, pasos 1-6 en
-[L13-L19](blockchain/contracts/VTB.sol#L13-L19)) **asume** que el único llamante es el
+[L13-L19](../../blockchain/contracts/VTB.sol#L13-L19)) **asume** que el único llamante es el
 relayer, pero el contrato no lo impone en ningún sitio. Es la brecha entre el comentario
 y el código.
 
@@ -213,12 +216,12 @@ en una defensa.
 - Reescribir `voteHistory`. Solo hay `push`.
 - Actualizar el contrato. No hay proxy, no hay `delegatecall`, no hay `selfdestruct`.
 - Cambiar el propietario. No hay `transferOwnership` — `owner` se fija en el constructor
-  ([L106](blockchain/contracts/VTB.sol#L106)) y es inmutable.
+  ([L106](../../blockchain/contracts/VTB.sol#L106)) y es inmutable.
 
 **El owner SÍ puede (BC-06, censura):**
 
 - `closeElection(id)` en mitad de la votación
-  ([L159-L166](blockchain/contracts/VTB.sol#L159-L166)) → a partir de ahí `castVote`
+  ([L159-L166](../../blockchain/contracts/VTB.sol#L159-L166)) → a partir de ahí `castVote`
   revierte con `ERR: election not active`. Los votos ya emitidos permanecen intactos, pero
   el owner puede **cortar la votación cuando le convenga el marcador**. Como el recuento es
   público en tiempo real vía `getVoteCount`, esto es un vector de manipulación de resultado
@@ -256,7 +259,7 @@ require(
     "ERR: nullifier already used (double-vote prevented)"
 );
 ```
-[VTB.sol:188-191](blockchain/contracts/VTB.sol#L188-L191)
+[VTB.sol:188-191](../../blockchain/contracts/VTB.sol#L188-L191)
 
 Como es un `require` y no un no-op silencioso, la tx revierte entera: no se incrementa
 `totalVotes`, no se hace `push` en `voteHistory`, no se emite evento. Consistente.
@@ -265,13 +268,13 @@ Como es un `require` y no un no-op silencioso, la tx revierte entera: no se incr
 
 1. **El nullifier cero es un caso especial.** El "ya usado" se detecta por
    `votes[...] == bytes32(0)`, es decir el valor por defecto del mapping. Por eso hay un
-   guard explícito en [L186](blockchain/contracts/VTB.sol#L186) rechazando el nullifier
-   cero, y otro en [L187](blockchain/contracts/VTB.sol#L187) rechazando `voteHash` cero — si
+   guard explícito en [L186](../../blockchain/contracts/VTB.sol#L186) rechazando el nullifier
+   cero, y otro en [L187](../../blockchain/contracts/VTB.sol#L187) rechazando `voteHash` cero — si
    `voteHash` pudiera ser cero, el voto se guardaría pero `hasVoted` devolvería `false` y el
    nullifier sería reutilizable. Los dos guards están bien puestos. Correcto.
 
 2. **El backend traduce mal el revert.** En
-   [elections.ts:859-866](backend/src/routes/elections.ts#L859-L866) se busca la subcadena
+   [elections.ts:859-866](../../backend/src/routes/elections.ts#L859-L866) se busca la subcadena
    `"nullifier already used"` en `blockchainError.message` para devolver 409. Con ethers v6
    y un provider que hace `eth_estimateGas` previo, el mensaje suele llegar como
    `execution reverted: "ERR: nullifier already used (double-vote prevented)"`, así que
@@ -280,9 +283,9 @@ Como es un `require` y no un no-op silencioso, la tx revierte entera: no se incr
 
 3. **El scope del nullifier no coincide con el scope on-chain.** El nullifier se genera con
    el ID *local* de la elección (`generateNullifier(decoded.userId, electionId)`,
-   [elections.ts:655](backend/src/routes/elections.ts#L655)) pero se escribe en el mapping
+   [elections.ts:655](../../backend/src/routes/elections.ts#L655)) pero se escribe en el mapping
    indexado por el ID *on-chain* (`election.election_id_blockchain`,
-   [elections.ts:735](backend/src/routes/elections.ts#L735)). Mientras el mapeo 1:1 se
+   [elections.ts:735](../../backend/src/routes/elections.ts#L735)). Mientras el mapeo 1:1 se
    mantenga no pasa nada, pero si `fix-blockchain-ids` remapea (BC-25), dos elecciones
    locales distintas pueden acabar apuntando al mismo ID on-chain y sus nullifiers
    colisionarían en el mismo namespace. **Rompe, en ese escenario.**
@@ -294,8 +297,8 @@ Repasadas una por una sobre las 296 líneas:
 | Vector | Estado | Justificación |
 |--------|--------|---------------|
 | **Reentrancy** | **Limpio** | `castVote` no hace **ninguna** llamada externa: ni `call`, ni `transfer`, ni `send`, ni interacción con otro contrato. No hay superficie de reentrada. No hace falta `nonReentrant`. |
-| **Overflow / underflow** | **Limpio** | Solidity 0.8.24 → aritmética con checks por defecto. `electionCount++` ([L128](blockchain/contracts/VTB.sol#L128)) y `totalVotes++` ([L194](blockchain/contracts/VTB.sol#L194)) revertirían antes de dar la vuelta. No hay bloques `unchecked`. |
-| **`tx.origin`** | **No se usa** | Ni una aparición en el archivo. La autorización usa `msg.sender` ([L82](blockchain/contracts/VTB.sol#L82)), que es lo correcto. |
+| **Overflow / underflow** | **Limpio** | Solidity 0.8.24 → aritmética con checks por defecto. `electionCount++` ([L128](../../blockchain/contracts/VTB.sol#L128)) y `totalVotes++` ([L194](../../blockchain/contracts/VTB.sol#L194)) revertirían antes de dar la vuelta. No hay bloques `unchecked`. |
+| **`tx.origin`** | **No se usa** | Ni una aparición en el archivo. La autorización usa `msg.sender` ([L82](../../blockchain/contracts/VTB.sol#L82)), que es lo correcto. |
 | **`delegatecall`** | **No se usa** | Tampoco `call`, `staticcall`, `assembly`, `selfdestruct` ni `create2`. Contrato no actualizable, sin proxy. |
 | **Manipulación de `block.timestamp`** | **No explotable** | Un validador puede desviarlo unos segundos. Irrelevante para ventanas de días. |
 | **Front-running / MEV** | **No aplica hoy** | Sin acceso restringido (BC-01) no hay nada que adelantar: cualquiera puede votar directamente. Si se arregla BC-01, un observador del mempool vería el par `(nullifier, voteHash)` antes de que se mine, pero el `voteHash` no revela la papeleta. |
@@ -306,7 +309,7 @@ Repasadas una por una sobre las 296 líneas:
 
 Dos problemas en el mismo sitio.
 
-**Coste por voto.** [VTB.sol:196-201](blockchain/contracts/VTB.sol#L196-L201) hace `push` de
+**Coste por voto.** [VTB.sol:196-201](../../blockchain/contracts/VTB.sol#L196-L201) hace `push` de
 un `VoteRecord` de 4 palabras (`nullifier`, `voteHash`, `timestamp`, `blockNumber`), más la
 actualización del length del array. Eso son ~5 slots frescos ≈ **100.000 gas adicionales por
 voto**, aproximadamente triplicando el coste de la transacción. Y esos datos **ya están en
@@ -314,7 +317,7 @@ el evento `VoteCast`**, que cuesta unos 2.000 gas. Es almacenamiento duplicado y
 información que no se consume desde ningún contrato.
 
 **DoS de la función de auditoría.**
-[VTB.sol:281-288](blockchain/contracts/VTB.sol#L281-L288):
+[VTB.sol:281-288](../../blockchain/contracts/VTB.sol#L281-L288):
 
 ```solidity
 function getVoteHistory(uint256 _id) public view ... returns (VoteRecord[] memory) {
@@ -348,7 +351,7 @@ Las causas están en el repo:
   `PORT`, `DATABASE_URL`, `JWT_SECRET`, `HMAC_SECRET`, `NULLIFIER_SECRET`,
   `CONTRACT_ADDRESS`, `PRIVATE_KEY`, `RPC_URL`, `SEPOLIA_RPC_URL`, `ALCHEMY_API_KEY`,
   `EXPLORER_URL`, `CORS_ORIGINS`, `NODE_ENV`, `DEPLOYER_PRIVATE_KEY`). El bloque
-  `etherscan.apiKey` de [hardhat.config.ts:54-58](blockchain/hardhat.config.ts#L54-L58)
+  `etherscan.apiKey` de [hardhat.config.ts:54-58](../../blockchain/hardhat.config.ts#L54-L58)
   resuelve a cadena vacía.
 - `deploy.ts` no invoca verificación tras el despliegue.
 
@@ -374,7 +377,7 @@ verificado a la primera.
 ## 1.8 BC-09 — Cero tests del contrato (BAJO, mejora)
 
 `blockchain/test/` no existe. `hardhat.config.ts` lo declara en
-[L62](blockchain/hardhat.config.ts#L62) pero el directorio no está. No hay ni un test que
+[L62](../../blockchain/hardhat.config.ts#L62) pero el directorio no está. No hay ni un test que
 compruebe el doble voto, la ventana temporal, ni el control de acceso. Para un TFG con un
 contrato de 296 líneas, una suite de ~15 tests es barata y da mucho.
 
@@ -427,7 +430,7 @@ seudónimo sigue siendo dato personal si existe alguien que pueda revertir la as
 y aquí ese alguien existe: sois vosotros.
 
 Además, **el nombre de la elección va on-chain en claro**
-([VTB.sol:139](blockchain/contracts/VTB.sol#L139)). Verificado en vivo, incluye cosas como
+([VTB.sol:139](../../blockchain/contracts/VTB.sol#L139)). Verificado en vivo, incluye cosas como
 `Delegado Ingeniería Informatica 2026/27`, `UFV Student Council President 2025`,
 `Highlands Head of House Election`. No es dato personal, pero revela la institución, la
 facultad y el curso académico. Para un grupo pequeño (p. ej. la delegación de una
@@ -440,7 +443,7 @@ Esta es la pregunta más importante de la Parte 2, y la respuesta es más incóm
 sugiere la documentación.
 
 El nullifier se genera en
-[auth.ts:126-137](backend/src/utils/auth.ts#L126-L137):
+[auth.ts:126-137](../../backend/src/utils/auth.ts#L126-L137):
 
 ```typescript
 export function generateNullifier(userId: number, electionId: number): string {
@@ -460,7 +463,7 @@ ataque práctico ni por fuerza bruta ni por diccionario. Hasta aquí, correcto.
 
 El espacio de preimagen es `${userId}:${electionId}:vtb-voter`. `userId` es el
 `INTEGER PRIMARY KEY AUTOINCREMENT` de la tabla `users`
-([database.ts](backend/src/config/database.ts)), o sea **un entero secuencial pequeño**, y
+([database.ts](../../backend/src/config/database.ts)), o sea **un entero secuencial pequeño**, y
 `electionId` otro. Para una institución con 5.000 alumnos y 20 elecciones, el espacio total
 es 100.000 combinaciones. Construir la tabla completa `nullifier → (userId, electionId)`
 es cuestión de **milisegundos**, no de años.
@@ -477,11 +480,11 @@ formato de los identificadores de estudiante?"* — tiene esta respuesta precisa
 **Agravantes concretos:**
 
 1. **El secreto tiene un fallback de desarrollo.**
-   [auth.ts:58-60](backend/src/utils/auth.ts#L58-L60) usa
+   [auth.ts:58-60](../../backend/src/utils/auth.ts#L58-L60) usa
    `"dev-only-nullifier-secret-change-before-prod"` si `NODE_ENV !== "production"`. Ese
    valor está en el repositorio. Cualquier despliegue sin `NODE_ENV=production`
    correctamente puesto tiene un nullifier con secreto conocido por todo el mundo. El guard
-   de [L67-L72](backend/src/utils/auth.ts#L67-L72) solo salta en producción.
+   de [L67-L72](../../backend/src/utils/auth.ts#L67-L72) solo salta en producción.
 2. **El secreto no se puede rotar.** Rotar `NULLIFIER_SECRET` cambia todos los nullifiers
    futuros, lo que destruye la detección de doble voto de cualquier elección en curso: un
    usuario que ya votó generaría un nullifier nuevo y `castVote` lo aceptaría. No hay
@@ -491,7 +494,7 @@ formato de los identificadores de estudiante?"* — tiene esta respuesta precisa
    histórico completo de la plataforma, retroactivamente y para siempre — los datos están en
    una cadena pública inmutable.
 4. **La lista de nullifiers se publica sin autenticación.** El endpoint
-   [`/elections/:id/audit`](backend/src/routes/elections.ts#L521) (BC-28) devuelve todos los
+   [`/elections/:id/audit`](../../backend/src/routes/elections.ts#L521) (BC-28) devuelve todos los
    `nullifier_hash` de una elección sin pedir sesión. Quien tenga el secreto ni siquiera
    necesita leer la cadena.
 
@@ -504,12 +507,12 @@ pero es la diferencia entre "anónimo" y "anónimo salvo para el administrador".
 ## 2.4 BC-12 — El `voteHash` no es un compromiso (CRÍTICO)
 
 El contrato lo describe como *"Encrypted vote commitment (SHA256 of choice + salt)"*
-([VTB.sol:178](blockchain/contracts/VTB.sol#L178)) y la cabecera del archivo dice
+([VTB.sol:178](../../blockchain/contracts/VTB.sol#L178)) y la cabecera del archivo dice
 *"Frontend computes voteHash = SHA256(candidateId + randomSalt)"*
-([L16](blockchain/contracts/VTB.sol#L16)).
+([L16](../../blockchain/contracts/VTB.sol#L16)).
 
 Lo que hace realmente el frontend
-([VotingBooth.jsx:526-528](frontend/src/pages/VotingBooth.jsx#L526-L528)):
+([VotingBooth.jsx:526-528](../../frontend/src/pages/VotingBooth.jsx#L526-L528)):
 
 ```javascript
 const voteHash = ethers.keccak256(
@@ -528,7 +531,7 @@ Un compromiso criptográfico solo vale si alguien puede **abrirlo** después: re
 
 El `voteHash` que está en la cadena es, funcionalmente, **32 bytes de ruido aleatorio**. No
 prueba nada sobre nada. Y mientras tanto, en la misma petición HTTP
-([VotingBooth.jsx:533](frontend/src/pages/VotingBooth.jsx#L533)) se envía
+([VotingBooth.jsx:533](../../frontend/src/pages/VotingBooth.jsx#L533)) se envía
 `candidateId: selectedCandidate` **en claro**, que es lo que realmente se guarda y se cuenta.
 
 Detalle menor pero digno de mención: `Math.random()` no es un CSPRNG. Aquí da igual porque
@@ -548,8 +551,8 @@ Aunque no es literalmente "capa blockchain", es imposible evaluar honestamente l
 de privacidad sin decirlo, porque **es la capa que produce los resultados**.
 
 Esquema de `nullifier_audit`
-([database.ts:77-86](backend/src/config/database.ts#L77-L86) más las columnas añadidas en
-[L181-L184](backend/src/config/database.ts#L181-L184)):
+([database.ts:77-86](../../backend/src/config/database.ts#L77-L86) más las columnas añadidas en
+[L181-L184](../../backend/src/config/database.ts#L181-L184)):
 
 ```
 id, user_id, election_id, nullifier_hash, generated_at,
@@ -557,7 +560,7 @@ vote_choice, tx_hash, block_number, candidate_id
 ```
 
 `user_id` y `candidate_id` **en la misma fila**. Y esa fila se inserta en cada voto
-([elections.ts:751-761](backend/src/routes/elections.ts#L751-L761)). Una única consulta:
+([elections.ts:751-761](../../backend/src/routes/elections.ts#L751-L761)). Una única consulta:
 
 ```sql
 SELECT u.email, c.name FROM nullifier_audit na
@@ -605,7 +608,7 @@ sistema no se ha usado.
 # PARTE 3 — Integración con el backend
 
 Todo el camino crítico está en
-[elections.ts:598-878](backend/src/routes/elections.ts#L598-L878), función
+[elections.ts:598-878](../../backend/src/routes/elections.ts#L598-L878), función
 `POST /elections/register-vote`.
 
 ## 3.1 El camino feliz, y lo que se salta
@@ -628,13 +631,13 @@ Todo el camino crítico está en
 770  releaseVoteLock('confirmed')
 ```
 
-El cerrojo previo a la transacción ([L689-L699](backend/src/routes/elections.ts#L689-L699))
+El cerrojo previo a la transacción ([L689-L699](../../backend/src/routes/elections.ts#L689-L699))
 es una decisión correcta y bien comentada: adquirir el lock **antes** de la tx evita la
 condición de carrera clásica. Lo digo porque es lo mejor de este archivo.
 
 ## 3.2 BC-21 y BC-22 — Los dos caminos que fingen ser blockchain (ALTO)
 
-**BC-21, el atajo demo** ([elections.ts:667-687](backend/src/routes/elections.ts#L667-L687)):
+**BC-21, el atajo demo** ([elections.ts:667-687](../../backend/src/routes/elections.ts#L667-L687)):
 
 ```typescript
 const isDemo = decoded.email?.endsWith('@vtb.demo');
@@ -653,13 +656,13 @@ cualquiera que no consulte la cadena. Al menos devuelve `isDemo: true` y un mens
 eso hay que reconocerlo.
 
 El problema es el alcance: en
-[seedDatabase.ts](backend/src/scripts/seedDatabase.ts) hay **22 cuentas `@vtb.demo`** frente
+[seedDatabase.ts](../../backend/src/scripts/seedDatabase.ts) hay **22 cuentas `@vtb.demo`** frente
 a 3 `@vtb.system` y 3 `@highland(s).edu`. **Prácticamente toda cuenta con la que alguien vaya
 a probar el sistema toma este atajo.** Esta es la explicación directa de BC-02: 18 elecciones
 on-chain con cero votos, porque casi nadie llega nunca a `castVote`.
 
 **BC-22, el fallback silencioso**
-([elections.ts:822-843](backend/src/routes/elections.ts#L822-L843)): cuando la tx falla con
+([elections.ts:822-843](../../backend/src/routes/elections.ts#L822-L843)): cuando la tx falla con
 `"election does not exist"` y el email es `@vtb.demo`, se inserta el voto con otro `txHash`
 sintético y se responde:
 
@@ -677,7 +680,7 @@ UI no interpreta. Un voto fuera de cadena presentado como voto en cadena.
 ### Transacción rechazada / revert
 
 **Parcialmente manejado.** El `catch` de
-[L799-L873](backend/src/routes/elections.ts#L799-L873) distingue tres casos por
+[L799-L873](../../backend/src/routes/elections.ts#L799-L873) distingue tres casos por
 **coincidencia de subcadenas en el mensaje de error**, lo cual es frágil:
 
 - `"election does not exist"` → 503 `ELECTION_NOT_ON_CHAIN` (o el fallback de BC-22).
@@ -691,12 +694,12 @@ segundos de BC-07), `ERR: nullifier cannot be zero`, `ERR: voteHash cannot be ze
 caen en el 500 genérico, y el usuario ve "Error al registrar voto en blockchain" sin pista.
 
 El cerrojo **sí** se libera correctamente como `'failed'`
-([L810-L813](backend/src/routes/elections.ts#L810-L813)), así que el usuario puede reintentar.
+([L810-L813](../../backend/src/routes/elections.ts#L810-L813)), así que el usuario puede reintentar.
 Correcto.
 
 ### BC-20 — Fuga del mensaje de error crudo (MEDIO)
 
-[elections.ts:868-871](backend/src/routes/elections.ts#L868-L871):
+[elections.ts:868-871](../../backend/src/routes/elections.ts#L868-L871):
 
 ```typescript
 res.status(500).json({
@@ -705,18 +708,18 @@ res.status(500).json({
 });
 ```
 
-El `formatError()` de [utils/errors.ts](backend/src/utils/errors.ts) se aplica al **log**
-([L802-L807](backend/src/routes/elections.ts#L802-L807)) pero **no a la respuesta**. Los
+El `formatError()` de [utils/errors.ts](../../backend/src/utils/errors.ts) se aplica al **log**
+([L802-L807](../../backend/src/routes/elections.ts#L802-L807)) pero **no a la respuesta**. Los
 errores de ethers v6 arrastran la URL del RPC con la API key de Alchemy en varios campos, y
 aunque `.message` suele ser el campo más limpio, no está garantizado — un error de red o de
 provider puede incluir el endpoint. Mismo patrón que en
-[admin.ts:1530-1534](backend/src/routes/admin.ts#L1530-L1534), donde ya está anotado como
+admin.ts:1530-1534, donde ya está anotado como
 P1-15 pendiente. Aquí no hay ni la nota.
 
 ### Gas insuficiente — BC-18 (MEDIO)
 
 **No manejado.** La llamada
-([L734-L738](backend/src/routes/elections.ts#L734-L738)) no pasa opciones:
+([L734-L738](../../backend/src/routes/elections.ts#L734-L738)) no pasa opciones:
 
 ```typescript
 const tx = await contract.castVote(election.election_id_blockchain, nullifier, voteHash);
@@ -736,13 +739,13 @@ de ethers, que hace un `eth_estimateGas` previo. Consecuencias:
   pero no hay ningún check de balance en ningún sitio.
 
 Curiosamente, el script `syncElections.ts` **sí** pone `gasLimit: 300000`
-([L87](backend/src/scripts/syncElections.ts#L87)). El camino crítico de voto no.
+([L87](../../backend/src/scripts/syncElections.ts#L87)). El camino crítico de voto no.
 
 ### Nonce duplicado — BC-17 (ALTO)
 
 **No manejado en absoluto, y es el fallo más probable en una demo en vivo.**
 
-`getWallet()` ([elections.ts:37-43](backend/src/routes/elections.ts#L37-L43)) construye un
+`getWallet()` ([elections.ts:37-43](../../backend/src/routes/elections.ts#L37-L43)) construye un
 `JsonRpcProvider` y un `Wallet` **nuevos en cada petición**. Ethers determina el nonce
 llamando a `eth_getTransactionCount(address, "pending")`. Con dos votos concurrentes:
 
@@ -754,7 +757,7 @@ Petición B: getTransactionCount → 88 (A aún no minada) → envía tx con non
 
 Con una sola EOA relayer y peticiones concurrentes, esto **falla de forma determinista** en
 cuanto dos personas voten a la vez. El voto B se pierde con un 500 genérico. El límite de
-rate ([app.ts:313](backend/src/app.ts#L313), `voteIpLimiter` + `voteUserLimiter`) es por IP y
+rate ([app.ts:313](../../backend/src/app.ts#L313), `voteIpLimiter` + `voteUserLimiter`) es por IP y
 por usuario, no serializa entre usuarios distintos, así que no ayuda.
 
 Además, cada petición abre un provider nuevo: no hay pool de conexiones, no hay caché de
@@ -769,7 +772,7 @@ menos un mutex a nivel de proceso alrededor del envío.
 **Qué pasa exactamente si Alchemy cae en mitad de una votación:**
 
 1. `getWallet()` **no falla** — construir un `JsonRpcProvider` no hace I/O
-   ([L41-L42](backend/src/routes/elections.ts#L41-L42)). El fallo se manifiesta más adelante.
+   ([L41-L42](../../backend/src/routes/elections.ts#L41-L42)). El fallo se manifiesta más adelante.
 2. `contract.castVote(...)` falla en el `eth_estimateGas`. Error tipo `SERVER_ERROR` /
    `NETWORK_ERROR`.
 3. Cae en el `catch` genérico → **500 con `details` crudo** (BC-20).
@@ -778,7 +781,7 @@ menos un mutex a nivel de proceso alrededor del envío.
    corte de Alchemy = votación parada, con un 500 por cada intento.
 
 **BC-16, `tx.wait()` sin timeout ni confirmaciones (ALTO):**
-[elections.ts:741](backend/src/routes/elections.ts#L741)
+[elections.ts:741](../../backend/src/routes/elections.ts#L741)
 
 ```typescript
 const receipt = await tx.wait();
@@ -797,7 +800,7 @@ problemas:
   intenta arreglar, y ese job no funciona (BC-23).
 
 **BC-23 — El job de reconciliación está roto (MEDIO):**
-[index.ts:240-258](backend/src/index.ts#L240-L258)
+[index.ts:240-258](../../backend/src/index.ts#L240-L258)
 
 ```typescript
 const events = await contract.queryFilter(contract.filters.VoteCast(null, nullifierHash));
@@ -810,12 +813,12 @@ reproducido en esta auditoría**: la misma consulta contra vuestro RPC devuelve
 la cabeza está en **11.580.011** — 757.000 bloques de rango, muy por encima del límite.
 
 O sea: `checkOnChain` **siempre** devuelve `null`, porque siempre lanza. Y como el `catch`
-([L251-L256](backend/src/index.ts#L251-L256)) devuelve `null` en vez de propagar, el job cree
+([L251-L256](../../backend/src/index.ts#L251-L256)) devuelve `null` en vez de propagar, el job cree
 que el voto no está en la cadena. Arreglo: pasar `fromBlock` (el bloque de despliegue,
 10823124) y `toBlock` (`'latest'`), y trocear si hace falta.
 
 **BC-24 — Un fallo de RPC se interpreta como "no votó" (MEDIO):**
-[postgres.ts:228](backend/src/db/postgres.ts#L228)
+[postgres.ts:228](../../backend/src/db/postgres.ts#L228)
 
 ```typescript
 const newStatus: 'confirmed' | 'failed' = onChain ? 'confirmed' : 'failed';
@@ -823,7 +826,7 @@ const newStatus: 'confirmed' | 'failed' = onChain ? 'confirmed' : 'failed';
 
 Como `checkOnChain` devuelve `null` tanto si el voto no está en la cadena como si el RPC
 falló, el job marca `'failed'` en ambos casos. El propio comentario del código
-([index.ts:252-254](backend/src/index.ts#L252-L254)) reconoce el problema y lo etiqueta
+([index.ts:252-254](../../backend/src/index.ts#L252-L254)) reconoce el problema y lo etiqueta
 P1-14 como pendiente. Combinado con BC-23 (que hace que *siempre* falle), el resultado es
 que **todo intento pendiente acaba marcado como fallido**, incluyendo votos que sí están en
 la cadena. Un voto legítimo se pierde silenciosamente.
@@ -839,13 +842,13 @@ bloque. En Sepolia, con proof-of-stake, la finalidad tarda **2 épocas ≈ 12,8 
 Qué pasa si ocurre:
 
 1. Se guarda `tx_hash` y `block_number` en `nullifier_audit`
-   ([elections.ts:751-761](backend/src/routes/elections.ts#L751-L761)).
-2. El intento se marca `'confirmed'` ([L770](backend/src/routes/elections.ts#L770)).
+   ([elections.ts:751-761](../../backend/src/routes/elections.ts#L751-L761)).
+2. El intento se marca `'confirmed'` ([L770](../../backend/src/routes/elections.ts#L770)).
 3. Se manda un **email de confirmación con un enlace a Etherscan**
-   ([L774-L782](backend/src/routes/elections.ts#L774-L782)).
+   ([L774-L782](../../backend/src/routes/elections.ts#L774-L782)).
 4. Ocurre la reorg. La tx desaparece.
 5. **Nada la revalida.** El job de limpieza solo mira intentos `'pending'`
-   ([postgres.ts:216](backend/src/db/postgres.ts#L216)), y este ya es `'confirmed'`.
+   ([postgres.ts:216](../../backend/src/db/postgres.ts#L216)), y este ya es `'confirmed'`.
 6. La BD dice que el voto está en la cadena. La cadena dice que no. El votante tiene un
    correo con un enlace roto. La discrepancia es **permanente**.
 
@@ -862,10 +865,10 @@ esto no es teórico.
 
 | Sitio | Código | Confirmaciones | Timeout |
 |-------|--------|----------------|---------|
-| Voto | [elections.ts:741](backend/src/routes/elections.ts#L741) | **1** | ninguno |
-| Crear elección (admin) | [admin.ts:695](backend/src/routes/admin.ts#L695) | **1** | ninguno |
-| Sync de elecciones | [syncElections.ts:89](backend/src/scripts/syncElections.ts#L89) | **1** | ninguno |
-| Deploy | [deploy.ts:41](blockchain/scripts/deploy.ts#L41) | **1** | ninguno |
+| Voto | [elections.ts:741](../../backend/src/routes/elections.ts#L741) | **1** | ninguno |
+| Crear elección (admin) | admin.ts:695 | **1** | ninguno |
+| Sync de elecciones | [syncElections.ts:89](../../backend/src/scripts/syncElections.ts#L89) | **1** | ninguno |
+| Deploy | [deploy.ts:41](../../blockchain/scripts/deploy.ts#L41) | **1** | ninguno |
 
 En ningún punto del proyecto se espera más de una confirmación ni se pone un timeout. Es
 `tx.wait()` a secas en los cuatro sitios.
@@ -878,7 +881,7 @@ trata como si lo fuera: escribe en BD, marca confirmado y manda el email.
 
 Tres sitios renumeran `election_id_blockchain` **por el índice del array**:
 
-[syncElections.ts:56-66](backend/src/scripts/syncElections.ts#L56-L66):
+[syncElections.ts:56-66](../../backend/src/scripts/syncElections.ts#L56-L66):
 ```typescript
 for (let i = 0; i < elections.length; i++) {
   const expectedId = i + 1;
@@ -886,15 +889,15 @@ for (let i = 0; i < elections.length; i++) {
     await db.exec("UPDATE elections SET election_id_blockchain = ? WHERE id = ?", [expectedId, ...]);
 ```
 
-[elections.ts:190-195](backend/src/routes/elections.ts#L190-L195) (`PATCH /fix-blockchain-ids`)
-hace exactamente lo mismo, y [elections.ts:150-153](backend/src/routes/elections.ts#L150-L153)
+[elections.ts:190-195](../../backend/src/routes/elections.ts#L190-L195) (`PATCH /fix-blockchain-ids`)
+hace exactamente lo mismo, y [elections.ts:150-153](../../backend/src/routes/elections.ts#L150-L153)
 usa la misma heurística para reportar "desincronización".
 
 El problema: **nunca se comprueba que la elección N on-chain sea la elección N de la BD.**
 El ABI de `syncElections.ts` incluso **declara `getElection`**
-([L11](backend/src/scripts/syncElections.ts#L11))... y no lo llama nunca. La única
+([L11](../../backend/src/scripts/syncElections.ts#L11))... y no lo llama nunca. La única
 comprobación es `if (targetId <= onChainCount) skipped`
-([L75-L78](backend/src/scripts/syncElections.ts#L75-L78)) — puramente posicional.
+([L75-L78](../../backend/src/scripts/syncElections.ts#L75-L78)) — puramente posicional.
 
 Como las elecciones se crean on-chain desde **cuatro rutas distintas** con criterios de orden
 distintos (`deploy.ts` crea 6 genéricas, `createElections.ts` crea hasta 20 con nombres
@@ -914,7 +917,7 @@ confirmación, sin dry-run y sin comparar con la cadena.
 
 ## 3.6 BC-08 — Carrera al leer el ID de la elección creada (BAJO)
 
-[admin.ts:694-705](backend/src/routes/admin.ts#L694-L705):
+admin.ts:694-705:
 
 ```typescript
 const tx = await contract.createElection(name, onChainStart, Number(end_time));
@@ -965,7 +968,7 @@ Y no por un motivo, sino por cuatro, cualquiera de los cuales bastaría.
 
 **2. El votante no conoce su nullifier y no lo puede calcular.** Para buscar su voto en la
 cadena necesita el nullifier, que es `HMAC(userId:electionId, NULLIFIER_SECRET)`
-([auth.ts:126-137](backend/src/utils/auth.ts#L126-L137)). El secreto es del servidor. El
+([auth.ts:126-137](../../backend/src/utils/auth.ts#L126-L137)). El secreto es del servidor. El
 votante ni siquiera conoce su `userId` numérico. **Solo puede obtener el nullifier
 preguntándoselo a vuestra API** — que es exactamente lo que "sin fiarse de nuestra interfaz"
 excluye. La verificación es circular: para verificar que no os estáis inventando el voto,
@@ -980,35 +983,35 @@ nunca *qué votó*.
 transacción, no puede leer las reglas que la aceptaron. Solo ve bytecode.
 
 **El único camino que ofrece hoy la aplicación** es el endpoint público
-[`GET /elections/:id/audit`](backend/src/routes/elections.ts#L521-L578), y ahí está BC-28:
+[`GET /elections/:id/audit`](../../backend/src/routes/elections.ts#L521-L578), y ahí está BC-28:
 
 ```typescript
 const txHash = record.tx_hash ||
   `0x${createHash('sha256').update(record.nullifier_hash || '').digest('hex')}`;
 ```
-[elections.ts:556-557](backend/src/routes/elections.ts#L556-L557)
+[elections.ts:556-557](../../backend/src/routes/elections.ts#L556-L557)
 
 Si no hay `tx_hash` real, **se fabrica uno** hasheando el nullifier, con el mismo formato
 `0x` + 64 hex que un hash de transacción de verdad. Se distingue solo por el campo `onChain`
 booleano, que la UI usa para decidir si pone el enlace a Etherscan
-([ElectionResults.jsx:681-697](frontend/src/pages/ElectionResults.jsx#L681-L697)) pero que
+([ElectionResults.jsx:681-697](../../frontend/src/pages/ElectionResults.jsx#L681-L697)) pero que
 un consumidor de la API puede ignorar perfectamente. Es un dato inventado con forma de
 prueba criptográfica.
 
 Y ese endpoint **no requiere autenticación** (compárese con `router.get("/", requireAuth, ...)`
-en [L53](backend/src/routes/elections.ts#L53)): cualquiera obtiene la lista completa de
+en [L53](../../backend/src/routes/elections.ts#L53)): cualquiera obtiene la lista completa de
 nullifiers, timestamps y hashes de una elección, sin paginación ni límite.
 
 ### BC-29 — Y el feed "en vivo" tampoco funciona (ALTO)
 
-Aparte: [VotingBooth.jsx:445](frontend/src/pages/VotingBooth.jsx#L445) declara
+Aparte: [VotingBooth.jsx:445](../../frontend/src/pages/VotingBooth.jsx#L445) declara
 
 ```javascript
 const contractAbi = ["event VoteCast(uint256 indexed electionId, bytes32 nullifier, bytes32 voteHash)"];
 ```
 
 pero el contrato emite
-([VTB.sol:27-32](blockchain/contracts/VTB.sol#L27-L32)) `VoteCast(uint256 indexed, bytes32
+([VTB.sol:27-32](../../blockchain/contracts/VTB.sol#L27-L32)) `VoteCast(uint256 indexed, bytes32
 indexed, bytes32, uint256)` — **cuatro** parámetros, con `nullifier` indexado. Firmas
 distintas ⇒ `topic0` distinto. Calculado:
 
@@ -1020,7 +1023,7 @@ MATCH? false
 
 El filtro nunca coincide con ningún log real. **El feed de votos en directo de la cabina de
 votación no puede dispararse jamás**, ni aunque hubiera votos en la cadena. El indicador
-"escuchando" ([L447](frontend/src/pages/VotingBooth.jsx#L447)) se pone en verde igualmente,
+"escuchando" ([L447](../../frontend/src/pages/VotingBooth.jsx#L447)) se pone en verde igualmente,
 porque solo comprueba que el provider responde a `getBlockNumber`.
 
 ## 4.2 ¿Puede un tercero recontar los votos desde la cadena?
@@ -1029,7 +1032,7 @@ porque solo comprueba que el provider responde a `getBlockNumber`.
 
 Los resultados que muestra la aplicación salen **íntegramente de la base de datos**:
 
-[elections.ts:449-456](backend/src/routes/elections.ts#L449-L456):
+[elections.ts:449-456](../../backend/src/routes/elections.ts#L449-L456):
 ```sql
 SELECT candidate_id, COUNT(*) as votes
   FROM nullifier_audit
@@ -1038,7 +1041,7 @@ SELECT candidate_id, COUNT(*) as votes
 ```
 
 Ni una consulta a la cadena en toda la ruta de resultados. Lo mismo en
-[admin.ts:1570-1577](backend/src/routes/admin.ts#L1570-L1577) para las estadísticas de admin.
+admin.ts:1570-1577 para las estadísticas de admin.
 
 **Por qué es irreconciliable, no solo "no implementado":**
 
@@ -1048,7 +1051,7 @@ Ni una consulta a la cadena en toda la ruta de resultados. Lo mismo en
    en la BD y no en la cadena. Con el estado actual: **BD = N votos, cadena = 0.**
 3. **El total on-chain no es fiable aunque cuadrara**, porque cualquiera puede inflarlo
    (BC-01).
-4. **`onChainVerified` es un badge engañoso** ([elections.ts:506](backend/src/routes/elections.ts#L506)):
+4. **`onChainVerified` es un badge engañoso** ([elections.ts:506](../../backend/src/routes/elections.ts#L506)):
 
    ```typescript
    onChainVerified: (onChainCount?.count || 0) > 0,
@@ -1071,7 +1074,7 @@ Ordenado por lo que más desbloquea con menos trabajo.
 ### Para que un votante pueda verificar su propio voto
 
 1. **Devolver el salt al votante.** Cambiar
-   [VotingBooth.jsx:526](frontend/src/pages/VotingBooth.jsx#L526) para generar el salt con
+   [VotingBooth.jsx:526](../../frontend/src/pages/VotingBooth.jsx#L526) para generar el salt con
    `crypto.getRandomValues()`, mostrarlo en la pantalla de confirmación junto al candidato, y
    ofrecerlo como recibo descargable. Con `(candidateId, salt)` el votante recomputa
    `keccak256` y lo compara con el `voteHash` de la cadena. **Sin esto, el compromiso no
@@ -1086,7 +1089,7 @@ Ordenado por lo que más desbloquea con menos trabajo.
    verificará a la primera. Es la mejora con mejor relación coste/beneficio de toda esta
    auditoría: 10 minutos de trabajo.
 4. **Arreglar el ABI del evento** en
-   [VotingBooth.jsx:445](frontend/src/pages/VotingBooth.jsx#L445) para que coincida con el
+   [VotingBooth.jsx:445](../../frontend/src/pages/VotingBooth.jsx#L445) para que coincida con el
    contrato.
 5. **Publicar un verificador independiente**: una página estática, servida fuera de vuestra
    infraestructura, que dado un nullifier consulte un RPC público y muestre el resultado. Eso
@@ -1107,11 +1110,11 @@ Esto requiere un cambio arquitectónico, no un parche:
    significará nada haga lo que haga.
 8. **Eliminar los caminos que no llegan a la cadena** (BC-21, BC-22) o marcarlos de forma
    inequívoca en la API, no solo en la UI. Un `txHash` fabricado
-   ([elections.ts:556-557](backend/src/routes/elections.ts#L556-L557),
-   [L671-L673](backend/src/routes/elections.ts#L671-L673)) no debería existir: si no hay
+   ([elections.ts:556-557](../../backend/src/routes/elections.ts#L556-L557),
+   [L671-L673](../../backend/src/routes/elections.ts#L671-L673)) no debería existir: si no hay
    transacción, el campo debe ser `null`.
 9. **Sacar los resultados de la cadena, no de la BD.** Que
-   [`/:id/results`](backend/src/routes/elections.ts#L406) recuente desde los eventos
+   [`/:id/results`](../../backend/src/routes/elections.ts#L406) recuente desde los eventos
    `VoteCast` y compare con la BD, reportando cualquier discrepancia en vez de esconderla.
 10. **Publicar el bloque de despliegue** (10823124) y el ABI en el repo, para que un tercero
     pueda escanear los eventos sin adivinar el rango.
@@ -1146,9 +1149,9 @@ Para que el informe sea justo, y porque en una defensa conviene saber qué defen
 - **Nullifiers distintos por elección**, lo que impide correlacionar la participación de una
   persona entre convocatorias distintas.
 - **El cerrojo TOCTOU antes de la transacción**
-  ([elections.ts:689-699](backend/src/routes/elections.ts#L689-L699)) está bien pensado y
+  ([elections.ts:689-699](../../backend/src/routes/elections.ts#L689-L699)) está bien pensado y
   bien comentado.
-- **El saneado de errores de ethers** en [utils/errors.ts](backend/src/utils/errors.ts) es
+- **El saneado de errores de ethers** en [utils/errors.ts](../../backend/src/utils/errors.ts) es
   una preocupación acertada y poco común: los errores de ethers v6 sí filtran la URL del RPC.
   Falta aplicarlo también a las respuestas HTTP.
 - **El bytecode desplegado coincide exactamente con el código del repositorio.** No hay
