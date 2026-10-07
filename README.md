@@ -1,6 +1,6 @@
 # VTB - Vote Through Blockchain
 
-> Institutional voting where audit is public and identity stays private.
+> Institutional voting with an immutable public record and a tally anyone can verify.
 
 VTB is a hybrid Web2 + Web3 voting platform for universities and schools.
 Administrators manage users and elections through a web panel. Students vote
@@ -8,14 +8,16 @@ through the browser — no wallet required.
 
 Each vote generates a **nullifier** (HMAC of userId + electionId) that the
 backend posts to a Solidity smart contract on Ethereum Sepolia as the relayer.
-The blockchain stores `(nullifier, voteHash)` — enough to prove "someone voted
-once" without storing who that someone is.
+The blockchain stores `(nullifier, candidate)` — no name or email — so anyone can
+recount the votes the contract accepted and the contract rejects a second vote
+with the same nullifier. This is pseudonymity, **not** anonymity: the operator
+can link a voter to a vote while it is being processed (see `SEGURIDAD.md`).
 
-Demo accounts under `@vtb.demo` use synthetic hashes for quick testing — the
-seed only generates data for this domain (the fictional "Meridian University"),
-so a live demo never shows placeholder institutions. Real institutional
-deployments (a different domain per client) are expected to vote through the
-configured Ethereum network and receive a real transaction hash.
+Demo accounts under `@vtb.demo` store a demonstration vote with no transaction
+hash for quick testing — the seed only generates data for this domain (the
+fictional "Meridian University"), so a live demo never shows placeholder
+institutions. Real institutional deployments (a different domain per client)
+vote through the configured Ethereum network and receive a real transaction hash.
 
 ## Architecture
 
@@ -26,17 +28,17 @@ flowchart LR
     end
 
     subgraph Render["Render (backend)"]
-        E[Express API\nNode.js 20]
+        E[Express API\nNode.js]
         DB[(PostgreSQL\nSupabase)]
     end
 
     subgraph Chain["Ethereum Sepolia"]
-        SC[ElectionRegistry\nSmart Contract]
+        SC[ElectionRegistryV2\nSmart Contract]
     end
 
     B -- "httpOnly cookie\n(vtb_auth JWT)" --> E
     E -- "SQL queries" --> DB
-    E -- "castVote(electionId, nullifier, voteHash)" --> SC
+    E -- "castVote(electionId, nullifier, candidate)" --> SC
     B -.-> SC
 ```
 
@@ -49,10 +51,10 @@ flowchart LR
 | `vtb_csrf` | ✗ | 15 min | CSRF token — JS reads it and sends as `X-CSRF-Token` header |
 
 **Vote flow** — nullifier protects double-vote:
-1. User clicks "Vote" → frontend computes `voteHash = SHA256(choice + random_salt)`
-2. Backend reads JWT from cookie → `userId`
+1. User picks a candidate and confirms → frontend sends `{ electionId, candidateId }`
+2. Backend reads JWT from cookie → `userId`, and checks eligibility and that the election is registered on-chain
 3. Backend computes `nullifier = HMAC(userId + electionId)` with server secret
-4. Backend calls `contract.castVote(electionId, nullifier, voteHash)` and records the txHash
+4. Backend calls `contract.castVote(electionId, nullifier, candidatePosition)` — the candidate's position in the election (0..n-1), not its database id — and records the txHash
 5. Blockchain rejects any second call with the same nullifier
 
 ```
@@ -67,7 +69,11 @@ Stack: React 19 · Vite 8 · Tailwind CSS 3 · framer-motion
 |---|---|
 | Frontend | https://vtb-frontend-three.vercel.app |
 | Backend | https://vtb-backend-4emv.onrender.com |
-| Sepolia contract | https://sepolia.etherscan.io/address/0x124759Cc8bb31AAD866930dCd3caE6f148e4F607 |
+| Sepolia contract (v2) | https://sepolia.etherscan.io/address/0x124759Cc8bb31AAD866930dCd3caE6f148e4F607 |
+
+The v2 contract is deployed and its relayer is authorized, but no election has
+been created in it yet: the elections currently running in production are still
+on the previous contract. See `SEGURIDAD.md` and `docs/CAMBIOS_VERANO_2026.md`.
 
 Render free-tier backends can sleep after inactivity. The first request after a
 sleep may take 30-40 seconds.
@@ -76,8 +82,9 @@ sleep may take 30-40 seconds.
 
 ### Synthetic demo accounts
 
-These accounts are local/demo only. They produce a synthetic hash and do not
-create an Etherscan transaction. In the UI, `@vtb.demo` renders as the
+These accounts are local/demo only. Their votes are stored without a transaction
+hash (`vote_source = 'demo'`) and do not create an Etherscan transaction. The
+shortcut only exists where `DEMO_LOGIN_ENABLED=true`. In the UI, `@vtb.demo` renders as the
 fictional institution **Meridian University** — the emails/passwords below
 are unchanged, only the display name and election data shown on screen use
 that persona (see `seedDatabase.ts`).
@@ -118,560 +125,32 @@ one.
 > only stopped *creating new ones*. See the "Demo data" note in `seedDatabase.ts`
 > for the exact idempotency guarantees.
 
-## Requirements
-
-- Git
-- Node.js 20.x LTS
-- npm 10+ (comes with current Node 20 installers)
-
-Check versions:
-
-```bash
-node -v
-npm -v
-git --version
-```
-
-If Node is missing, install Node.js 20 LTS from https://nodejs.org.
-
-Windows PowerShell note: if `npm` or `npx` is blocked by execution policy, use
-`npm.cmd` / `npx.cmd`, or run this once in the current PowerShell window:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-```
-
-## Fresh Install
-
-> **Already have the repo and just pulled?** Follow [SETUP.md](SETUP.md) (in
-> Spanish): the exact steps from `git pull` to a running app, every environment
-> variable and what it is for, and whether to use a shared or your own database.
-
-Clone the repo:
+## Quick start
 
 ```bash
 git clone https://github.com/javier-picazo-trigueros/VTB_DEMO.git
 cd VTB_DEMO
 ```
 
-Install dependencies. The repo has separate apps, so install each folder:
+Then follow [`SETUP.md`](SETUP.md) (in Spanish): install, create `backend/.env`,
+seed the local database and start both apps. Locally the backend uses SQLite, so no
+blockchain, Supabase or email account is needed to try it with the demo accounts.
 
-```bash
-cd backend
-npm ci
-cd ../frontend
-npm ci
-cd ../blockchain
-npm ci
-cd ..
-```
+## Documentation
 
-If `npm ci` fails because a lockfile is out of date, use `npm install` in the
-same folder and commit the updated lockfile.
-
-If Windows reports `EPERM` while writing to the npm cache, either fix the
-permissions on `%LOCALAPPDATA%\npm-cache` or use a local cache for that install:
-
-```powershell
-npm.cmd ci --cache .npm-cache
-```
-
-## Development Workflow
-
-`main` is the stable branch — Vercel (frontend) and Render (backend) both
-redeploy automatically on every push to it, so it should only receive
-reviewed, working code.
-
-Day-to-day development happens on personal branches:
-
-| Branch | Owner |
+| Document | What it is |
 |---|---|
-| `JavierPicazo` | Javier |
-| `JaimeOrdovas` | Jaime |
-
-Switch to your branch and pull the latest changes before starting work:
-
-```bash
-git checkout JavierPicazo   # or JaimeOrdovas
-git pull origin JavierPicazo
-```
-
-Commit and push to your own branch as you go:
-
-```bash
-git add <files>
-git commit -m "..."
-git push origin JavierPicazo
-```
-
-Keep your branch in sync with `main` periodically so it doesn't drift too far:
-
-```bash
-git checkout JavierPicazo
-git merge main
-git push origin JavierPicazo
-```
-
-When work is ready to ship, open a pull request from your branch into `main`.
-Run the [Verification Commands](#verification-commands) before opening the
-PR, get it reviewed, then merge into `main` to trigger deployment.
-
-## Environment Files
-
-macOS/Linux:
-
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-cp blockchain/.env.example blockchain/.env
-```
-
-Windows PowerShell:
-
-```powershell
-Copy-Item backend\.env.example backend\.env
-Copy-Item frontend\.env.example frontend\.env
-Copy-Item blockchain\.env.example blockchain\.env
-```
-
-Generate secrets for `backend/.env`:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-Minimum `backend/.env` for local development (SQLite mode):
-
-```env
-PORT=3001
-NODE_ENV=development
-JWT_SECRET=REPLACE_WITH_RANDOM_64_CHAR_HEX
-NULLIFIER_SECRET=REPLACE_WITH_RANDOM_64_CHAR_HEX
-DATABASE_PATH=./vtb.db
-CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:4173
-RPC_URL=http://localhost:8545
-CONTRACT_ADDRESS=0x0000000000000000000000000000000000000000
-PRIVATE_KEY=0x0000000000000000000000000000000000000000000000000000000000000000
-EXPLORER_URL=http://localhost:8545
-RATE_LIMIT_MAX=100
-```
-
-> **Cookie note**: `NODE_ENV=development` is required for local HTTP.
-> In production the backend sets `Secure; SameSite=None` cookies so they cross
-> the Vercel→Render domain boundary. Over plain `http://localhost` the browser
-> would block `Secure` cookies, so in development mode the backend uses
-> `SameSite=Lax` (no `Secure`). If you accidentally set `NODE_ENV=production`
-> in your local `.env`, login will appear to succeed but every subsequent
-> request will return 401 because the browser never stores the auth cookie.
-
-**Backend `.env` variable reference**:
-
-| Variable | Required | Default | Purpose |
-|---|---|---|---|
-| `PORT` | — | `3001` | TCP port the Express server listens on |
-| `NODE_ENV` | — | — | `development` for local HTTP; `production` for Render |
-| `JWT_SECRET` | ✓ prod | dev fallback | Signs access JWTs; rotate to invalidate all sessions |
-| `NULLIFIER_SECRET` | ✓ prod | dev fallback | HMAC key for generating nullifiers; **never rotate** in prod |
-| `CSRF_SECRET` | — | derived from JWT_SECRET | CSRF token signing; separate secret adds defence-in-depth |
-| `DATABASE_PATH` | — | `./vtb.db` | Path to SQLite file; ignored when `DB_CLIENT=postgres` |
-| `DB_CLIENT` | — | `sqlite` | `postgres` to switch to PostgreSQL |
-| `DATABASE_URL` | ✓ if postgres | — | `postgresql://user:pass@host:5432/vtb` |
-| `CORS_ORIGINS` | — | — | Comma-separated list of allowed frontend origins |
-| `RPC_URL` | — | `http://localhost:8545` | Ethereum JSON-RPC endpoint (Alchemy/Infura for Sepolia) |
-| `CONTRACT_ADDRESS` | — | — | Deployed `ElectionRegistry` address |
-| `PRIVATE_KEY` | — | — | Relayer wallet private key (must have Sepolia ETH) |
-| `EXPLORER_URL` | — | — | Base URL for block explorer links in emails |
-| `RATE_LIMIT_MAX` | — | `10` (prod) / `100` (dev) | Max login attempts per 15 min window |
-| `RESEND_API_KEY` | — | — | Resend.com API key; emails are silently skipped if absent |
-| `RESEND_FROM` | — | — | "From" address; domain must be verified in Resend |
-| `FRONTEND_URL` | — | — | Public frontend URL; used in email links |
-
-To use PostgreSQL instead of SQLite, add these vars:
-
-```env
-DB_CLIENT=postgres
-DATABASE_URL=postgresql://user:password@host:5432/vtb
-```
-
-`DB_CLIENT` defaults to `sqlite` when omitted. `DATABASE_PATH` is only used in
-SQLite mode. `DATABASE_URL` is required when `DB_CLIENT=postgres`.
-
-Minimum `frontend/.env`:
-
-```env
-VITE_API_URL=http://localhost:3001
-VITE_EXPLORER_URL=https://sepolia.etherscan.io
-VITE_RPC_URL=http://localhost:8545
-VITE_CONTRACT_ADDRESS=0x0000000000000000000000000000000000000000
-```
-
-For Sepolia voting, set `backend/.env` to your real relayer values:
-
-```env
-RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
-CONTRACT_ADDRESS=0x124759Cc8bb31AAD866930dCd3caE6f148e4F607
-PRIVATE_KEY=0xYOUR_SEPOLIA_RELAYER_PRIVATE_KEY
-EXPLORER_URL=https://sepolia.etherscan.io
-```
-
-The relayer wallet must own or be allowed to use the contract and must have
-Sepolia ETH for gas.
-
-## Start The App
-
-Choose one mode.
-
-### Mode A: Sepolia real voting
-
-Use this when you want votes from a real institutional domain (not
-`@vtb.demo`) to appear on Etherscan.
-
-1. Configure `backend/.env` with Sepolia `RPC_URL`, `CONTRACT_ADDRESS`,
-   `PRIVATE_KEY`, and `EXPLORER_URL=https://sepolia.etherscan.io`.
-2. Start backend:
-
-```bash
-cd backend
-npm run dev
-```
-
-3. Start frontend in another terminal:
-
-```bash
-cd frontend
-npm run dev
-```
-
-4. Open http://localhost:3000.
-
-On backend startup, VTB initializes the database schema and starts election
-sync in the background. To populate demo data on a fresh database, run seed
-manually after starting:
-
-```bash
-cd backend
-npm run seed
-```
-
-> `npm run seed` only runs on an **empty** database: if there is any user, it
-> aborts with exit code 1 and changes nothing. To **delete** users, elections,
-> candidates, census and votes and re-seed the demo data, run
-> `npm run seed:reset` (same as `npm run seed -- --reset`). Never put either
-> command in a deploy start command.
-
-To trigger blockchain sync manually:
-
-```bash
-cd backend
-npm run sync-blockchain
-```
-
-Or from the Admin Panel: Dashboard -> Sync Elections.
-
-### Mode B: Local Hardhat chain
-
-Use this when you want fully local blockchain transactions. These tx hashes are
-real for the local chain but are not visible on public Etherscan.
-
-Terminal 1:
-
-```bash
-cd blockchain
-npm run node
-```
-
-Terminal 2:
-
-```bash
-cd blockchain
-npm run deploy:local
-```
-
-After deploy, copy the generated contract address from
-`blockchain/deployment-info.json` into:
-
-`backend/.env`
-
-```env
-RPC_URL=http://localhost:8545
-CONTRACT_ADDRESS=PASTE_DEPLOYED_ADDRESS
-PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-EXPLORER_URL=http://localhost:8545
-```
-
-`frontend/.env`
-
-```env
-VITE_RPC_URL=http://localhost:8545
-VITE_CONTRACT_ADDRESS=PASTE_DEPLOYED_ADDRESS
-VITE_EXPLORER_URL=http://localhost:8545
-```
-
-Terminal 3:
-
-```bash
-cd backend
-npm run dev
-```
-
-Terminal 4:
-
-```bash
-cd frontend
-npm run dev
-```
-
-Open http://localhost:3000.
-
-## Deploy
-
-### Backend → Render
-
-1. Create a new **Web Service** in [Render](https://render.com).
-2. Root directory: `backend`
-3. Build command: `npm ci && npm run build`
-4. Start command: `node dist/index.js`
-5. Set environment variables (Environment tab):
-
-   ```
-   NODE_ENV=production
-   JWT_SECRET=<random 64-char hex>
-   NULLIFIER_SECRET=<random 64-char hex — NEVER change after first vote>
-   DATABASE_PATH=./vtb.db           # or remove if using PostgreSQL
-   CORS_ORIGINS=https://your-frontend.vercel.app
-   RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<YOUR_KEY>
-   CONTRACT_ADDRESS=0x124759Cc8bb31AAD866930dCd3caE6f148e4F607
-   PRIVATE_KEY=0x<RELAYER_PRIVATE_KEY>
-   EXPLORER_URL=https://sepolia.etherscan.io
-   ```
-
-6. (Optional) Add a PostgreSQL instance in Render and set:
-   ```
-   DB_CLIENT=postgres
-   DATABASE_URL=<internal connection string from Render PG>
-   ```
-
-### Frontend → Vercel
-
-1. Import the repo in [Vercel](https://vercel.com).
-2. Framework preset: **Vite**.
-3. Root directory: `frontend`.
-4. Environment variables:
-
-   ```
-   VITE_API_URL=https://<your-render-backend>.onrender.com
-   VITE_EXPLORER_URL=https://sepolia.etherscan.io
-   VITE_CONTRACT_ADDRESS=0x124759Cc8bb31AAD866930dCd3caE6f148e4F607
-   ```
-
-5. Deploy. Vercel will rebuild on every push to `main`.
-
-> Free-tier Render backends sleep after 15 minutes of inactivity. The first
-> request after a sleep can take 30–40 seconds. Upgrade to a paid plan or use
-> a keep-alive ping service to avoid this.
-
-## Verification Commands
-
-Run these before pushing changes:
-
-```bash
-cd backend
-npm run build
-npm test
-```
-
-```bash
-cd frontend
-npm run build
-```
-
-```bash
-cd blockchain
-npm run compile
-```
-
-Windows PowerShell alternatives if scripts are blocked:
-
-```powershell
-cd backend
-npm.cmd run build
-npm.cmd test
-```
-
-```powershell
-cd frontend
-npm.cmd run build
-```
-
-```powershell
-cd blockchain
-npm.cmd run compile
-```
-
-If Hardhat fails on Windows with an `%APPDATA%` folder error, run it with local
-app-data folders:
-
-```powershell
-cd blockchain
-$env:APPDATA=(Join-Path (Get-Location) '.hardhat-appdata')
-$env:LOCALAPPDATA=(Join-Path (Get-Location) '.hardhat-localappdata')
-npm.cmd run compile
-```
-
-## Useful Scripts
-
-Backend:
-
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Start backend with nodemon |
-| `npm start` | Start backend once with tsx |
-| `npm run build` | TypeScript compile |
-| `npm run typecheck` | Type-check without emitting files |
-| `npm run lint` | Run ESLint (errors = CI failure) |
-| `npm run lint:fix` | Auto-fix ESLint issues |
-| `npm run format` | Format with Prettier |
-| `npm test` | Run Vitest backend tests |
-| `npm run seed` | Seed demo data into an **empty** database; aborts (exit 1) if there are users |
-| `npm run seed:reset` | **Deletes** users, elections, candidates, census and votes, then re-seeds demo data |
-| `npm run sync-blockchain` | Sync elections to configured chain |
-| `npm run migrate` | Apply pending PG migrations (requires `DB_CLIENT=postgres`) |
-| `npm run migrate:down` | Roll back the last PG migration |
-
-Frontend:
-
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Start Vite dev server |
-| `npm run build` | Production build |
-| `npm run preview` | Preview built frontend |
-
-Blockchain:
-
-| Command | Purpose |
-|---|---|
-| `npm run node` | Start local Hardhat node |
-| `npm run compile` | Compile Solidity contracts |
-| `npm run deploy:local` | Deploy to local Hardhat node |
-| `npm run deploy:sepolia` | Deploy to Sepolia |
-
-## Local URLs
-
-| Resource | URL |
-|---|---|
-| Landing | http://localhost:3000/landing |
-| Login | http://localhost:3000/login |
-| Dashboard | http://localhost:3000/dashboard |
-| Admin panel | http://localhost:3000/admin |
-| Public audit | http://localhost:3000/transparency |
-| Backend health | http://localhost:3001/health |
-| Public stats API | http://localhost:3001/api/stats |
-
-## Troubleshooting
-
-### Port 3001 is already in use
-
-Windows PowerShell:
-
-```powershell
-Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue |
-  Select-Object LocalAddress,LocalPort,State,OwningProcess
-Stop-Process -Id <PID> -Force
-```
-
-macOS/Linux:
-
-```bash
-lsof -i :3001
-kill -9 <PID>
-```
-
-You can also use another backend port by changing `PORT` in `backend/.env` and
-`VITE_API_URL` in `frontend/.env`.
-
-### Frontend port
-
-This repo pins Vite to `http://localhost:3000` in `frontend/vite.config.js`.
-Make sure `CORS_ORIGINS` in `backend/.env` includes `http://localhost:3000`.
-`http://localhost:5173` is also allowed for compatibility with Vite defaults in
-other setups.
-
-### PowerShell blocks npm or npx
-
-Use `npm.cmd` / `npx.cmd`, or run:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-```
-
-### npm install fails with EPERM in AppData cache
-
-Use a project-local npm cache:
-
-```powershell
-npm.cmd ci --cache .npm-cache
-```
-
-The `.npm-cache` folder is disposable and should not be committed.
-
-### Real account vote says election is not synchronized
-
-Run:
-
-```bash
-cd backend
-npm run sync-blockchain
-```
-
-Or click Sync Elections in the Admin Panel Dashboard. This registers missing
-SQLite elections on the configured blockchain.
-
-### Real account vote does not show on Etherscan
-
-Only Sepolia transactions are visible on Etherscan. Check:
-
-- `backend/.env` uses a Sepolia `RPC_URL`
-- `CONTRACT_ADDRESS=0x124759Cc8bb31AAD866930dCd3caE6f148e4F607`
-- `EXPLORER_URL=https://sepolia.etherscan.io`
-- the relayer `PRIVATE_KEY` has Sepolia ETH
-- the account is not `@vtb.demo`
-
-### Demo account shows no Etherscan link
-
-That is expected. Only `@vtb.demo` accounts use synthetic hashes.
-
-## PostgreSQL Setup
-
-To run with PostgreSQL instead of SQLite:
-
-1. Provision a PostgreSQL database and get the connection string.
-2. Add to `backend/.env`:
-   ```env
-   DB_CLIENT=postgres
-   DATABASE_URL=postgresql://user:password@host:5432/vtb
-   ```
-3. Apply the schema migrations:
-   ```bash
-   cd backend
-   npm run migrate
-   ```
-4. (Optional) Seed demo data — only on the freshly migrated, empty database
-   (it aborts if there are users):
-   ```bash
-   npm run seed
-   ```
-5. ~~Migrate existing SQLite data to PostgreSQL~~ — removed (SCRUM-17): the
-   `db:migrate` / `db:rollback` scripts copied `voter -> vote` links that
-   migration 016 deletes on purpose.
-
-## Notes
-
-- SQLite lives at `backend/vtb.db` by default (`DATABASE_PATH` env var).
-- Demo data is **not** seeded automatically; run `npm run seed` on a fresh install.
-  It refuses to run on a database that already has users; `npm run seed:reset`
-  wipes users, elections, candidates, census and votes and re-seeds.
-- Results are computed from the audit data in the active database.
-- The relayer private key signs blockchain transactions; use a dedicated wallet.
+| [`SETUP.md`](SETUP.md) | Get VTB running locally: install, environment variables, database |
+| [`docs/DESARROLLO.md`](docs/DESARROLLO.md) | Git workflow, every npm script, testing votes on a local chain, troubleshooting |
+| [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) | How production is deployed (Render, Vercel, Supabase, Sepolia) and how to verify it |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System architecture, data model, vote flow |
+| [`docs/API.md`](docs/API.md) | Endpoint reference |
+| [`SEGURIDAD.md`](SEGURIDAD.md) | What the system guarantees and what it does not, written for an electoral committee |
+| [`RECUENTO_INDEPENDIENTE.md`](RECUENTO_INDEPENDIENTE.md) | How a third party recounts an election from the chain alone |
+| [`docs/CAMBIOS_VERANO_2026.md`](docs/CAMBIOS_VERANO_2026.md) | The move to the v2 contract and what it changed |
+| [`docs/PROGRESO_PLAN.md`](docs/PROGRESO_PLAN.md) | Progress against the July 2026 work plan |
+| [`CLAUDE.md`](CLAUDE.md) | Project rules: what must not break, how to write code, TDD |
+| [`docs/historico/`](docs/historico/) | Past audits, kept for traceability of their findings |
 
 ## Known Technical Debt
 
@@ -685,8 +164,8 @@ limit and verify that the 4th vote attempt within a minute returns 429.
 
 ### Voter anonymity: not provided, pending Semaphore
 
-The vote is **not anonymous**. The blockchain stores only `(nullifier, voteHash)`
-and the candidate, with no name or email, but that is pseudonymity. Since
+The vote is **not anonymous**. The blockchain stores only the nullifier and the
+candidate, with no name or email, but that is pseudonymity. Since
 migration 016 the database keeps "this person has voted" (`election_participations`)
 apart from "there is a vote for this candidate" (`nullifier_audit`, without
 `user_id`), so once an election is closed no database row links a person to a

@@ -1,5 +1,8 @@
 # Auditoría de seguridad 3 — estado de `main` tras el Sprint 1
 
+> **Documento histórico (16-09-2026).** Foto de ese día: lo que describe como abierto puede estar ya cerrado, y los hechos (direcciones, contrato, claves) son los de entonces. Se conserva porque el código y otros documentos citan sus hallazgos por id (P1-xx, BC-xx, C-1, A-1, M-1…). El estado actual está en `SEGURIDAD.md`, `CLAUDE.md` y `docs/PROGRESO_PLAN.md`.
+
+
 **Fecha:** 16 sep 2026
 **Alcance:** `main` en `b366810e`, 62 commits después de `3ab0eeff` (42 de Jaime, 19 de Dependabot, 1 de cierre de sprint).
 **Método:** revisión estática del árbol completo más comprobación dinámica contra el backend en ejecución (`DB_CLIENT=postgres`, conectado a Supabase).
@@ -335,7 +338,7 @@ Ninguna exige complejidad ni comprueba contraseñas filtradas.
 
 **Por qué importa.** El mínimo real de la plataforma es el más débil de los cuatro, no el más fuerte: da igual que el reset exija 8 si por el registro público se entra con 6. Y agrava **A-2**: hashes exportables de contraseñas de seis caracteres se rompen en minutos.
 
-Jaime ya lo identificó y lo tiene planificado como `SCRUM-21` (ver `PROGRESO_PLAN.md`, Fase 2). Lo recojo aquí porque su interacción con A-2 lo hace más urgente de lo que parecía por separado.
+Jaime ya lo identificó y lo tiene planificado como `SCRUM-21` (ver `docs/PROGRESO_PLAN.md`, Fase 2). Lo recojo aquí porque su interacción con A-2 lo hace más urgente de lo que parecía por separado.
 
 **Coste de arreglo:** bajo. Una constante compartida y un validador zod único importado en los cuatro sitios.
 
@@ -384,7 +387,7 @@ Revisado el texto que hay, en ambos idiomas, en interfaz, correos y PDF:
 | `ElectionResults.jsx:104-303` (PDF) | Resultados agregados | ✅ Sin identidades |
 | `ARCHITECTURE.md:3` | "for anonymous ... voting" | ❌ Ver **B-5** |
 
-Y en la dirección contraria, vale la pena registrarlo: el `PROGRESO_PLAN.md` que Jaime añadió lista *"El voto no es anónimo de verdad"* como **pendiente**, señalando que `nullifier_audit` guarda `user_id` y `candidate_id` en la misma fila. Está documentando el problema, no maquillándolo.
+Y en la dirección contraria, vale la pena registrarlo: el `docs/PROGRESO_PLAN.md` que Jaime añadió lista *"El voto no es anónimo de verdad"* como **pendiente**, señalando que `nullifier_audit` guarda `user_id` y `candidate_id` en la misma fila. Está documentando el problema, no maquillándolo.
 
 ---
 

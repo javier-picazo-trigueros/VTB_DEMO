@@ -1,5 +1,8 @@
 # AUDITORÍA 2 — VTB (Vote Through Blockchain)
 
+> **Documento histórico (26-08-2026).** Foto de ese día: lo que describe como abierto puede estar ya cerrado, y los hechos (direcciones, contrato, claves) son los de entonces. Se conserva porque el código y otros documentos citan sus hallazgos por id (P1-xx, BC-xx, C-1, A-1, M-1…). El estado actual está en `SEGURIDAD.md`, `CLAUDE.md` y `docs/PROGRESO_PLAN.md`.
+
+
 **Fecha:** 26 de agosto de 2026
 **Alcance:** `backend/` (6.583 líneas TS), `frontend/` (10.559 líneas JSX/TS), `backend/migrations/`, README y ficheros de entorno.
 **Estado del repo:** rama `main`, commit `73da138c`, con cambios sin commitear en 24 ficheros.
