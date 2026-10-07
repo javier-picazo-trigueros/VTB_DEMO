@@ -7,11 +7,16 @@ institución que valore usar VTB, además del equipo de desarrollo.
 verificable (contrato `ElectionRegistryV2`).
 
 El contrato está desplegado en Sepolia el 17-09-2026, en
-`0x124759Cc8bb31AAD866930dCd3caE6f148e4F607` (bloque 11724119), pero **todavía
-no está operativo**: la dirección autorizada para registrar votos no es la del
-servidor de VTB, de modo que hoy no puede entrar ningún voto. Hasta que eso se
-corrija sigue en vigor el contrato anterior, que **no registra a qué candidato se
-vota y cuyo recuento no es verificable desde fuera**.
+`0x124759Cc8bb31AAD866930dCd3caE6f148e4F607` (bloque 11724119). Comprobado en la
+cadena el 07-10-2026: el servidor de VTB (`0x5D73…D572`) figura **autorizado como
+relayer** desde el 23-09-2026 y el propietario es otra dirección distinta
+(`0x8780…9d6b`).
+
+**Todavía no está en servicio.** El contrato v2 no tiene ninguna elección
+registrada (`getElectionCount()` devuelve 0) y las cinco elecciones que hay hoy
+en producción siguen en el contrato anterior, que **no registra a qué candidato
+se vota y cuyo recuento no es verificable desde fuera**. Falta apuntar el
+despliegue de producción al v2 y crear en él la primera elección.
 
 Mientras tanto, nada de lo que se afirma en el apartado 1 puede darse por
 vigente en producción.
@@ -33,8 +38,8 @@ vigente en producción.
    elección (*nullifier*). El contrato rechaza un segundo voto con el mismo
    testigo. La comprobación es criptográfica y ocurre en la cadena, no en
    nuestro código.
-4. **Control de acceso al registro.** Solo una dirección con el rol autorizado
-   (`RELAYER_ROLE`) puede registrar votos. Nadie sin esa clave puede invocar
+4. **Control de acceso al registro.** Solo una dirección autorizada como relayer
+   (`isRelayer`) puede registrar votos. Nadie sin esa clave puede invocar
    `castVote`. Sin embargo, el contrato verifica la unicidad del nullifier pero **no
    verifica que pertenezca a un votante real del censo**: un relayer comprometido o un
    operador deshonesto sí puede inyectar votos inventando nullifiers válidos.
@@ -255,10 +260,12 @@ Un comité electoral no tiene por qué fiarse de este documento:
    (`blockchain/contracts/ElectionRegistryV2.sol`) y se puede leer exactamente
    qué reglas aceptan o rechazan un voto.
 
-   **Advertencia:** a fecha de hoy el contrato desplegado **no está verificado**
-   en el explorador de bloques, así que allí solo se ve bytecode y no hay forma
-   de comprobar desde fuera que corresponde a este código fuente. Es un
-   requisito pendiente y debe exigirse antes de convocar una elección real.
+   **Verificación en el explorador:** el contrato desplegado figura como
+   verificado en Etherscan (la página muestra el nombre `ElectionRegistryV2`;
+   `blockchain/deployments/sepolia.json` lo registra como verificado). No está
+   en Sourcify. No hace falta fiarse de nosotros: abre la pestaña *Contract* del
+   explorador y compara el código con el de este repositorio. Debe comprobarse
+   de nuevo antes de convocar una elección real.
 2. **La herramienta de recuento independiente** (`blockchain/scripts/recount.ts`)
    lee únicamente la cadena a través de un nodo público y publica el resultado.
    Puede ejecutarla un tercero, en su propio equipo, sin credenciales nuestras.
@@ -273,10 +280,11 @@ Un comité electoral no tiene por qué fiarse de este documento:
 
 Redactado el 16-09-2026 al aprobarse el diseño del recuento verificable, y
 revisado en septiembre de 2026 para corregir las garantías de seguridad y el modelo de confianza.
+Revisado el 07-10-2026: estado del relayer y de la verificación del contrato, comprobados en la cadena.
 
 Debe entenderse que el sistema proporciona registro inmutable y recuento público de lo
 aceptado por el contrato, bajo un esquema de seudonimización apto para consultas no secretas.
 **El apartado 2.1 sigue plenamente vigente: la base de datos no conserva la correspondencia entre votante y voto una vez cerrada la elección, pero el operador la conoce en el momento de procesar el voto; durante la votación, en `vote_attempts` mientras un voto está pendiente y en las copias de seguridad anteriores a la migración 016, el vínculo sigue existiendo.**
 
 Los defectos concretos que sustentan lo dicho aquí están detallados en
-`AUDITORIA_BLOCKCHAIN.md`.
+`docs/historico/AUDITORIA_BLOCKCHAIN.md`.

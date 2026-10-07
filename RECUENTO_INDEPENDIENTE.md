@@ -127,7 +127,9 @@ Conviene decirlo con la misma claridad:
 
 ## Estado
 
-El contrato está desplegado en Sepolia pero **aún no es operativo** (el relayer
-autorizado no es el del backend), así que todavía no hay ninguna elección real
-que recontar: `getElectionCount()` devuelve 0. Este documento describe el
-procedimiento; la primera comprobación de punta a punta queda pendiente.
+El contrato está desplegado en Sepolia y el relayer del backend ya está
+autorizado (comprobado en la cadena el 07-10-2026), pero **aún no se ha creado
+ninguna elección en él**: `getElectionCount()` devuelve 0 y producción sigue
+apuntando al contrato anterior. Todavía no hay, pues, ninguna elección real que
+recontar. Este documento describe el procedimiento; la primera comprobación de
+punta a punta queda pendiente.
