@@ -15,3 +15,7 @@ coverage
 .vscode
 .idea
 build
+
+# .env.production lleva la clave del nodo RPC y Vite lo leería al compilar
+.env.*
+!.env.example

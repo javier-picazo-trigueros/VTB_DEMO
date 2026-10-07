@@ -1,53 +1,90 @@
-version: '3.8'
+# Stack local con Docker: frontend (nginx) + backend (SQLite en un volumen).
+#
+# Sirve para probar la aplicación entera sin instalar Node. NO es el despliegue de
+# producción (Vercel + Render + Supabase, ver docs/DESPLIEGUE.md) y no usa la base
+# de producción: los datos viven en el volumen `vtb-data`.
+#
+# Uso (desde la raíz del repositorio):
+#   1. cp .env.example .env     y rellénalo (secretos y contraseñas del seed)
+#   2. docker compose up --build
+#   3. docker compose exec -e ALLOW_SEED_RESET=true backend npm run seed
+#   4. http://localhost:3000
+# Con una cadena local de Hardhat:  docker compose --profile dev up
+#
+# Los puertos solo escuchan en 127.0.0.1: nadie de tu red puede entrar.
 
 services:
   backend:
     build: ./backend
     container_name: vtb-backend
-    ports:
-      - "3001:3001"
-    env_file:
-      - .env
     environment:
-      - NODE_ENV=production
+      # development y no production: sobre http://localhost el navegador no guarda
+      # las cookies Secure que pone production.
+      NODE_ENV: development
+      PORT: "3001"
+      DB_CLIENT: sqlite
+      DATABASE_PATH: /app/data/vtb.db
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en el .env de la raíz (ver .env.example)}
+      NULLIFIER_SECRET: ${NULLIFIER_SECRET:?Falta NULLIFIER_SECRET en el .env de la raíz (ver .env.example)}
+      # El navegador entra por el puerto 3000 (nginx) y las peticiones a /backend
+      # llevan ese origen.
+      CORS_ORIGINS: http://localhost:3000
+      FRONTEND_URL: http://localhost:3000
+      DEMO_LOGIN_ENABLED: ${DEMO_LOGIN_ENABLED:-false}
+      SEED_SUPERADMIN_PASSWORD: ${SEED_SUPERADMIN_PASSWORD:-}
+      SEED_DEMO_ADMIN_PASSWORD: ${SEED_DEMO_ADMIN_PASSWORD:-}
+      SEED_DEMO_SUPERADMIN_PASSWORD: ${SEED_DEMO_SUPERADMIN_PASSWORD:-}
+      SEED_DEMO_STUDENT_PASSWORD: ${SEED_DEMO_STUDENT_PASSWORD:-}
+      # Opcionales, pero sin cadena no se puede votar: las elecciones quedan pendientes
+      # de blockchain y votar devuelve 503 ELECTION_NOT_ON_CHAIN a todo el mundo.
+      RPC_URL: ${RPC_URL:-}
+      CONTRACT_ADDRESS: ${CONTRACT_ADDRESS:-}
+      DEPLOY_BLOCK: ${DEPLOY_BLOCK:-}
+      PRIVATE_KEY: ${PRIVATE_KEY:-}
+      EXPLORER_URL: ${EXPLORER_URL:-}
+    ports:
+      - "127.0.0.1:3001:3001"
     volumes:
       - vtb-data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   frontend:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
-        VITE_EXPLORER_URL: ${VITE_EXPLORER_URL:-http://localhost:8545}
+        VITE_EXPLORER_URL: ${EXPLORER_URL:-http://localhost:8545}
         VITE_RPC_URL: ${VITE_RPC_URL:-http://localhost:8545}
-        VITE_CONTRACT_ADDRESS: ${CONTRACT_ADDRESS}
+        VITE_CONTRACT_ADDRESS: ${CONTRACT_ADDRESS:-}
     container_name: vtb-frontend
     ports:
-      - "80:80"
+      - "127.0.0.1:3000:80"
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
 
-  # Solo para desarrollo local con blockchain
+  # Cadena local de Hardhat, solo con el perfil dev. Después hay que desplegar el
+  # contrato (cd blockchain && npm run deploy:local) y poner CONTRACT_ADDRESS,
+  # RPC_URL=http://hardhat:8545 y la clave de la cuenta #1 en el .env de la raíz;
+  # ver docs/DESARROLLO.md, sección 4.
   hardhat:
-    image: node:20-alpine
+    image: node:22-alpine
     container_name: vtb-hardhat
     working_dir: /app
-    command: sh -c "npm install && npx hardhat node --hostname 0.0.0.0"
+    command: sh -c "npm ci && npx hardhat node --hostname 0.0.0.0"
     ports:
-      - "8545:8545"
+      - "127.0.0.1:8545:8545"
     volumes:
-      - .:/app
+      - ./blockchain:/app
+      - /app/node_modules
     profiles:
-      - dev    # Usar: docker compose --profile dev up
+      - dev
 
 volumes:
   vtb-data:
-    driver: local

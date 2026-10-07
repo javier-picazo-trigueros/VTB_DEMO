@@ -1,24 +1,26 @@
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
+
+# sqlite3 se compila con node-gyp: Alpine no trae compilador ni Python.
+RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
 RUN npm ci
 
 COPY . .
 
-# Build TypeScript
+# Compila TypeScript. Las dependencias de desarrollo se quedan: el seed
+# (`npm run seed`) se ejecuta con tsx dentro del contenedor.
 RUN npm run build
 
-# Crear directorio para SQLite persistente
-RUN mkdir -p /app/data
+# Directorio de la base SQLite. Es el punto de montaje del volumen: se crea
+# antes de bajar de privilegios para que el usuario node pueda escribir.
+RUN mkdir -p /app/data && chown -R node:node /app/data
+USER node
 
-# Port for the API
 EXPOSE 3001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3001/health || exit 1
 
 CMD ["node", "dist/index.js"]
-
-
