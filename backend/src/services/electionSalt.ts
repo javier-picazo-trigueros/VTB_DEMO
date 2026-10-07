@@ -36,9 +36,13 @@ export async function destroyElectionSaltIfComplete(
     return false;
   }
 
+  // Cerrada = ha pasado end_time. `is_active` NO cuenta: es un interruptor de
+  // visibilidad que el administrador puede apagar y volver a encender, y destruir
+  // la sal en ese gesto cambiaría los nullifiers de la elección al reactivarla —
+  // el contrato dejaría de reconocer a quien ya votó y solo election_participations
+  // evitaría el doble voto.
   const now = Math.floor(Date.now() / 1000);
-  const isActive = Boolean(election.is_active);
-  const isClosed = !isActive || (election.end_time != null && now > election.end_time);
+  const isClosed = election.end_time != null && now > election.end_time;
 
   if (!isClosed) {
     return false;
