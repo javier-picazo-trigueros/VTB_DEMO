@@ -29,8 +29,10 @@ Otros documentos: [`README.md`](README.md) (visión general),
 - Hay **16 migraciones** de PostgreSQL. Solo te afectan si usas PostgreSQL.
 - **Crear una elección no espera a la blockchain.** Se guarda con sus candidatos y se
   registra en el contrato en segundo plano. Sin blockchain configurada (lo normal en
-  local), el panel la muestra como «Pendiente de blockchain»: es lo esperado, y las
-  cuentas `@vtb.demo` votan igual.
+  local), el panel la muestra como «Pendiente de blockchain»: es lo esperado. Mientras
+  esté así, **votar devuelve `503 ELECTION_NOT_ON_CHAIN` a todo el mundo, cuentas demo
+  incluidas**: sin una cadena (Hardhat local o Sepolia) se puede entrar y navegar, pero
+  no votar. Ver [`docs/DESARROLLO.md`](docs/DESARROLLO.md), sección 4.
 
 ---
 
@@ -232,11 +234,13 @@ marcadas con 🔒 son secretas y no se comparten ni se suben a git.
 | `HEALTH_DB_TIMEOUT_MS` | No (por defecto `3000`) | Tiempo máximo de la consulta de `/health` |
 | `EMAIL_SEND_INTERVAL_MS` | No (por defecto `250`) | Pausa entre envíos de la cola de correo |
 
-Las cuentas `@vtb.demo` guardan un voto de demostración sin hash de transacción
-(`vote_source = 'demo'`, `tx_hash` a NULL) y no tocan la blockchain, así que
-`RPC_URL`, `CONTRACT_ADDRESS` y `PRIVATE_KEY` solo hacen falta para votos reales
-en Sepolia (ver *Start The App → Mode A* en el README). Ese atajo solo existe con
-`DEMO_LOGIN_ENABLED=true`; en producción esas cuentas votan por el camino normal.
+`RPC_URL`, `CONTRACT_ADDRESS` y `PRIVATE_KEY` hacen falta para poder **votar**: sin
+ellos las elecciones quedan pendientes de blockchain y votar devuelve `503` a todo el
+mundo. Si la elección sí está registrada, una cuenta `@vtb.demo` guarda un voto de
+demostración sin hash de transacción (`vote_source = 'demo'`, `tx_hash` a NULL) y no
+toca la cadena; ese atajo solo existe con `DEMO_LOGIN_ENABLED=true`, y en producción
+esas cuentas votan por el camino normal. Cómo montar una cadena local:
+[`docs/DESARROLLO.md`](docs/DESARROLLO.md), sección 4.
 
 **Variables que puedes ver en algún `.env` pero el backend no lee:** `HMAC_SECRET`,
 `SEPOLIA_RPC_URL` y `ALCHEMY_API_KEY` (estas dos las usa `blockchain/.env` para

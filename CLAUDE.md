@@ -528,9 +528,9 @@ Lo que ya está en las reglas de arriba no se repite aquí.
   no responde): Javier.
 - Borrar la copia de seguridad previa a la 016 a los 30 días: Javier.
 - Plazo de conservación de `nullifier_audit`: decidir juntos.
-- `docker-compose.yml` y `frontend/nginx.conf` están rotos (`nginx.conf` es
-  un script de PowerShell y no hay proxy a `/backend`). Decidir si se
-  arreglan o se borran: los dos.
+- `docker-compose.yml` y `frontend/nginx.conf` arreglados (07-10-2026): stack local con
+  nginx que hace de proxy de `/backend`, comprobado de punta a punta con las imágenes
+  construidas. No probado: el perfil `dev` (Hardhat en Docker). Ver docs/DESARROLLO.md.
 
 ### Cómo comprobar en local que todo va
 

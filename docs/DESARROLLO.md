@@ -92,9 +92,12 @@ variables de entorno nuevas, ver [`DESPLIEGUE.md`](DESPLIEGUE.md), sección 5.
 
 ## 4. Probar el voto en cadena
 
-Con las cuentas `@vtb.demo` y `DEMO_LOGIN_ENABLED=true` el voto se guarda sin tocar
-la cadena (es un voto de demostración, sin hash de transacción). Para probar el
-camino real hay dos opciones.
+**Sin una cadena no se puede votar.** Una elección nueva queda `pending` hasta que se
+registra en el contrato, y mientras tanto votar devuelve `503 ELECTION_NOT_ON_CHAIN` a
+**todo el mundo, cuentas demo incluidas**. Solo cuando la elección está sincronizada, una
+cuenta `@vtb.demo` con `DEMO_LOGIN_ENABLED=true` guarda un voto de demostración sin
+tocar la cadena (sin hash de transacción); las demás cuentas envían una transacción real.
+Para votar en local hay dos opciones.
 
 ### A. Cadena local de Hardhat
 
@@ -144,7 +147,41 @@ la de producción.
 
 ---
 
-## 5. Problemas frecuentes
+## 5. Todo en Docker
+
+`docker-compose.yml` levanta el frontend (nginx) y el backend (SQLite en un volumen)
+sin instalar Node. Sirve para probar la aplicación entera; **no** es producción ni usa
+la base de producción.
+
+```bash
+cp .env.example .env          # en la raíz; rellena secretos y contraseñas del seed
+docker compose up --build
+docker compose exec -e ALLOW_SEED_RESET=true backend npm run seed
+```
+
+Abre http://localhost:3000. Los puertos solo escuchan en `127.0.0.1`.
+
+- nginx sirve el build de Vite y hace de proxy de `/backend/` hacia el backend, igual
+  que el *rewrite* de Vercel: el navegador ve una sola URL y las cookies son de primer
+  origen. Por eso `CORS_ORIGINS` es `http://localhost:3000`.
+- El backend corre con `NODE_ENV=development` y SQLite en el volumen `vtb-data`: los
+  datos sobreviven a `docker compose restart` y se borran con `docker compose down -v`.
+- Sin cadena no se puede votar (ver sección 4). `docker compose --profile dev up`
+  añade un nodo de Hardhat en el puerto 8545, pero no despliega el contrato por ti.
+- Comprobado el 07-10-2026: build de las dos imágenes, proxy, SPA, seed dentro del
+  contenedor, login con cookies, CSRF, CORS, y persistencia tras reiniciar. **No se
+  probó el perfil `dev`.**
+
+**Si `docker compose build` falla con `server certificate not trusted`** (o `npm` con
+`Exit handler never called`): tu antivirus intercepta el HTTPS (a Javier le pasó con
+Avast Web Shield) y los contenedores no confían en su certificado raíz. No es un fallo
+del repositorio y no se arregla desactivando la verificación TLS en el Dockerfile:
+desactiva el análisis de HTTPS del antivirus mientras construyes, o instala su
+certificado raíz en la imagen solo en tu máquina.
+
+---
+
+## 6. Problemas frecuentes
 
 | Síntoma | Causa y solución |
 |---|---|
