@@ -865,7 +865,12 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
     }
 
     // Check if this is a vtb.demo account — use synthetic fallback immediately
-    const isDemo = decoded.email?.endsWith('@vtb.demo');
+    // El atajo solo existe donde las cuentas de demostración están habilitadas
+    // (desarrollo, tests). En producción DEMO_LOGIN_ENABLED no está puesta, y una
+    // cuenta @vtb.demo vota por el camino normal: en cadena o 503, nunca un voto
+    // fuera de cadena presentado como válido.
+    const demoHabilitado = process.env.DEMO_LOGIN_ENABLED === 'true' || process.env.NODE_ENV === 'test';
+    const isDemo = demoHabilitado && decoded.email?.endsWith('@vtb.demo');
 
     if (isDemo) {
       // Sin hash de transacción inventado. Antes se guardaba un SHA-256 con
