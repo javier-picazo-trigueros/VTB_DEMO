@@ -15,6 +15,7 @@ import {
   resetPasswordLimiter,
   voteUserLimiter,
   voteIpLimiter,
+  chainReadLimiter,
 } from "./middleware/rateLimit.js";
 import authRoutes from "./routes/auth.js";
 import electionRoutes from "./routes/elections.js";
@@ -408,6 +409,7 @@ app.use("/auth", authRoutes);
 
 // requireAuth runs first so req.user is available to voteUserLimiter's keyGenerator.
 app.post("/api/elections/register-vote", requireAuth, voteIpLimiter, voteUserLimiter);
+app.get(["/api/elections/:id", "/api/elections/:id/results"], chainReadLimiter);
 app.use("/api/elections", electionRoutes);
 
 app.use("/api/organizations", organizationRoutes);
