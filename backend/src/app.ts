@@ -99,7 +99,12 @@ app.use(cors({
       .map(o => o.trim())
       .filter(Boolean);
 
-    const allowed = [...configured, ...DEV_ORIGINS];
+    // Los orígenes de localhost solo fuera de producción: con credentials:true,
+    // dejarlos en producción permite que una página en el localhost de la víctima
+    // haga peticiones autenticadas contra la API.
+    const allowed = process.env.NODE_ENV === 'production'
+      ? configured
+      : [...configured, ...DEV_ORIGINS];
 
     if (allowed.some(a => a !== '*' && origin === a)) {
       return callback(null, true);
