@@ -494,7 +494,27 @@ function seedBloqueadoPorEntorno(): string | null {
   if (process.env.ALLOW_SEED_RESET !== 'true') {
     return 'Falta ALLOW_SEED_RESET=true en el entorno. Sin ella, el seed no se ejecuta en ningún caso.';
   }
+  // Las dos condiciones de arriba se cumplen sin querer con un .env de
+  // desarrollo. Con una base de Supabase compartida con producción, eso bastaba
+  // para que `seed:reset` borrara datos reales. Contra PostgreSQL solo se siembra
+  // en la máquina local, o con un "sí, es remota y es de desarrollo" explícito.
+  if (process.env.DB_CLIENT === 'postgres' && process.env.SEED_REMOTE_DB_OK !== 'true') {
+    const host = hostDeLaBase(process.env.DATABASE_URL);
+    if (host !== 'localhost' && host !== '127.0.0.1' && host !== '::1') {
+      return 'DATABASE_URL apunta a una base remota. El seed solo se ejecuta contra una base local; ' +
+        'si es una base remota de DESARROLLO, define SEED_REMOTE_DB_OK=true.';
+    }
+  }
   return null;
+}
+
+/** Host de una URL de conexión, o null si no se puede leer (que cuenta como remoto). */
+function hostDeLaBase(url: string | undefined): string | null {
+  try {
+    return new URL(url ?? '').hostname.replace(/^\[|\]$/g, '');
+  } catch {
+    return null;
+  }
 }
 
 export async function runSeed(opts: { reset: boolean }): Promise<SeedOutcome> {
