@@ -14,7 +14,8 @@ with the same nullifier. This is pseudonymity, **not** anonymity: the operator
 can link a voter to a vote while it is being processed (see `SEGURIDAD.md`).
 
 Demo accounts under `@vtb.demo` store a demonstration vote with no transaction
-hash for quick testing — the seed only generates data for this domain (the
+hash once the election is registered on-chain (until then voting returns 503 for
+everyone, demo accounts included) — the seed only generates data for this domain (the
 fictional "Meridian University"), so a live demo never shows placeholder
 institutions. Real institutional deployments (a different domain per client)
 vote through the configured Ethereum network and receive a real transaction hash.
@@ -82,9 +83,11 @@ sleep may take 30-40 seconds.
 
 ### Synthetic demo accounts
 
-These accounts are local/demo only. Their votes are stored without a transaction
-hash (`vote_source = 'demo'`) and do not create an Etherscan transaction. The
-shortcut only exists where `DEMO_LOGIN_ENABLED=true`. In the UI, `@vtb.demo` renders as the
+These accounts are local/demo only. Once the election is registered on-chain, their
+votes are stored without a transaction hash (`vote_source = 'demo'`) and do not
+create an Etherscan transaction; before that, voting returns 503
+`ELECTION_NOT_ON_CHAIN` like for everyone. The shortcut only exists where
+`DEMO_LOGIN_ENABLED=true`. In the UI, `@vtb.demo` renders as the
 fictional institution **Meridian University** — the emails/passwords below
 are unchanged, only the display name and election data shown on screen use
 that persona (see `seedDatabase.ts`).
@@ -117,8 +120,7 @@ institution — only `vtb.demo` (the fictional Meridian University) and
 `vtb.system` (the platform superadmin). A real institutional deployment gets
 its own domain and admin-created accounts, added through the admin panel or
 CSV import, not through this seed. Those accounts vote through the configured
-Ethereum network and receive a real transaction hash instead of a synthetic
-one.
+Ethereum network and receive a real transaction hash.
 
 > If you're maintaining an older deployment that still has accounts under a
 > different domain from before this change, they were not deleted — the seed
