@@ -440,15 +440,25 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
       return;
     }
 
-    if (action === 'approve') {
-      if (!isSuperAdmin(req)) {
-        const adminDomain = getAdminDomain(req);
-        const requestDomain = request.email.split('@')[1];
-        if (adminDomain && !isSubDomain(requestDomain, adminDomain)) {
-          res.status(403).json({ error: "Solo puedes gestionar solicitudes de tu propio dominio" });
-          return;
-        }
+    // Solo se resuelve lo pendiente. Sin esto se podía aprobar una solicitud ya
+    // rechazada, o una 'unverified' cuyo correo nadie ha confirmado.
+    if (request.status !== 'pending') {
+      res.status(409).json({ error: "Esta solicitud ya no está pendiente" });
+      return;
+    }
+
+    // Un admin sin admin_domain no tiene alcance sobre nadie: antes la condición
+    // `adminDomain && ...` lo dejaba pasar a cualquier dominio.
+    if (!isSuperAdmin(req)) {
+      const adminDomain = getAdminDomain(req);
+      const requestDomain = request.email.split('@')[1] ?? '';
+      if (!adminDomain || !isSubDomain(requestDomain, adminDomain)) {
+        res.status(403).json({ error: "Solo puedes gestionar solicitudes de tu propio dominio" });
+        return;
       }
+    }
+
+    if (action === 'approve') {
 
       let passwordHash = request.password_hash;
       let tempPassword: string | null = null;
@@ -531,15 +541,6 @@ router.patch("/registration-requests/:id", requireAdmin, async (req: Request, re
       });
 
     } else if (action === 'reject') {
-      if (!isSuperAdmin(req)) {
-        const adminDomain = getAdminDomain(req);
-        const requestDomain = request.email.split('@')[1];
-        if (adminDomain && !isSubDomain(requestDomain, adminDomain)) {
-          res.status(403).json({ error: "No tienes permisos para gestionar solicitudes de otro dominio" });
-          return;
-        }
-      }
-
       if (!reason?.trim()) {
         res.status(400).json({ error: "El motivo de rechazo es obligatorio" });
         return;
