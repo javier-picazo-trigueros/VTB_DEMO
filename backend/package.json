@@ -7,7 +7,7 @@
     "scripts": {
         "start": "tsx src/index.ts",
         "dev": "nodemon --exec tsx src/index.ts",
-        "build": "tsc",
+        "build": "tsc -p tsconfig.build.json",
         "seed": "tsx src/scripts/seedDatabase.ts",
         "seed:reset": "tsx src/scripts/seedDatabase.ts --reset",
         "sync-blockchain": "node --loader ts-node/esm src/scripts/syncElections.ts",
