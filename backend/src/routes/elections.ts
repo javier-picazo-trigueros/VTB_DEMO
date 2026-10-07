@@ -745,18 +745,18 @@ router.get("/:id/audit", async (req: Request, res: Response) => {
  * @desc CRITICAL FUNCTION: Register a vote on the Smart Contract
  *
  * ARCHITECTURAL CHANGE:
- * 1. Frontend sends JWT + electionId + voteHash
- * 2. Backend validates JWT and extracts userId
+ * 1. Frontend sends electionId + candidateId (session cookie + CSRF header)
+ * 2. Backend validates the session and extracts userId
  * 3. Backend generates nullifier = HMAC(userId + electionId) at vote time
- * 4. Backend prepares transaction: castVote(electionId, nullifier, voteHash)
+ * 4. Backend prepares transaction: castVote(electionId, nullifier, candidate position)
  * 5. Backend signs and sends with PRIVATE_KEY as relayer
  * 6. Frontend receives txHash for audit
- * 7. Frontend can listen for the VoteCast blockchain event
  *
- * PRIVACY:
- * - Backend does not see the decrypted vote; voteHash is a hash
- * - Backend does not custody the user's private key; it only generates nullifier
- * - Blockchain only sees nullifier hash and voteHash
+ * PRIVACY (the vote is NOT anonymous; see SEGURIDAD.md §2.1):
+ * - The backend receives the chosen candidate in the clear and computes the
+ *   nullifier, so the operator can link voter and vote while processing it
+ * - Backend does not custody the user's private key; it signs as the relayer
+ * - The chain only sees the nullifier and the candidate
  * - Personal identity is not stored on-chain
  */router.post("/register-vote", requireAuth, async (req: Request, res: Response) => {
   try {
