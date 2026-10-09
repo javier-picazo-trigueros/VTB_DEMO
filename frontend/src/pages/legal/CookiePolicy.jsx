@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { LegalLayout, ComplianceGap, P, H2, Table } from './LegalLayout';
 
 /*
@@ -72,12 +71,8 @@ export function CookiePolicy() {
 
       <H2>Recursos de terceros que tu navegador carga</H2>
       <P>
-        <b>Google Fonts.</b> Las tipografías de la página se piden a los servidores de Google (<code>fonts.googleapis.com</code>).
-        Google no pone cookies en nuestro dominio, pero recibe tu dirección IP al cargar cualquier página. Lo
-        explicamos en la{' '}
-        <Link to="/legal/privacidad" className="text-brand-600 dark:text-brand-300 hover:underline">Política de Privacidad</Link>
-        {' '}(sección 3) como transferencia a un tercero. Está pendiente de decidir si se alojan en nuestro propio
-        servidor para evitarlo.
+        Las tipografías, los estilos y los scripts se sirven desde el mismo dominio que la aplicación: tu
+        navegador no pide nada a terceros al cargar la página.
       </P>
       <P>
         <b>Nodo de Ethereum.</b> En la cabina de votación, si el despliegue lo configura, tu navegador se conecta al

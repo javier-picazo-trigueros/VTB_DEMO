@@ -48,7 +48,7 @@ con la clave del relayer, y al confirmarse guarda por separado la participación
 elección se destruye la sal.
 
 **Destinatarios y encargados.** Supabase, Render, Vercel (proxy de toda la API), proveedor de correo, Alchemy,
-Google Fonts (IP del visitante) y la propia cadena pública. Ver `REGISTRO_TRATAMIENTOS.md`.
+la propia cadena pública. Ver `REGISTRO_TRATAMIENTOS.md`.
 
 ## 2. Necesidad y proporcionalidad (art. 35.7.b)
 
@@ -112,12 +112,11 @@ Probabilidad: baja en elecciones académicas, alta en sindicales o de ideario. G
 ### R5. Terceros y transferencias
 
 - Vercel recibe en tránsito toda la API (credenciales y voto); su DPA **no cubre el plan gratuito**.
-- Google Fonts recibe la IP de cada visitante sin contrato ni consentimiento.
 - Resend, Alchemy, Vercel y Render son de EE. UU. (SCC y/o DPF).
 
-Medidas: DPA y SCC enlazados en la Política; alternativa a revisar: pasar a plan con DPA, alojar las tipografías
-en el propio dominio, elegir Brevo (UE) para el correo. Probabilidad: media. Gravedad: media.
-**Residual: medio** hasta cerrar esas tres acciones.
+Medidas: DPA y SCC enlazados en la Política; alternativa a revisar: pasar a plan con DPA, elegir Brevo (UE) para el correo.
+Las tipografías ya van autoalojadas (no hay petición a Google). Probabilidad: media. Gravedad: media.
+**Residual: medio** hasta cerrar esas dos acciones.
 
 ### R6. Compromiso del servidor o de las claves
 
@@ -170,7 +169,7 @@ presentarlo como anónimo.
 ## 5. Acciones propuestas antes de un piloto
 
 1. Decidir plazo de `nullifier_audit`, censo y copias de seguridad (R7).
-2. Pasar Vercel a un plan con DPA o sustituir el proxy; alojar las tipografías en el propio dominio (R5).
+2. Pasar Vercel a un plan con DPA o sustituir el proxy (R5).
 3. Elegir el proveedor de correo (Brevo, UE) y firmar su DPA (R5).
 4. Firmar el contrato de encargado (art. 28.3) con cada institución y que autorice los subencargados (R5).
 5. Que la institución fije la base jurídica y, si procede, la excepción del art. 9.2 (R4).

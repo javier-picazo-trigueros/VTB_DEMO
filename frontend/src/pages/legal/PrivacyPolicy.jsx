@@ -120,15 +120,12 @@ export function PrivacyPolicy() {
           ['Vercel', 'Aloja la aplicación web (frontend) y actúa de proxy: reenvía a Render todas las peticiones a /backend, y por tanto también el inicio de sesión, la contraseña y el voto en tránsito', 'Empresa de EE. UU. con red global: el tráfico puede pasar por nodos fuera del EEE', <><Ext key="v" href="https://vercel.com/legal/dpa">DPA estándar</Ext> con SCC, pero <b>solo para los planes Pro y Enterprise</b>; en el plan gratuito no hay contrato de encargado. <Fill key="vp">[RELLENAR: plan contratado de Vercel]</Fill></>],
           ['Proveedor de correo: Resend o Brevo, según la configuración', 'Envío de correos transaccionales (invitaciones, avisos, recuperación de contraseña)', 'Resend: EE. UU., sin región europea. Brevo: Francia, con centros de datos en la UE', <><Ext key="re" href="https://resend.com/legal/dpa">DPA de Resend</Ext> (SCC y DPF). Brevo: su{' '}<Ext key="br" href="https://www.brevo.com/legal/privacypolicy/">política de privacidad</Ext>; el DPA se firma desde la cuenta. <Fill key="rpv">[RELLENAR: proveedor activo en producción]</Fill></>],
           ['Alchemy', 'Nodo RPC de Ethereum: recibe del servidor las transacciones del voto y, en la cabina de votación, el navegador le pide los eventos en vivo si el despliegue define un nodo público', <>EE. UU. <Fill key="al">[RELLENAR: comprobar ubicación]</Fill></>, <><Ext key="a" href="https://www.alchemy.com/policies/dpa">DPA</Ext>, que incorpora las SCC (módulo dos). <Fill key="ap">[RELLENAR: comprobar si producción define VITE_RPC_URL]</Fill></>],
-          ['Google Fonts', 'Sirve las tipografías de la página. Tu navegador las pide directamente a Google al cargar cualquier página, y Google recibe tu dirección IP', 'EE. UU. (Google)', <>Sin contrato con nosotros: es un tercero que recibe tu IP. Ver la nota de abajo</>],
           ['Ethereum Sepolia (cadena pública)', 'Registro público e inmutable del voto', 'Distribuida globalmente', 'No es un proveedor: ver sección 4'],
         ]}
       />
       <ComplianceGap>
-        Dos puntos que un abogado tiene que cerrar antes de publicar: (1) el plan gratuito de Vercel no tiene DPA y por
-        él pasan todas las peticiones; (2) las tipografías se piden a Google Fonts desde el navegador, algo que un
-        tribunal alemán consideró ilícito sin consentimiento en 2022. La solución técnica habitual es alojar las
-        tipografías en nuestro propio servidor; está pendiente de decisión.
+        Un punto que un abogado tiene que cerrar antes de publicar: el plan gratuito de Vercel no tiene DPA y por él
+        pasan todas las peticiones.
       </ComplianceGap>
 
       <H2>4. La cadena de bloques: qué se escribe y por qué no se puede borrar</H2>

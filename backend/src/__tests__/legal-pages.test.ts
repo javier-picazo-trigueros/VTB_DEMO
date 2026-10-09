@@ -115,16 +115,28 @@ describe('la política de cookies refleja exactamente lo que guarda el código',
   });
 });
 
-describe('recursos de terceros que el navegador carga', () => {
-  const css = read(path.join(frontendSrc, 'index.css'));
+describe('el navegador no carga recursos de terceros', () => {
+  // Las tipografías se sirven desde nuestro propio dominio (@fontsource). Una
+  // petición a Google Fonts le da la IP del visitante a Google sin contrato.
+  const THIRD_PARTY_FONTS = /fonts\.googleapis\.com|fonts\.gstatic\.com/;
 
-  it('si index.css carga Google Fonts, la política de privacidad y la de cookies lo dicen', () => {
-    // fonts.googleapis.com recibe la IP del visitante en cada carga: es un
-    // tratamiento de terceros aunque no ponga cookies. Si algún día se
-    // autoalojan las fuentes, este test deja de exigirlo.
-    if (!/fonts\.googleapis\.com/.test(css)) return;
-    expect(text.privacy).toContain('Google Fonts');
-    expect(text.cookies).toContain('Google Fonts');
+  it('ni frontend/src ni index.html mencionan fonts.googleapis.com o fonts.gstatic.com', () => {
+    const files = [...frontendFiles, ...listFiles(frontendSrc).filter((f) => f.endsWith('.css')), path.join(root, 'frontend/index.html')];
+    expect(files.filter((f) => THIRD_PARTY_FONTS.test(read(f)))).toEqual([]);
+  });
+
+  it('las tipografías vienen de @fontsource y se importan desde main.jsx', () => {
+    const pkg = JSON.parse(read(path.join(root, 'frontend/package.json')));
+    expect(pkg.dependencies['@fontsource/ibm-plex-sans']).toBeDefined();
+    expect(pkg.dependencies['@fontsource/ibm-plex-mono']).toBeDefined();
+    const main = read(path.join(frontendSrc, 'main.jsx'));
+    expect(main).toMatch(/@fontsource\/ibm-plex-sans\//);
+    expect(main).toMatch(/@fontsource\/ibm-plex-mono\//);
+  });
+
+  it('las páginas de privacidad y cookies ya no mencionan a Google Fonts', () => {
+    expect(text.privacy).not.toMatch(/Google Fonts|fonts\.googleapis/);
+    expect(text.cookies).not.toMatch(/Google Fonts|fonts\.googleapis/);
   });
 });
 
@@ -157,7 +169,7 @@ describe('la política de privacidad coincide con el código', () => {
   });
 
   it('nombra a todos los proveedores y enlaza sus DPA', () => {
-    for (const proveedor of ['Supabase', 'Render', 'Vercel', 'Alchemy', 'Sepolia', 'Resend', 'Brevo', 'Google Fonts']) {
+    for (const proveedor of ['Supabase', 'Render', 'Vercel', 'Alchemy', 'Sepolia', 'Resend', 'Brevo']) {
       expect(text.privacy, proveedor).toContain(proveedor);
     }
     for (const url of [

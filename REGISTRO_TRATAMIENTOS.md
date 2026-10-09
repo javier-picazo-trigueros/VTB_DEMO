@@ -143,8 +143,8 @@ VTB actúa con dos papeles (ver la Política de Privacidad, sección 0):
 
 ### Recursos de terceros del navegador
 
-Google Fonts (tipografías) recibe la IP del visitante; no es un tratamiento de nuestra base de datos pero
-sí una comunicación de datos a un tercero. Ver `EIPD.md`, riesgo R5.
+Ninguno: las tipografías van autoalojadas (`@fontsource`) y la página no pide nada a Google. Lo vigila
+`legal-pages.test.ts` y `npm run check:bundle`.
 
 ## Parte 2. Registro del encargado (art. 30.2)
 
