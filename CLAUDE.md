@@ -522,6 +522,17 @@ Lo que ya está en las reglas de arriba no se repite aquí.
   compara las páginas con el código (cookies, localStorage, plazos,
   proveedores, frase de SEGURIDAD.md). `CURRENT_TERMS_VERSION` pasó a
   `2026-10-09`.
+- **Tipografías autoalojadas** (`@fontsource`, OFL-1.1): la página ya no pide
+  nada a Google. Lo vigilan `legal-pages.test.ts` y `npm run check:bundle`.
+- **Banner de cookies borrado** (no se montaba): todo lo guardado está exento
+  (art. 22.2 LSSI).
+- **Tutorial al servidor:** `users.tour_completed_at` (migración 017, con
+  `down`), `PATCH /auth/me/tour` y `tourCompleted` en `/auth/me` y el login.
+  Ya no hay ninguna clave `vtb-tour-done-*` en el navegador (se borra la
+  antigua al arrancar). Las cuentas existentes verán el tutorial una vez más.
+- **Lint del frontend:** quedan 12 errores de reglas de React (efectos que
+  usan una función declarada después, `Date.now` en render, `setState` en
+  efecto); arreglarlos exige mover efectos o cambiar lógica.
 - **Node 24** en todo el repo (`node-version.test.ts`).
 - **SSL de la base:** `DATABASE_CA_CERT` (`db/ssl.ts`, `scripts/migrate.ts`).
   La URL con `sslmode=no-verify` anulaba el `rejectUnauthorized` del código:
@@ -530,10 +541,6 @@ Lo que ya está en las reglas de arriba no se repite aquí.
 ### Decisiones abiertas, para revisar juntos
 
 - Plazos de `vote_attempts`: 24 h los fallidos, 72 h los colgados.
-- Tipografías: `index.css` carga Google Fonts (la IP del visitante llega a
-  Google). Alojarlas en el propio dominio o aceptarlo en la Política.
-- El banner de cookies (`CookieBanner.jsx`) no está montado en ningún
-  sitio: todo lo guardado está exento (art. 22.2 LSSI). Borrarlo o dejarlo.
 - Vercel gratuito no tiene DPA y pasa por él toda la API (proxy de
   `/backend`): pasar a Pro o cambiar el proxy.
 - Recuento parcial: el candidato va en claro en la cadena, así que se lee
