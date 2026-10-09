@@ -38,19 +38,21 @@ export const Login = () => {
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [sessionExpired, setSessionExpired] = useState(false);
+  const [expiredNoticeHidden, setExpiredNoticeHidden] = useState(false);
   const [logoClicks, setLogoClicks] = useState(0);
   const [showDevPanel, setShowDevPanel] = useState(false);
   const [showDemoVoters, setShowDemoVoters] = useState(false);
   const [showDemoAdmins, setShowDemoAdmins] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
 
+  // El aviso se deriva de la URL y se oculta a los 8 s; no se fija desde un efecto.
+  const isExpiredReason = searchParams.get("reason") === "expired";
+  const sessionExpired = isExpiredReason && !expiredNoticeHidden;
   useEffect(() => {
-    if (searchParams.get("reason") === "expired") {
-      setSessionExpired(true);
-      setTimeout(() => setSessionExpired(false), 8000);
-    }
-  }, [searchParams]);
+    if (!isExpiredReason) return undefined;
+    const timer = setTimeout(() => setExpiredNoticeHidden(true), 8000);
+    return () => clearTimeout(timer);
+  }, [isExpiredReason]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;

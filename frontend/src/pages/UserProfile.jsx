@@ -30,10 +30,6 @@ export function UserProfile() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
   const handleDeleteAccount = async () => {
     setDeleteLoading(true);
     setDeleteError('');
@@ -115,6 +111,13 @@ export function UserProfile() {
       setLoading(false);
     }
   };
+
+  // Después de loadProfile, que tiene que estar declarada antes de usarse; la llama en el
+  // siguiente turno para que el efecto no encadene renders síncronos.
+  useEffect(() => {
+    const timer = setTimeout(loadProfile, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSaveProfile = async () => {
     setSaving(true);

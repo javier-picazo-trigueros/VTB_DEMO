@@ -30,7 +30,7 @@ const StatusDot = ({ status }) => {
 
 const Countdown = ({ endTime }) => {
   const { t } = useTranslation();
-  const [remaining, setRemaining] = useState(endTime - Math.floor(Date.now() / 1000));
+  const [remaining, setRemaining] = useState(() => endTime - Math.floor(Date.now() / 1000));
   const ref = useRef(null);
   useEffect(() => {
     ref.current = setInterval(() => setRemaining(endTime - Math.floor(Date.now() / 1000)), 1000);
@@ -163,18 +163,6 @@ export const Dashboard = () => {
   const [sortBy, setSortBy] = useState('newest');
 
 
-  useEffect(() => {
-    if (!isAuthenticated) { navigate("/login"); return; }
-    const redirect = searchParams.get('redirect');
-    // Only allow same-origin relative paths: must start with "/" but NOT "//" (protocol-relative)
-    // This prevents open-redirect attacks via ?redirect=//evil.com or ?redirect=\evil.com
-    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
-      navigate(redirect, { replace: true });
-      return;
-    }
-    loadElections();
-  }, [isAuthenticated]);
-
 
   const loadElections = async () => {
     setIsLoading(true);
@@ -204,6 +192,21 @@ export const Dashboard = () => {
       setIsLoading(false);
     }
   };
+
+  // Va después de loadElections, que tiene que estar declarada antes de usarse. La llama en el
+  // siguiente turno para que el efecto no encadene renders síncronos.
+  useEffect(() => {
+    if (!isAuthenticated) { navigate("/login"); return undefined; }
+    const redirect = searchParams.get('redirect');
+    // Only allow same-origin relative paths: must start with "/" but NOT "//" (protocol-relative)
+    // This prevents open-redirect attacks via ?redirect=//evil.com or ?redirect=\evil.com
+    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+      navigate(redirect, { replace: true });
+      return undefined;
+    }
+    const timer = setTimeout(loadElections, 0);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated]);
 
 
   if (!isAuthenticated) return null;

@@ -19,7 +19,7 @@ export const RegisterRequest = () => {
   const [searchParams] = useSearchParams()
   const domainFromUrl = searchParams.get('domain') || ''
 
-  const [schoolsData, setSchoolsData] = useState([])
+  const [fetchedSchools, setSchoolsData] = useState([])
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -41,17 +41,16 @@ export const RegisterRequest = () => {
   const [showPassword, setShowPassword] = useState(false)
 
   // Reload schools/degrees whenever the email domain changes (fall back to URL ?domain= param)
+  const schoolsDomain = formData.email.includes('@') ? formData.email.split('@')[1] : domainFromUrl
+  // Sin dominio no hay lista: se deriva, no se vacía desde un efecto.
+  const schoolsData = schoolsDomain ? fetchedSchools : []
   useEffect(() => {
-    const domain = formData.email.includes('@') ? formData.email.split('@')[1] : domainFromUrl
-    if (!domain) {
-      setSchoolsData([])
-      return
-    }
-    apiFetch(`/api/schools-degrees?domain=${encodeURIComponent(domain)}`)
+    if (!schoolsDomain) return
+    apiFetch(`/api/schools-degrees?domain=${encodeURIComponent(schoolsDomain)}`)
       .then(r => r.json())
       .then(data => setSchoolsData(data.schools_degrees || []))
       .catch(() => setSchoolsData([]))
-  }, [formData.email, domainFromUrl])
+  }, [schoolsDomain])
 
   const handleChange = (e) => {
     const { name, value } = e.target

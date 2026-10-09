@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import { api } from "../utils/apiClient";
 import { useAuth } from "../context/AuthContext";
+import { useNowSeconds } from "../utils/useNowSeconds";
 import { ActionLogTab } from "../components/ActionLogTab";
 import {
   ChartBarIcon, InboxIcon, UsersIcon, CheckCircleIcon, TrendUpIcon, LockIcon, ClipboardListIcon,
@@ -102,6 +103,7 @@ export const AdminPanel = () => {
   // AuthContext termine de hidratar, así que `user` ya está poblado en el
   // primer render y los useState() de abajo pueden leerlo con seguridad.
   const { user } = useAuth();
+  const now = useNowSeconds();
   const adminDomain = user?.adminDomain || '';
   const userRole = user?.role || '';
   const isSuperAdmin = userRole === 'superadmin';
@@ -194,11 +196,6 @@ export const AdminPanel = () => {
     // día basta, en una elección pequeña, para cruzarlo con el bloque del voto.
     return matchSearch && matchElection;
   });
-
-  // Cargar datos según tab
-  useEffect(() => {
-    loadTabData();
-  }, [activeTab]);
 
   // Mientras haya elecciones pendientes de registrar en blockchain, refresca la
   // lista cada 15 s para que su estado cambie sin recargar la página.
@@ -331,6 +328,13 @@ export const AdminPanel = () => {
       setLoading(false);
     }
   };
+
+  // Cargar datos según tab. Va después de loadTabData, que tiene que estar declarada antes de
+  // usarse; la llama en el siguiente turno para que el efecto no encadene renders síncronos.
+  useEffect(() => {
+    const timer = setTimeout(loadTabData, 0);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -611,7 +615,6 @@ export const AdminPanel = () => {
   };
 
   const getElectionStatus = (election) => {
-    const now = Math.floor(Date.now() / 1000);
     const start = election.start_time || election.startTime;
     const end = election.end_time || election.endTime;
     if (election.is_active && now >= start && now <= end) return 'active';
@@ -955,7 +958,7 @@ export const AdminPanel = () => {
                       ) : (
                         <div className="space-y-3">
                           {dashboardData.recentVotes.map((vote, i) => {
-                            const diff = Math.floor((Date.now() - new Date(vote.generated_at).getTime()) / 1000);
+                            const diff = Math.max(0, now - Math.floor(new Date(vote.generated_at).getTime() / 1000));
                             const timeAgo = diff < 60 ? `hace ${diff}s` : diff < 3600 ? `hace ${Math.floor(diff / 60)}m` : `hace ${Math.floor(diff / 3600)}h`;
                             return (
                               <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-700/50 last:border-0">

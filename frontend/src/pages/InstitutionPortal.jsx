@@ -363,7 +363,9 @@ export const InstitutionPortal = () => {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
 
-  const [status,  setStatus]  = useState("loading"); // loading | found | not_found | error
+  const [fetchStatus, setStatus] = useState("loading"); // loading | found | not_found | error
+  // Sin dominio no hay nada que pedir: se deriva, no se fija desde un efecto.
+  const status = domain ? fetchStatus : "not_found";
   const [orgData, setOrgData] = useState(null);
 
   // Redirect already-logged-in users
@@ -373,7 +375,7 @@ export const InstitutionPortal = () => {
 
   // Fetch institution branding
   useEffect(() => {
-    if (!domain) { setStatus("not_found"); return; }
+    if (!domain) return undefined;
 
     const ctrl = new AbortController();
 

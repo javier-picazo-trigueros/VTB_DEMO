@@ -69,7 +69,12 @@ const ElectionResults = () => {
     fetchResultsRef.current = fetchResults;
   });
 
-  useEffect(() => { fetchResults(); }, [id]);
+  // Se pide en el siguiente turno: fetchResults empieza con un setState y el efecto no debe
+  // encadenar renders síncronos. Al cambiar de elección o desmontar, se cancela.
+  useEffect(() => {
+    const timer = setTimeout(fetchResults, 0);
+    return () => clearTimeout(timer);
+  }, [id]);
 
   const loadAudit = async () => {
     try {

@@ -530,9 +530,10 @@ Lo que ya está en las reglas de arriba no se repite aquí.
   `down`), `PATCH /auth/me/tour` y `tourCompleted` en `/auth/me` y el login.
   Ya no hay ninguna clave `vtb-tour-done-*` en el navegador (se borra la
   antigua al arrancar). Las cuentas existentes verán el tutorial una vez más.
-- **Lint del frontend:** quedan 12 errores de reglas de React (efectos que
-  usan una función declarada después, `Date.now` en render, `setState` en
-  efecto); arreglarlos exige mover efectos o cambiar lógica.
+- **Lint del frontend:** 0 errores (quedan 24 avisos de dependencias de
+  efectos). Las cargas iniciales van en un `setTimeout(…, 0)` dentro del
+  efecto, la hora actual sale de `useNowSeconds` y los estados derivados no
+  se fijan desde un efecto.
 - **Node 24** en todo el repo (`node-version.test.ts`).
 - **SSL de la base:** `DATABASE_CA_CERT` (`db/ssl.ts`, `scripts/migrate.ts`).
   La URL con `sslmode=no-verify` anulaba el `rejectUnauthorized` del código:

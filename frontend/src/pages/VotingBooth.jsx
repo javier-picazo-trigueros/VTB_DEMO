@@ -383,12 +383,6 @@ export const VotingBoothContent = () => {
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // Cargar datos de la elección y verificar elegibilidad
-  useEffect(() => {
-    if (!electionId) { setError(t("errors.invalidElection")); setLoading(false); return; }
-    loadElectionData();
-  }, [electionId]);
-
   const loadElectionData = async () => {
     setLoading(true);
     setError("");
@@ -438,6 +432,17 @@ export const VotingBoothContent = () => {
       setLoading(false);
     }
   };
+
+  // Cargar datos de la elección y verificar elegibilidad. Va después de loadElectionData, que
+  // tiene que estar declarada antes de usarse; se ejecuta en el siguiente turno para que el
+  // efecto no encadene renders síncronos.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!electionId) { setError(t("errors.invalidElection")); setLoading(false); return; }
+      loadElectionData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [electionId]);
 
   // Escucha de eventos blockchain
   useEffect(() => {
