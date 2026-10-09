@@ -214,6 +214,7 @@ marcadas con 🔒 son secretas y no se comparten ni se suben a git.
 | `DB_CLIENT` | No (por defecto `sqlite`) | Motor: `sqlite` o `postgres` |
 | `DATABASE_PATH` | No (por defecto `vtb.db`) | Fichero SQLite. Se ignora con `postgres` |
 | `DATABASE_URL` 🔒 | Solo con `DB_CLIENT=postgres` | Cadena de conexión de PostgreSQL. También la usa `npm run migrate` |
+| `DATABASE_CA_CERT` | No en local; **sí en producción** | Certificado raíz de la base de datos, en PEM o como ruta a un fichero. Con ella la conexión verifica el certificado del servidor y se ignora el `sslmode` de la URL. Sin ella, aviso en el log y comportamiento anterior. Pasos en [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md), "Conexión segura a la base de datos" |
 | `CORS_ORIGINS` | **Sí** | Orígenes del frontend permitidos, separados por comas. Debe incluir `http://localhost:3000` |
 | `FRONTEND_URL` | Recomendada: `http://localhost:3000` | Base de los enlaces de los correos. Por defecto es `http://localhost:5173`, que no es el puerto de Vite en este repo |
 | `SEED_SUPERADMIN_PASSWORD` 🔒 | **Sí** | Contraseña de `superadmin@vtb.system`. Sin ella el seed aborta |

@@ -40,6 +40,7 @@ Referencia completa y qué hace cada una: [`SETUP.md`](../SETUP.md), "Variables 
 | `NODE_ENV` | `production` (sin esto las cookies no llevan `Secure` y se admiten los orígenes de `localhost` en CORS) |
 | `DB_CLIENT` | `postgres`. Sin ella el backend arranca en SQLite y pierde los datos en cada despliegue |
 | `DATABASE_URL` | *Session pooler* de Supabase, puerto **5432**. Debe empezar por `postgresql://` |
+| `DATABASE_CA_CERT` | Certificado raíz de Supabase (ver "Conexión segura a la base de datos") |
 | `JWT_SECRET`, `NULLIFIER_SECRET` | Aleatorios y propios de producción. **`NULLIFIER_SECRET` no se cambia nunca** después del primer voto |
 | `CORS_ORIGINS` | Solo el origen del frontend desplegado. En producción los orígenes de `localhost` no se admiten |
 | `RPC_URL`, `CONTRACT_ADDRESS`, `DEPLOY_BLOCK`, `EXPLORER_URL` | Nodo y contrato (ver sección 4) |
@@ -72,6 +73,44 @@ la clave, lo que siga en `queued` sale solo.
 y Yahoo exigen que SPF/DKIM/DMARC estén alineados con el dominio del remitente, y un
 proveedor no puede firmar en nombre de `gmail.com`. Es aceptable para pruebas;
 para el piloto hace falta un dominio propio verificado en el proveedor.
+
+### Conexión segura a la base de datos
+
+**El problema.** El pooler de Supabase presenta una cadena firmada por *Supabase Root 2021 CA*,
+una CA privada que Node no trae. Por eso la `DATABASE_URL` de producción lleva
+`?sslmode=no-verify`: conecta cifrado pero **sin comprobar con quién habla**. Y ese `sslmode`
+tiene prioridad sobre el `ssl` que pone el código, así que el `rejectUnauthorized: true` que había en
+`db/postgres.ts` no tenía efecto (lo demuestra `db-ssl.test.ts`).
+
+**Qué hace el código.** Con `DATABASE_CA_CERT` definida, el pool usa
+`ssl: { ca, rejectUnauthorized: true }` y quita de la URL los parámetros `sslmode`/`sslrootcert`
+para que no puedan anularlo; `npm run migrate` (que pasa por `backend/scripts/migrate.ts`) hace lo
+mismo con `sslmode=verify-full`. Sin la variable, todo funciona como antes y el log muestra un
+aviso `DATABASE_CA_CERT no definida` (en producción).
+
+**Qué tienes que hacer tú, en este orden:**
+
+1. **Supabase.** *Project Settings → Database → SSL Configuration → Download certificate*. Se baja
+   `prod-ca-2021.crt` (la CA raíz; es un certificado público, no un secreto). Comprueba que es el
+   correcto: `openssl x509 -in prod-ca-2021.crt -noout -subject -enddate` debe decir
+   `CN=Supabase Root 2021 CA` y caducidad abril de 2031. La copia que se probó el 9-oct-2026
+   tiene SHA-256 `700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7`; si el de tu
+   descarga es otro, Supabase la ha renovado y conviene mirar su documentación antes de seguir.
+2. **Render.** En *Environment* del servicio del backend, una de dos:
+   - variable `DATABASE_CA_CERT` con **el contenido** del `.crt` (de `-----BEGIN CERTIFICATE-----` a
+     `-----END CERTIFICATE-----`; vale pegarlo en varias líneas o en una con `
+`), o
+   - un *Secret File* con el `.crt` y `DATABASE_CA_CERT=/etc/secrets/prod-ca-2021.crt`.
+3. **No hace falta tocar `DATABASE_URL`.** Con la CA el código ignora su `sslmode`; puedes quitarle
+   `?sslmode=no-verify` cuando hayas comprobado que funciona.
+4. **Redespliega** (el *start command* corre `npm run migrate` y luego arranca; ambos verifican ahora).
+5. **Comprueba:** en el log ya no sale `DATABASE_CA_CERT no definida`, `/health` responde `database: ok`
+   y la migración termina sin `self-signed certificate`.
+
+**Si falla** con `self-signed certificate in certificate chain`, la CA pegada no es la que firma la
+conexión (por ejemplo, otra región o una conexión directa con otra CA): comprueba con
+`openssl s_client -starttls postgres -connect <host>:5432 -CAfile prod-ca-2021.crt`. Para volver atrás,
+borra `DATABASE_CA_CERT` y redespliega: queda el comportamiento anterior. La CA caduca en 2031: anótalo.
 
 **No se definen en producción:** `DEMO_LOGIN_ENABLED` (sin ella `/auth/demo-login`
 responde 404), `ALLOW_SEED_RESET` y `SEED_REMOTE_DB_OK`.
