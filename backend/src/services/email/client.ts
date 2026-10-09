@@ -1,65 +1,23 @@
-import { Resend } from 'resend';
+import { createEmailProvider, type EmailProvider } from './providers.js';
 
-// `onboarding@resend.dev` es el dominio de demo de Resend — no necesita verificación
-// pero solo funciona para la primera dirección email verificada de tu cuenta.
-// En producción DEBES definir RESEND_FROM con un dominio verificado tuyo.
-const IS_PROD = process.env.NODE_ENV === 'production';
-
-if (IS_PROD && !process.env.RESEND_FROM) {
-  console.error(
-    '❌ RESEND_FROM no está definida en producción. ' +
-    'Todos los envíos fallarán. Define RESEND_FROM=<nombre> <email@tu-dominio.com> en el entorno.',
-  );
-}
-
-export const RESEND_FROM =
-  process.env.RESEND_FROM ?? 'VoteTrustBlock <onboarding@resend.dev>';
-
-const apiKey = process.env.RESEND_API_KEY;
-
-// Singleton null cuando no hay clave — la cola registra sin enviar.
-export const resendClient: Resend | null = apiKey ? new Resend(apiKey) : null;
-
-if (!apiKey) {
-  console.warn(
-    '⚠  RESEND_API_KEY no configurada — los emails se omitirán (solo log en consola).',
-  );
-}
-
-export interface RawPayload {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}
+let provider: EmailProvider | null = null;
 
 /**
- * Envío atómico. Lanza si Resend devuelve error.
- * Devuelve el Resend message-id, o null si no hay clave configurada.
- *
- * `idempotencyKey` se envía como cabecera `Idempotency-Key`. Es lo que hace
- * seguro reintentar un envío cuyo resultado desconocemos porque el proceso
- * murió a mitad: Resend deduplica del lado del servidor y el destinatario
- * recibe el correo una sola vez.
+ * Proveedor de correo del proceso, creado la primera vez que se pide. Un
+ * EMAIL_PROVIDER inválido lanza aquí: mejor que el arranque falle a que los
+ * correos salgan por un sitio que nadie eligió.
  */
-export async function sendRaw(
-  payload: RawPayload,
-  idempotencyKey?: string,
-): Promise<string | null> {
-  if (!resendClient) {
-    console.info(`[email:skipped] to=${payload.to} subject="${payload.subject}"`);
-    return null;
+export function getEmailProvider(): EmailProvider {
+  if (provider) return provider;
+
+  provider = createEmailProvider(process.env);
+  const configError = provider.configError();
+  if (configError) {
+    console.error(`❌ Correo: ${configError}. Los correos quedarán como fallidos hasta que se defina.`);
+  } else if (!provider.delivers) {
+    console.warn('⚠  Correo: proveedor "console" — los correos no se envían, solo se registra el asunto.');
+  } else {
+    console.info(`Correo: proveedor ${provider.name}`);
   }
-  const { data, error } = await resendClient.emails.send(
-    {
-      from: RESEND_FROM,
-      to:   payload.to,
-      subject: payload.subject,
-      html: payload.html,
-      text: payload.text,
-    },
-    idempotencyKey ? { idempotencyKey } : undefined,
-  );
-  if (error) throw new Error((error as any).message ?? JSON.stringify(error));
-  return data?.id ?? null;
+  return provider;
 }

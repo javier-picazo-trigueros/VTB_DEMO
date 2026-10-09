@@ -11,6 +11,7 @@ import { syncElectionsToBlockchain } from "./scripts/syncElections.js";
 import { getVotePort, type BusquedaDeVoto } from "./services/voteChain.js";
 import net from "node:net";
 import { processEmailQueue } from "./services/email/queue.js";
+import { getEmailProvider } from "./services/email/client.js";
 import { sendCensusInvitation, sendElectionOpen, sendElectionClose } from "./services/email/index.js";
 import { formatError } from "./utils/errors.js";
 import { destroyExpiredElectionSalts } from "./services/electionSalt.js";
@@ -74,6 +75,9 @@ async function start() {
     } else {
       console.log(`✅ Blockchain configurado: ${process.env.CONTRACT_ADDRESS}`);
     }
+
+    // Valida EMAIL_PROVIDER y avisa en el log si falta la clave del proveedor.
+    getEmailProvider();
 
     // TOCTOU warning: the vote uniqueness guarantee is only atomic on PostgreSQL.
     // On SQLite, SqliteAdapter.acquireVoteLock does a SELECT + app-level check,

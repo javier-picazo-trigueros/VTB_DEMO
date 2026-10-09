@@ -7,7 +7,7 @@
  * renderizar — y el enlace existe únicamente en el correo que sale y, como
  * hash, en password_reset_tokens. Ver la cabecera de queue.ts.
  */
-import type { RawPayload } from './client.js';
+import type { EmailMessage } from './providers.js';
 import { renderInvitation, renderPasswordReset } from './templates.js';
 import { issueEmailToken, RESET_TTL_MINUTES } from './tokens.js';
 
@@ -30,7 +30,7 @@ export interface PasswordResetLinkData {
 }
 
 export type PreparedLinkEmail =
-  | { kind: 'ready'; payload: RawPayload }
+  | { kind: 'ready'; payload: EmailMessage }
   | { kind: 'discard'; reason: string };
 
 const discard = (reason: string): PreparedLinkEmail => ({ kind: 'discard', reason });

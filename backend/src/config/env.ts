@@ -61,9 +61,6 @@ export const env = {
   PRIVATE_KEY:      opt('PRIVATE_KEY',      ''),
   EXPLORER_URL:     opt('EXPLORER_URL',     ''),
 
-  // ── Email (opcional; sin él los emails se encolan pero no se envían) ──────
-  RESEND_API_KEY: opt('RESEND_API_KEY', ''),
-
   // ── Rate limit ────────────────────────────────────────────────────────────
   RATE_LIMIT_MAX: Number(opt('RATE_LIMIT_MAX', '10')),
 } as const;
@@ -91,5 +88,4 @@ if (IS_PROD) {
   const warn = (msg: string) => console.warn(`⚠️  [env] ${msg}`);
   if (!env.CONTRACT_ADDRESS) warn('CONTRACT_ADDRESS no está definida. Las transacciones de blockchain no funcionarán.');
   if (!env.PRIVATE_KEY)      warn('PRIVATE_KEY no está definida. Las transacciones de blockchain no funcionarán.');
-  if (!env.RESEND_API_KEY)   warn('RESEND_API_KEY no está definida. Los emails no se enviarán.');
 }

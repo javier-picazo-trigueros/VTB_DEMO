@@ -22,7 +22,7 @@
  *   sending → reclamado por un worker (claimed_at marca cuándo)
  *   sent    → entregado (terminal)
  *   dead    → agotados los intentos, o descartado (terminal)
- *   skipped → sin RESEND_API_KEY (terminal)
+ *   skipped → el proveedor es `console` y no entrega correo (terminal)
  *
  * ── Muerte del proceso ──────────────────────────────────────────────────────
  *
@@ -68,8 +68,8 @@
  * los tipos de correo. El cuerpo solo hace falta para reintentar.
  */
 
-import { sendRaw, resendClient } from './client.js';
-import type { RawPayload } from './client.js';
+import { getEmailProvider } from './client.js';
+import type { EmailMessage } from './providers.js';
 import {
   prepareLinkEmail,
   type LinkTemplate,
@@ -120,7 +120,7 @@ const SEND_INTERVAL_MS = Number.parseInt(process.env.EMAIL_SEND_INTERVAL_MS ?? '
  */
 let chain: Promise<void> = Promise.resolve();
 
-export interface QueuePayload extends RawPayload {
+export interface QueuePayload extends EmailMessage {
   template: string;
 }
 
@@ -325,8 +325,9 @@ async function claimNext(): Promise<QueueRow | null> {
 async function attemptSend(row: QueueRow): Promise<void> {
   const db = await getDb();
 
-  if (!resendClient) {
-    // Sin clave no se envía, así que tampoco se emite ningún token.
+  const provider = getEmailProvider();
+
+  if (!provider.delivers) {
     await db.exec(
       `UPDATE email_log SET status = 'skipped', claimed_at = NULL, ${CLEAR_BODIES} WHERE id = ?`,
       [row.id],
@@ -335,7 +336,13 @@ async function attemptSend(row: QueueRow): Promise<void> {
   }
 
   try {
-    let payload: RawPayload;
+    // Antes de preparar el correo: si falta la clave no se emite ningún token.
+    // El error queda en last_error y la fila se reintenta (o muere) como
+    // cualquier otro fallo, así que al definir la clave el siguiente ciclo la envía.
+    const configError = provider.configError();
+    if (configError) throw new Error(configError);
+
+    let payload: EmailMessage;
     let idempotencyKey = row.idempotency_key ?? undefined;
 
     if (row.template_data !== null) {
@@ -357,7 +364,7 @@ async function attemptSend(row: QueueRow): Promise<void> {
       };
     }
 
-    const resendId = await sendRaw(payload, idempotencyKey);
+    const messageId = await provider.send(payload, { idempotencyKey });
 
     await db.exec(
       `UPDATE email_log
@@ -365,7 +372,7 @@ async function attemptSend(row: QueueRow): Promise<void> {
               last_error = NULL, claimed_at = NULL, next_retry_at = NULL,
               ${CLEAR_BODIES}
         WHERE id = ?`,
-      [resendId, row.id],
+      [messageId, row.id],
     ).catch(() => {});
   } catch (err: any) {
     const msg = String(err?.message ?? err).slice(0, 500);
