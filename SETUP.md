@@ -26,7 +26,7 @@ Otros documentos: [`README.md`](README.md) (visión general),
   el token se genera al enviar.
 - `frontend/.env.production` no está en git. En local no se usa; en Vercel, las
   `VITE_*` están en el panel del proyecto.
-- Hay **16 migraciones** de PostgreSQL. Solo te afectan si usas PostgreSQL.
+- Hay **17 migraciones** de PostgreSQL. Solo te afectan si usas PostgreSQL.
 - **Crear una elección no espera a la blockchain.** Se guarda con sus candidatos y se
   registra en el contrato en segundo plano. Sin blockchain configurada (lo normal en
   local), el panel la muestra como «Pendiente de blockchain»: es lo esperado. Mientras

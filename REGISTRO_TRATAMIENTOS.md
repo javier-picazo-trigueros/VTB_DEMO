@@ -45,7 +45,7 @@ VTB actúa con dos papeles (ver la Política de Privacidad, sección 0):
 | Fines | Crear y gestionar la cuenta; autenticar; recuperar la contraseña |
 | Base jurídica | Art. 6.1.b (servicio solicitado) |
 | Interesados | Personas registradas |
-| Datos | Email, nombre, identificador de estudiante, escuela, titulación, año, grupo, rol, dominio de administración, hash de la contraseña (`users`) |
+| Datos | Email, nombre, identificador de estudiante, escuela, titulación, año, grupo, rol, dominio de administración, hash de la contraseña, marca de si completó la guía de bienvenida (`users.tour_completed_at`) (`users`) |
 | Destinatarios | Supabase (base de datos), Render (servidor); administrador de la institución, para su dominio |
 | Transferencias | Ninguna fuera del EEE para la base de datos y el servidor (Frankfurt). La entidad contratante de Supabase es de Singapur (SCC en su DPA) |
 | Plazo | Mientras exista la cuenta. Baja: se marca `deleted_at` y a los **30 días** se anonimiza (email, nombre, identificador, escuela, titulación, año, grupo y hash) |

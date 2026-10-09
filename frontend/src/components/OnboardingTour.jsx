@@ -1,48 +1,34 @@
 import { Joyride, STATUS, EVENTS, ACTIONS } from 'react-joyride';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../context/AuthContext';
 
-function getTourIdentity(userId) {
-  return userId || (() => {
-    try {
-      const u = JSON.parse(localStorage.getItem('vtb-user') || '{}');
-      return u.id || u.email || localStorage.getItem('vtb-user-id') || localStorage.getItem('vtb-email') || null;
-    } catch {
-      return localStorage.getItem('vtb-user-id') || localStorage.getItem('vtb-email') || null;
-    }
-  })();
-}
-
-function makeTourKey(userId) {
-  const id = getTourIdentity(userId);
-  return id ? `vtb-tour-done-${id}` : null;
-}
-
-export function OnboardingTour({ role = 'student', userId }) {
+export function OnboardingTour({ role = 'student' }) {
   const { t } = useTranslation();
+  const { user, markTourCompleted } = useAuth();
   const [run, setRun] = useState(false);
-  const keyRef = useRef('');
+  const startedRef = useRef(false);
+  const doneRef = useRef(false);
+
+  // Solo si el servidor dice explícitamente que no lo ha completado: un usuario
+  // sin el campo (sesión por hidratar) no ve el tutorial.
+  const shouldShow = user?.tourCompleted === false;
 
   useEffect(() => {
-    const key = makeTourKey(userId);
-    if (!key) return undefined;
-
-    keyRef.current = key;
-    if (!localStorage.getItem(key)) {
-      const timer = setTimeout(() => {
-        // Mark as seen before opening so navigating away mid-tour does not show it again.
-        localStorage.setItem(key, 'true');
-        setRun(true);
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [userId]);
+    if (!shouldShow || startedRef.current) return undefined;
+    const timer = setTimeout(() => {
+      startedRef.current = true;
+      setRun(true);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [shouldShow]);
 
   const markDone = () => {
-    const key = keyRef.current || makeTourKey(userId);
-    if (key) localStorage.setItem(key, 'true');
     setRun(false);
+    if (doneRef.current) return;
+    doneRef.current = true;
+    // Si falla, el tutorial vuelve a salir la próxima vez: es lo menos malo.
+    markTourCompleted(true).catch(() => {});
   };
 
   // react-joyride 3.x: el manejador es `onEvent` (en la 2.x era `callback`, que la

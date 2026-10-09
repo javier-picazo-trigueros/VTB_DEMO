@@ -676,7 +676,7 @@ export const AdminPanel = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <OnboardingTour role={userRole} userId={user?.id} />
+      <OnboardingTour role={userRole} />
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

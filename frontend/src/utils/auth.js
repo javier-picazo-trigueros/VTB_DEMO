@@ -7,10 +7,20 @@ const LEGACY_AUTH_KEYS = [
   'vtb-user-id', 'vtb-email', 'vtb-name', 'vtb-admin-domain',
 ];
 
+/**
+ * La marca del tutorial pasó a users.tour_completed_at (migración 017); las claves
+ * `vtb-tour-done-{usuario}` que quedaron en el navegador llevan un identificador de
+ * la cuenta y ya no sirven para nada.
+ */
+const LEGACY_TOUR_KEY_PREFIX = 'vtb-tour-done-';
+
 /** Borra las claves heredadas si quedan de una sesión de antes de la migración. */
 export const clearLegacyStorageKeys = () => {
   try {
     LEGACY_AUTH_KEYS.forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(LEGACY_TOUR_KEY_PREFIX))
+      .forEach(k => localStorage.removeItem(k));
   } catch {
     // almacenamiento no disponible — nada que limpiar
   }

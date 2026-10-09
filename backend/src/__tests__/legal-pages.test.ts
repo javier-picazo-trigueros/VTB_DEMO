@@ -96,8 +96,10 @@ describe('la política de cookies refleja exactamente lo que guarda el código',
     expect([...keys].sort()).toEqual(['i18nextLng', 'vtb-theme']);
     // Como literal de la tabla (entre comillas): una mención suelta en otra frase no basta.
     for (const key of keys) expect(source.cookies).toContain(`'${key}'`);
-    // La del tutorial se escribe con una clave calculada (`vtb-tour-done-${id}`).
-    expect(text.cookies).toContain('vtb-tour-done-');
+    // La marca del tutorial ya no está en el navegador (users.tour_completed_at): la
+    // página no debe describirla como almacenamiento local.
+    expect(text.cookies).not.toContain('vtb-tour-done');
+    expect(text.cookies).not.toMatch(/guía de bienvenida/i);
   });
 
   it('no hay banner de cookies: ni el componente, ni su clave, ni sus textos', () => {

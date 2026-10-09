@@ -138,7 +138,7 @@ responde 404), `ALLOW_SEED_RESET` y `SEED_REMOTE_DB_OK`.
 - Un único proyecto (`VTB`, ref `pxqejrptikoqoaokoqaq`) y es **producción**. No se
   usa para desarrollar (ver `CLAUDE.md`).
 - Las migraciones son ficheros `.cjs` de `node-pg-migrate` en `backend/migrations/`
-  (16 a 07-10-2026). **No son compatibles con el CLI de Supabase.**
+  (17 a 09-10-2026). **No son compatibles con el CLI de Supabase.**
 - La migración 006 activa RLS sin políticas en todas las tablas. Es imprescindible
   en Supabase: sin ella, su API REST pública expone las tablas a cualquiera con la
   *anon key*, que es pública por diseño.

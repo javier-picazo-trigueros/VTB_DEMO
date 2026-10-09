@@ -52,22 +52,16 @@ export function CookiePolicy() {
       <H2>Almacenamiento local del navegador</H2>
       <P>
         Estas claves se guardan en tu navegador (<code>localStorage</code>) y no se envían a nuestro servidor.
-        Las dos primeras solo se escriben cuando tú usas el control correspondiente: si nunca lo tocas, no se
-        guarda nada, y la página recalcula el idioma y el tema por defecto en cada visita.
+        Solo se escriben cuando tú usas el control correspondiente: si nunca lo tocas, no se guarda nada, y la
+        página recalcula el idioma y el tema por defecto en cada visita.
       </P>
       <Table
         head={['Nombre', 'Se guarda cuando…', 'Finalidad']}
         rows={[
           ['i18nextLng', 'Eliges un idioma en el selector', 'Recordar esa elección en tu próxima visita'],
           ['vtb-theme', 'Pulsas el interruptor de modo claro/oscuro', 'Recordar esa elección en tu próxima visita'],
-          ['vtb-tour-done-{usuario}', 'Se inicia la guía de bienvenida, la primera vez que entras con tu cuenta. No depende de que la termines', 'No volver a mostrártela. La clave incluye un identificador de tu cuenta y el valor es siempre "true"'],
         ]}
       />
-      <ComplianceGap>
-        La marca de la guía de bienvenida no es una preferencia que elijas tú, y la guía de la AEPD no la nombra entre
-        las exceptuadas. La tratamos como estado de la interfaz limitado a su fin (no se envía a ningún sitio ni se
-        usa para otra cosa), pero un abogado debe confirmar que encaja en la exención o, si no, se moverá al servidor.
-      </ComplianceGap>
 
       <H2>Recursos de terceros que tu navegador carga</H2>
       <P>
@@ -88,10 +82,9 @@ export function CookiePolicy() {
 
       <H2>Cómo gestionarlas</H2>
       <P>
-        Puedes borrar en cualquier momento <code>i18nextLng</code>, <code>vtb-theme</code> o{' '}
-        <code>vtb-tour-done-{'{usuario}'}</code> desde los ajustes de almacenamiento de tu navegador — sin ningún
-        efecto sobre tu sesión (la guía de bienvenida podría volver a mostrarse). Bloquear las cookies necesarias,
-        en cambio, te impedirá iniciar sesión.
+        Puedes borrar en cualquier momento <code>i18nextLng</code> o <code>vtb-theme</code> desde los ajustes de
+        almacenamiento de tu navegador, sin ningún efecto sobre tu sesión. Bloquear las cookies necesarias, en
+        cambio, te impedirá iniciar sesión.
       </P>
     </LegalLayout>
   );
