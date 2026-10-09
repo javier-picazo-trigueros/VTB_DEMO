@@ -415,6 +415,7 @@ export const AdminPanel = () => {
           await api.post(`/admin/elections/${newElectionId}/image`, formData);
         } catch (e) {
           console.error("Error uploading election image:", e);
+          toast.error("La elección se creó, pero la imagen no se pudo subir.");
         }
       }
 

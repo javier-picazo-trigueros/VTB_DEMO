@@ -71,6 +71,10 @@ const ElectionRow = ({ election, eligibility, index, navigate }) => {
       {/* Status dot */}
       <StatusDot status={status} />
 
+      {election.imageUrl && (
+        <img src={election.imageUrl} alt="" className="w-9 h-9 rounded object-cover flex-shrink-0" />
+      )}
+
       {/* Name + description */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">

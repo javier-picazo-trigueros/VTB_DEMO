@@ -413,6 +413,10 @@ const ElectionResults = () => {
             ← {t('results.backToDashboard')}
           </button>
 
+          {election?.imageUrl && (
+            <img src={election.imageUrl} alt="" className="w-full max-h-48 object-cover rounded-2xl mb-4" />
+          )}
+
           <div className="flex items-start justify-between flex-wrap gap-3">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
