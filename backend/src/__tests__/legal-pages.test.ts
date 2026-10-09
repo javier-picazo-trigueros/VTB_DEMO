@@ -88,10 +88,9 @@ describe('la política de cookies refleja exactamente lo que guarda el código',
     expect(text.cookies).toContain(`${REFRESH_TOKEN_TTL_DAYS} días`);
   });
 
-  it('lista cada clave que el frontend escribe en localStorage (salvo el banner, que no está montado)', () => {
+  it('lista cada clave que el frontend escribe en localStorage', () => {
     const keys = new Set<string>();
     for (const file of frontendFiles) {
-      if (file.endsWith('CookieBanner.jsx')) continue;
       for (const match of read(file).matchAll(/localStorage\.setItem\(\s*['"]([^'"]+)['"]/g)) keys.add(match[1]);
     }
     expect([...keys].sort()).toEqual(['i18nextLng', 'vtb-theme']);
@@ -101,9 +100,13 @@ describe('la política de cookies refleja exactamente lo que guarda el código',
     expect(text.cookies).toContain('vtb-tour-done-');
   });
 
-  it('el aviso de cookies no está montado en ningún sitio: la página dice que no hay aviso', () => {
-    const mounted = frontendFiles.filter((f) => !f.endsWith('CookieBanner.jsx') && /<CookieBanner\b/.test(read(f)));
-    expect(mounted).toEqual([]);
+  it('no hay banner de cookies: ni el componente, ni su clave, ni sus textos', () => {
+    // Todo lo que se guarda está exento (art. 22.2 LSSI), así que el aviso era código
+    // muerto. Si algún día se guarda algo que exija consentimiento, habrá que
+    // volver a tenerlo y este test se cambia a propósito.
+    expect(frontendFiles.filter((f) => /CookieBanner/.test(f))).toEqual([]);
+    expect(frontendFiles.filter((f) => /CookieBanner|vtb-cookie-consent|optionalStorageDeclined/.test(read(f)))).toEqual([]);
+    expect(read(path.join(frontendSrc, 'i18n/config.ts'))).not.toMatch(/acceptAll|declineOptional/);
     expect(text.cookies).toMatch(/No mostramos ningún aviso/);
   });
 
