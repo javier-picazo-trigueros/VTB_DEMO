@@ -193,8 +193,9 @@ router.post("/login", async (req: Request, res: Response) => {
       is_eligible: boolean | number;
       admin_domain: string | null;
       must_change_password: boolean | number;
+      tour_completed_at: string | null;
     }>(
-      "SELECT id, email, password_hash, name, student_id, role, is_approved, is_eligible, admin_domain, must_change_password FROM users WHERE email = ? AND deleted_at IS NULL",
+      "SELECT id, email, password_hash, name, student_id, role, is_approved, is_eligible, admin_domain, must_change_password, tour_completed_at FROM users WHERE email = ? AND deleted_at IS NULL",
       [normalizedEmail]
     );
 
@@ -226,6 +227,7 @@ router.post("/login", async (req: Request, res: Response) => {
         role: user.role,
         adminDomain: user.admin_domain,
         mustChangePassword: !!user.must_change_password,
+        tourCompleted: !!user.tour_completed_at,
       },
     });
   } catch (error: any) {
@@ -328,9 +330,10 @@ router.post('/demo-login', async (req: Request, res: Response) => {
       id: number; email: string; password_hash: string; name: string;
       student_id: string; role: string; admin_domain: string | null;
       is_approved: boolean | number; must_change_password: boolean | number;
+      tour_completed_at: string | null;
     }>(
       `SELECT id, email, password_hash, name, student_id, role, admin_domain,
-              is_approved, must_change_password
+              is_approved, must_change_password, tour_completed_at
          FROM users WHERE email = ? AND deleted_at IS NULL`,
       [account.email],
     );
@@ -358,6 +361,7 @@ router.post('/demo-login', async (req: Request, res: Response) => {
         role: user.role,
         adminDomain: user.admin_domain,
         mustChangePassword: !!user.must_change_password,
+        tourCompleted: !!user.tour_completed_at,
       },
     });
   } catch (error) {
@@ -415,8 +419,9 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
       id: number; email: string; name: string;
       role: string; admin_domain: string | null;
       must_change_password: boolean | number;
+      tour_completed_at: string | null;
     }>(
-      "SELECT id, email, name, role, admin_domain, must_change_password FROM users WHERE id = ? AND deleted_at IS NULL",
+      "SELECT id, email, name, role, admin_domain, must_change_password, tour_completed_at FROM users WHERE id = ? AND deleted_at IS NULL",
       [req.user!.userId]
     );
     if (!user) {
@@ -431,9 +436,39 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
         role: user.role,
         adminDomain: user.admin_domain || null,
         mustChangePassword: !!user.must_change_password,
+        tourCompleted: !!user.tour_completed_at,
       },
     });
   } catch (err) {
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+const tourSchema = z.object({ completed: z.boolean() });
+
+/**
+ * @route PATCH /auth/me/tour
+ * @desc Marca (o reinicia) el tutorial de bienvenida del usuario autenticado.
+ *       Marcarlo otra vez no cambia la fecha de la primera vez.
+ * @body { completed: boolean }
+ */
+router.patch("/me/tour", requireAuth, async (req: Request, res: Response) => {
+  const parsed = tourSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Indica completed: true o false" });
+    return;
+  }
+  try {
+    const { completed } = parsed.data;
+    await db.exec(
+      completed
+        ? "UPDATE users SET tour_completed_at = COALESCE(tour_completed_at, CURRENT_TIMESTAMP) WHERE id = ? AND deleted_at IS NULL"
+        : "UPDATE users SET tour_completed_at = NULL WHERE id = ? AND deleted_at IS NULL",
+      [req.user!.userId],
+    );
+    res.json({ tourCompleted: completed });
+  } catch (err) {
+    console.error("Error en PATCH /me/tour:", formatError(err));
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });

@@ -444,9 +444,10 @@ router.get("/:id/results", async (req: Request, res: Response) => {
       election_id_blockchain: number;
       chain_status: string;
       chain_contract_address: string | null;
+      image_url: string | null;
     }>(
       `SELECT id, name, description, start_time, end_time, is_active,
-              election_id_blockchain, chain_status, chain_contract_address
+              election_id_blockchain, chain_status, chain_contract_address, image_url
          FROM elections WHERE id = ?`,
       [id],
     );
@@ -648,6 +649,7 @@ router.get("/:id/results", async (req: Request, res: Response) => {
         id: election.id,
         name: election.name,
         description: election.description || '',
+        imageUrl: election.image_url || null,
         status,
         startDate: new Date(election.start_time * 1000).toISOString(),
         endDate: new Date(election.end_time * 1000).toISOString(),

@@ -361,6 +361,7 @@ export const VotingBoothContent = () => {
 
   const [candidates, setCandidates] = useState([]);
   const [electionTitle, setElectionTitle] = useState("");
+  const [electionImageUrl, setElectionImageUrl] = useState(null);
   const [electionStatus, setElectionStatus] = useState(null);
   const [blockchainElectionId, setBlockchainElectionId] = useState(null);
   const [votes, setVotes] = useState([]);
@@ -381,12 +382,6 @@ export const VotingBoothContent = () => {
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
-
-  // Cargar datos de la elección y verificar elegibilidad
-  useEffect(() => {
-    if (!electionId) { setError(t("errors.invalidElection")); setLoading(false); return; }
-    loadElectionData();
-  }, [electionId]);
 
   const loadElectionData = async () => {
     setLoading(true);
@@ -425,6 +420,7 @@ export const VotingBoothContent = () => {
 
       const election = data.election;
       setElectionTitle(election.name || "");
+      setElectionImageUrl(election.imageUrl || null);
       setElectionStatus(election.status || (election.isActive ? "active" : "closed"));
       setBlockchainElectionId(election.blockchainId || election.id || electionId);
       setCandidates(Array.isArray(election.candidates) ? election.candidates : []);
@@ -436,6 +432,17 @@ export const VotingBoothContent = () => {
       setLoading(false);
     }
   };
+
+  // Cargar datos de la elección y verificar elegibilidad. Va después de loadElectionData, que
+  // tiene que estar declarada antes de usarse; se ejecuta en el siguiente turno para que el
+  // efecto no encadene renders síncronos.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!electionId) { setError(t("errors.invalidElection")); setLoading(false); return; }
+      loadElectionData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [electionId]);
 
   // Escucha de eventos blockchain
   useEffect(() => {
@@ -730,6 +737,9 @@ export const VotingBoothContent = () => {
             </svg>
             {t("votingBooth.backToDashboard")}
           </button>
+          {electionImageUrl && (
+            <img src={electionImageUrl} alt="" className="w-full max-h-48 object-cover rounded-2xl mb-4" />
+          )}
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{electionTitle || t("votingBooth.title")}</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">{t("votingBooth.anonymousInfo")}</p>
         </motion.div>

@@ -69,7 +69,12 @@ const ElectionResults = () => {
     fetchResultsRef.current = fetchResults;
   });
 
-  useEffect(() => { fetchResults(); }, [id]);
+  // Se pide en el siguiente turno: fetchResults empieza con un setState y el efecto no debe
+  // encadenar renders síncronos. Al cambiar de elección o desmontar, se cancela.
+  useEffect(() => {
+    const timer = setTimeout(fetchResults, 0);
+    return () => clearTimeout(timer);
+  }, [id]);
 
   const loadAudit = async () => {
     try {
@@ -412,6 +417,10 @@ const ElectionResults = () => {
             className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition mb-4 text-sm">
             ← {t('results.backToDashboard')}
           </button>
+
+          {election?.imageUrl && (
+            <img src={election.imageUrl} alt="" className="w-full max-h-48 object-cover rounded-2xl mb-4" />
+          )}
 
           <div className="flex items-start justify-between flex-wrap gap-3">
             <div>

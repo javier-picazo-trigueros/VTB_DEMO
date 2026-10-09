@@ -2,6 +2,13 @@ import { Link } from 'react-router-dom';
 import { Navbar } from '../../components/Navbar';
 import { WarningIcon } from '../../components/Icons';
 
+// Misma fecha que CURRENT_TERMS_VERSION (backend/src/config/legal.ts): la versión
+// que se graba al aceptar es la de los textos que se estaban mostrando.
+const DRAFT_DATE = '2026-10-09';
+const DRAFT_DATE_LABEL = new Date(`${DRAFT_DATE}T00:00:00Z`).toLocaleDateString('es-ES', {
+  day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+});
+
 const LEGAL_LINKS = [
   { to: '/legal/privacidad', label: 'Política de privacidad' },
   { to: '/legal/aviso-legal', label: 'Aviso legal' },
@@ -80,7 +87,7 @@ export function LegalLayout({ title, lastUpdated, children }) {
         <div className="flex items-start gap-3 mb-6 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-2xl px-5 py-4">
           <WarningIcon className="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="text-sm text-amber-900 dark:text-amber-200">
-            <p className="font-semibold">Borrador — pendiente de revisión legal.</p>
+            <p className="font-semibold">Versión borrador pendiente de revisión jurídica · {DRAFT_DATE_LABEL}</p>
             <p>
               Este texto todavía no ha sido revisado por un abogado. Los huecos marcados{' '}
               <Fill>[RELLENAR]</Fill> son datos identificativos reales que faltan, no un error de maquetación.

@@ -1,53 +1,34 @@
 import { Joyride, STATUS, EVENTS, ACTIONS } from 'react-joyride';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { optionalStorageDeclined } from './CookieBanner';
+import { useAuth } from '../context/AuthContext';
 
-function getTourIdentity(userId) {
-  return userId || (() => {
-    try {
-      const u = JSON.parse(localStorage.getItem('vtb-user') || '{}');
-      return u.id || u.email || localStorage.getItem('vtb-user-id') || localStorage.getItem('vtb-email') || null;
-    } catch {
-      return localStorage.getItem('vtb-user-id') || localStorage.getItem('vtb-email') || null;
-    }
-  })();
-}
-
-function makeTourKey(userId) {
-  const id = getTourIdentity(userId);
-  return id ? `vtb-tour-done-${id}` : null;
-}
-
-export function OnboardingTour({ role = 'student', userId }) {
+export function OnboardingTour({ role = 'student' }) {
   const { t } = useTranslation();
+  const { user, markTourCompleted } = useAuth();
   const [run, setRun] = useState(false);
-  const keyRef = useRef('');
+  const startedRef = useRef(false);
+  const doneRef = useRef(false);
+
+  // Solo si el servidor dice explícitamente que no lo ha completado: un usuario
+  // sin el campo (sesión por hidratar) no ve el tutorial.
+  const shouldShow = user?.tourCompleted === false;
 
   useEffect(() => {
-    // El aviso de cookies ofrece "rechazar las opcionales"; la marca del tour
-    // es una de ellas. Sin esto, el botón no hacía nada.
-    if (optionalStorageDeclined()) return undefined;
-
-    const key = makeTourKey(userId);
-    if (!key) return undefined;
-
-    keyRef.current = key;
-    if (!localStorage.getItem(key)) {
-      const timer = setTimeout(() => {
-        // Mark as seen before opening so navigating away mid-tour does not show it again.
-        localStorage.setItem(key, 'true');
-        setRun(true);
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [userId]);
+    if (!shouldShow || startedRef.current) return undefined;
+    const timer = setTimeout(() => {
+      startedRef.current = true;
+      setRun(true);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [shouldShow]);
 
   const markDone = () => {
-    const key = keyRef.current || makeTourKey(userId);
-    if (key) localStorage.setItem(key, 'true');
     setRun(false);
+    if (doneRef.current) return;
+    doneRef.current = true;
+    // Si falla, el tutorial vuelve a salir la próxima vez: es lo menos malo.
+    markTourCompleted(true).catch(() => {});
   };
 
   // react-joyride 3.x: el manejador es `onEvent` (en la 2.x era `callback`, que la
@@ -84,7 +65,7 @@ export function OnboardingTour({ role = 'student', userId }) {
       // En la 3.x estas opciones viven en `options` (antes eran props sueltas y
       // `styles.options`: showProgress, showSkipButton, disableBeacon...).
       options={{
-        primaryColor: '#2563eb',
+        primaryColor: '#2572A0',
         zIndex: 10000,
         backgroundColor: '#1e293b',
         textColor: '#f1f5f9',
@@ -95,6 +76,8 @@ export function OnboardingTour({ role = 'student', userId }) {
       }}
       styles={{
         tooltip: { borderRadius: '12px' },
+        buttonPrimary: { color: '#ffffff' },
+        buttonBack: { color: '#cbd5e1' },
       }}
       locale={{
         back: t('onboarding.back'),

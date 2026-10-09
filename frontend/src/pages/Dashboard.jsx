@@ -30,7 +30,7 @@ const StatusDot = ({ status }) => {
 
 const Countdown = ({ endTime }) => {
   const { t } = useTranslation();
-  const [remaining, setRemaining] = useState(endTime - Math.floor(Date.now() / 1000));
+  const [remaining, setRemaining] = useState(() => endTime - Math.floor(Date.now() / 1000));
   const ref = useRef(null);
   useEffect(() => {
     ref.current = setInterval(() => setRemaining(endTime - Math.floor(Date.now() / 1000)), 1000);
@@ -70,6 +70,10 @@ const ElectionRow = ({ election, eligibility, index, navigate }) => {
     >
       {/* Status dot */}
       <StatusDot status={status} />
+
+      {election.imageUrl && (
+        <img src={election.imageUrl} alt="" className="w-9 h-9 rounded object-cover flex-shrink-0" />
+      )}
 
       {/* Name + description */}
       <div className="flex-1 min-w-0">
@@ -159,18 +163,6 @@ export const Dashboard = () => {
   const [sortBy, setSortBy] = useState('newest');
 
 
-  useEffect(() => {
-    if (!isAuthenticated) { navigate("/login"); return; }
-    const redirect = searchParams.get('redirect');
-    // Only allow same-origin relative paths: must start with "/" but NOT "//" (protocol-relative)
-    // This prevents open-redirect attacks via ?redirect=//evil.com or ?redirect=\evil.com
-    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
-      navigate(redirect, { replace: true });
-      return;
-    }
-    loadElections();
-  }, [isAuthenticated]);
-
 
   const loadElections = async () => {
     setIsLoading(true);
@@ -200,6 +192,21 @@ export const Dashboard = () => {
       setIsLoading(false);
     }
   };
+
+  // Va después de loadElections, que tiene que estar declarada antes de usarse. La llama en el
+  // siguiente turno para que el efecto no encadene renders síncronos.
+  useEffect(() => {
+    if (!isAuthenticated) { navigate("/login"); return undefined; }
+    const redirect = searchParams.get('redirect');
+    // Only allow same-origin relative paths: must start with "/" but NOT "//" (protocol-relative)
+    // This prevents open-redirect attacks via ?redirect=//evil.com or ?redirect=\evil.com
+    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+      navigate(redirect, { replace: true });
+      return undefined;
+    }
+    const timer = setTimeout(loadElections, 0);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated]);
 
 
   if (!isAuthenticated) return null;
@@ -235,7 +242,7 @@ export const Dashboard = () => {
 
   return (
     <>
-      <OnboardingTour role={userRole} userId={user?.id || user?.email} />
+      <OnboardingTour role={userRole} />
       <Navbar />
       <div className="min-h-screen bg-warm-50">
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -385,7 +392,7 @@ export const Dashboard = () => {
               </select>
 
               <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">
-                {sortedElections.length} of {elections.length} election{elections.length !== 1 ? 's' : ''}
+                {t('dashboard.electionCount', { count: elections.length, shown: sortedElections.length, total: elections.length })}
               </span>
             </motion.div>
           )}

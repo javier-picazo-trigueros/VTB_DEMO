@@ -45,29 +45,6 @@ const resources = {
         skip: "Skip tour",
       },
 
-      // COOKIE BANNER
-      cookies: {
-        title: "Cookies and local storage",
-        // El texto anterior ("VTB stores your auth token in browser local
-        // storage") dejó de ser cierto al migrar a cookies httpOnly.
-        body: "Your session lives in httpOnly cookies that JavaScript cannot read. Only your preferences are kept in local storage. No third-party tracking. No advertising.",
-        learnMore: "Learn more",
-        showLess: "Show less",
-        required: "Required",
-        optional: "Optional",
-        acceptAll: "Accept all",
-        declineOptional: "Decline optional",
-        ariaLabel: "Cookie and storage notice",
-        items: {
-          auth: "Session token — 15 min, set by the server",
-          refresh: "Refresh token — 7 days, set by the server",
-          csrf: "CSRF protection token, readable by JS",
-          tour: "Onboarding tour completion flag",
-          consent: "Your choice in this banner",
-          lang: "Preferred language (EN/ES)",
-        },
-      },
-
       // NAVBAR
       darkMode: "Dark Mode",
       lightMode: "Light Mode",
@@ -541,6 +518,8 @@ const resources = {
         closed: "Closed",
         active: "Active",
         coming: "Coming Soon",
+        electionCount_one: "{{shown}} of {{total}} election",
+        electionCount_other: "{{shown}} of {{total}} elections",
         voted: "Voted",
         vote: "Vote",
         partialResults: "Partial",
@@ -722,27 +701,6 @@ const resources = {
         next: "Siguiente",
         nextWithProgress: "Siguiente ({current} de {total})",
         skip: "Saltar tour",
-      },
-
-      // COOKIE BANNER
-      cookies: {
-        title: "Cookies y almacenamiento local",
-        body: "Tu sesión vive en cookies httpOnly que JavaScript no puede leer. En el almacenamiento local solo se guardan tus preferencias. Sin rastreo de terceros. Sin publicidad.",
-        learnMore: "Más información",
-        showLess: "Ver menos",
-        required: "Necesaria",
-        optional: "Opcional",
-        acceptAll: "Aceptar todo",
-        declineOptional: "Rechazar las opcionales",
-        ariaLabel: "Aviso de cookies y almacenamiento",
-        items: {
-          auth: "Token de sesión — 15 min, lo emite el servidor",
-          refresh: "Token de refresco — 7 días, lo emite el servidor",
-          csrf: "Token de protección CSRF, legible por JS",
-          tour: "Marca de tour de bienvenida completado",
-          consent: "Tu elección en este aviso",
-          lang: "Idioma preferido (EN/ES)",
-        },
       },
 
       // NAVBAR
@@ -1215,6 +1173,8 @@ const resources = {
         closed: "Cerrada",
         active: "Activa",
         coming: "Próximamente",
+        electionCount_one: "{{shown}} de {{total}} elección",
+        electionCount_other: "{{shown}} de {{total}} elecciones",
         voted: "Votado",
         vote: "Votar",
         partialResults: "Parcial",

@@ -26,7 +26,7 @@ Otros documentos: [`README.md`](README.md) (visión general),
   el token se genera al enviar.
 - `frontend/.env.production` no está en git. En local no se usa; en Vercel, las
   `VITE_*` están en el panel del proyecto.
-- Hay **16 migraciones** de PostgreSQL. Solo te afectan si usas PostgreSQL.
+- Hay **17 migraciones** de PostgreSQL. Solo te afectan si usas PostgreSQL.
 - **Crear una elección no espera a la blockchain.** Se guarda con sus candidatos y se
   registra en el contrato en segundo plano. Sin blockchain configurada (lo normal en
   local), el panel la muestra como «Pendiente de blockchain»: es lo esperado. Mientras
@@ -88,7 +88,7 @@ git checkout main && git pull origin main
 
 ### 2. Instalar dependencias
 
-Requisito: Node.js 24 (el `package.json` del frontend lo exige en `engines`; el CI prueba el backend con 20 y 22).
+Requisito: Node.js 24 (los `package.json` de backend y frontend lo exigen en `engines`, y la CI prueba con 24).
 
 ```bash
 cd backend
@@ -214,6 +214,7 @@ marcadas con 🔒 son secretas y no se comparten ni se suben a git.
 | `DB_CLIENT` | No (por defecto `sqlite`) | Motor: `sqlite` o `postgres` |
 | `DATABASE_PATH` | No (por defecto `vtb.db`) | Fichero SQLite. Se ignora con `postgres` |
 | `DATABASE_URL` 🔒 | Solo con `DB_CLIENT=postgres` | Cadena de conexión de PostgreSQL. También la usa `npm run migrate` |
+| `DATABASE_CA_CERT` | No en local; **sí en producción** | Certificado raíz de la base de datos, en PEM o como ruta a un fichero. Con ella la conexión verifica el certificado del servidor y se ignora el `sslmode` de la URL. Sin ella, aviso en el log y comportamiento anterior. Pasos en [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md), "Conexión segura a la base de datos" |
 | `CORS_ORIGINS` | **Sí** | Orígenes del frontend permitidos, separados por comas. Debe incluir `http://localhost:3000` |
 | `FRONTEND_URL` | Recomendada: `http://localhost:3000` | Base de los enlaces de los correos. Por defecto es `http://localhost:5173`, que no es el puerto de Vite en este repo |
 | `SEED_SUPERADMIN_PASSWORD` 🔒 | **Sí** | Contraseña de `superadmin@vtb.system`. Sin ella el seed aborta |
@@ -228,8 +229,10 @@ marcadas con 🔒 son secretas y no se comparten ni se suben a git.
 | `DEPLOY_BLOCK` | No para cuentas demo | Bloque de despliegue de ese contrato. Desde ahí se leen los eventos (`queryFilter`); sin ella se pregunta al contrato con `deploymentBlock()` |
 | `PRIVATE_KEY` 🔒 | No para cuentas demo | Clave del wallet *relayer* que firma los votos reales. Necesita Sepolia ETH |
 | `EXPLORER_URL` | No | Base de los enlaces al explorador de bloques |
-| `RESEND_API_KEY` 🔒 | No | Clave de Resend. Sin ella los correos quedan en `email_log` como `skipped` y no se envían |
-| `RESEND_FROM` | Solo con `RESEND_API_KEY` | Remitente; su dominio debe estar verificado en Resend |
+| `EMAIL_PROVIDER` | No | `resend`, `brevo` o `console`. Sin ella: `resend` si hay `RESEND_API_KEY` o si `NODE_ENV=production`, `console` si no. Un valor desconocido impide arrancar. Ver [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md), "Correo" |
+| `EMAIL_FROM` | Con `resend` en producción y **siempre** con `brevo` | Remitente, `Nombre <correo@dominio>`. Debe estar verificado en el proveedor. `RESEND_FROM` se sigue aceptando si falta |
+| `RESEND_API_KEY` 🔒 | Con `EMAIL_PROVIDER=resend` | Clave de Resend |
+| `BREVO_API_KEY` 🔒 | Con `EMAIL_PROVIDER=brevo` | Clave de la API v3 de Brevo. Sin la clave del proveedor elegido el backend arranca, pero cada correo queda fallido en `email_log` con el error `<VARIABLE> no está definida` |
 | `RATE_LIMIT_MAX` | No | Intentos de login por ventana de 15 min. Solo se aplica en producción (en local: 100) |
 | `HEALTH_DB_TIMEOUT_MS` | No (por defecto `3000`) | Tiempo máximo de la consulta de `/health` |
 | `EMAIL_SEND_INTERVAL_MS` | No (por defecto `250`) | Pausa entre envíos de la cola de correo |

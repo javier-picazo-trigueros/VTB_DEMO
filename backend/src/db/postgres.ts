@@ -4,6 +4,7 @@ import { VoteConflictError } from './client.js';
 import type { BusquedaDeVoto } from '../services/voteChain.js';
 import { recordConfirmedVote } from './voteRecord.js';
 import { formatError } from '../utils/errors.js';
+import { resolvePgSsl } from './ssl.js';
 
 const { Pool } = pg;
 
@@ -258,16 +259,16 @@ export class PgClient implements DbClient {
    *        y se construye contra `connectionString`.
    */
   constructor(connectionString: string, pool?: PoolLike) {
-    this.pool = pool ?? new Pool({
-      connectionString,
-      // El pooler de sesión de Supabase lleva un certificado de una CA pública
-      // (comprobado en vivo contra el proyecto real): rejectUnauthorized: true
-      // verifica de verdad sin necesitar un CA bundle propio.
-      ssl:
-        process.env.NODE_ENV === 'production'
-          ? { rejectUnauthorized: true }
-          : undefined,
-    });
+    if (pool) {
+      this.pool = pool;
+      return;
+    }
+    // El pooler de Supabase está firmado por una CA privada (Supabase Root 2021 CA),
+    // que Node no conoce: se verifica con DATABASE_CA_CERT. Sin ella, un sslmode=no-verify
+    // en la URL anula el ssl de aquí (ver db/ssl.ts).
+    const setup = resolvePgSsl(connectionString, process.env);
+    if (setup.warning) console.warn(`⚠️  [db] ${setup.warning}`);
+    this.pool = new Pool({ connectionString: setup.connectionString, ssl: setup.ssl });
   }
 
   async run<T>(sql: string, params: unknown[] = []): Promise<T[]> {

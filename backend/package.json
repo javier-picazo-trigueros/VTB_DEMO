@@ -4,6 +4,9 @@
     "type": "module",
     "description": "VTB Backend - Express + SQLite + Web3 Relayer",
     "main": "src/index.ts",
+    "engines": {
+        "node": "24.x"
+    },
     "scripts": {
         "start": "tsx src/index.ts",
         "dev": "nodemon --exec tsx src/index.ts",
@@ -18,8 +21,8 @@
         "format": "prettier --write src",
         "test": "vitest run",
         "test:watch": "vitest",
-        "migrate": "node-pg-migrate up --reject-unauthorized",
-        "migrate:down": "node-pg-migrate down 1 --reject-unauthorized",
+        "migrate": "tsx scripts/migrate.ts up --reject-unauthorized",
+        "migrate:down": "tsx scripts/migrate.ts down 1 --reject-unauthorized",
         "migrate:create": "node-pg-migrate create",
         "rotate-admin-passwords": "tsx scripts/rotate-weak-admin-passwords.ts"
     },

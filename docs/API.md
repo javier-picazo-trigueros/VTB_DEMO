@@ -85,6 +85,7 @@ cadena (`GET /api/elections/:id` y `/:id/results`). Detalle en
 | GET | `/auth/me`, `/auth/verify` | sí | Usuario de la sesión |
 | PATCH | `/auth/change-password` | sí | Cambio de contraseña (revoca los refresh) |
 | GET / PATCH | `/auth/me/profile` | sí | Perfil editable |
+| PATCH | `/auth/me/tour` | sí | `{ completed: boolean }`: marca o reinicia el tutorial de bienvenida (`users.tour_completed_at`). `/auth/me` y el login devuelven `tourCompleted` |
 | GET | `/auth/me/export` | sí | Exportación de datos personales (JSON). No incluye candidato, nullifier, transacción ni fecha de voto |
 | DELETE | `/auth/me` | sí | Baja de la propia cuenta |
 

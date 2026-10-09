@@ -107,3 +107,15 @@ describe('pantalla de confirmación de un voto de demostración', () => {
     expect(modal).toMatch(/votingBooth\.copyTxHash[\s\S]{0,120}<\/>\s*\)\}/);
   });
 });
+
+describe('la imagen de la elección se muestra', () => {
+  // El backend guardaba y devolvía imageUrl, pero ninguna pantalla la pintaba.
+  const dashboard = readFileSync(path.join(src, 'pages/Dashboard.jsx'), 'utf-8');
+  const results = readFileSync(path.join(src, 'pages/ElectionResults.jsx'), 'utf-8');
+
+  it('lista, cabina y resultados pintan imageUrl', () => {
+    expect(dashboard).toMatch(/<img src=\{election\.imageUrl\}/);
+    expect(booth).toMatch(/<img src=\{electionImageUrl\}/);
+    expect(results).toMatch(/<img src=\{election\.imageUrl\}/);
+  });
+});

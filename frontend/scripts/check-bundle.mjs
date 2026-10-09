@@ -40,6 +40,8 @@ try {
     const texto = readFileSync(f, 'utf8');
     if (texto.includes(SENTINELA)) problemas.push(`${path.basename(f)}: contiene "${SENTINELA}" (VITE_API_URL llegó al bundle)`);
     if (texto.includes('VITE_API_URL:')) problemas.push(`${path.basename(f)}: contiene el objeto de entorno serializado ("VITE_API_URL:")`);
+    // Las tipografías van autoalojadas: una URL de Google Fonts le daría la IP del visitante a Google.
+    if (/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(texto)) problemas.push(`${path.basename(f)}: carga tipografías de Google Fonts`);
   }
 
   const seg = ((Date.now() - inicio) / 1000).toFixed(1);
@@ -47,7 +49,7 @@ try {
     console.error(`check:bundle FALLA (${seg} s):\n- ${problemas.join('\n- ')}`);
     process.exitCode = 1;
   } else {
-    console.log(`check:bundle OK (${seg} s): el bundle no incrusta VITE_API_URL ni el entorno.`);
+    console.log(`check:bundle OK (${seg} s): el bundle no incrusta VITE_API_URL ni el entorno, y no carga Google Fonts.`);
   }
 } finally {
   rmSync(salida, { recursive: true, force: true });

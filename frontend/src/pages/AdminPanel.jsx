@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import { api } from "../utils/apiClient";
 import { useAuth } from "../context/AuthContext";
+import { useNowSeconds } from "../utils/useNowSeconds";
 import { ActionLogTab } from "../components/ActionLogTab";
 import {
   ChartBarIcon, InboxIcon, UsersIcon, CheckCircleIcon, TrendUpIcon, LockIcon, ClipboardListIcon,
@@ -65,7 +66,7 @@ function TabButton({ id, label, icon: Icon, badge, active, onSelect }) {
         }`}
     >
       {Icon && <Icon className="w-4 h-4" />} {label}
-      {badge != null && (
+      {badge !== null && badge !== undefined && (
         <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
           {badge}
         </span>
@@ -102,6 +103,7 @@ export const AdminPanel = () => {
   // AuthContext termine de hidratar, así que `user` ya está poblado en el
   // primer render y los useState() de abajo pueden leerlo con seguridad.
   const { user } = useAuth();
+  const now = useNowSeconds();
   const adminDomain = user?.adminDomain || '';
   const userRole = user?.role || '';
   const isSuperAdmin = userRole === 'superadmin';
@@ -194,11 +196,6 @@ export const AdminPanel = () => {
     // día basta, en una elección pequeña, para cruzarlo con el bloque del voto.
     return matchSearch && matchElection;
   });
-
-  // Cargar datos según tab
-  useEffect(() => {
-    loadTabData();
-  }, [activeTab]);
 
   // Mientras haya elecciones pendientes de registrar en blockchain, refresca la
   // lista cada 15 s para que su estado cambie sin recargar la página.
@@ -332,6 +329,13 @@ export const AdminPanel = () => {
     }
   };
 
+  // Cargar datos según tab. Va después de loadTabData, que tiene que estar declarada antes de
+  // usarse; la llama en el siguiente turno para que el efecto no encadene renders síncronos.
+  useEffect(() => {
+    const timer = setTimeout(loadTabData, 0);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -415,6 +419,7 @@ export const AdminPanel = () => {
           await api.post(`/admin/elections/${newElectionId}/image`, formData);
         } catch (e) {
           console.error("Error uploading election image:", e);
+          toast.error("La elección se creó, pero la imagen no se pudo subir.");
         }
       }
 
@@ -610,7 +615,6 @@ export const AdminPanel = () => {
   };
 
   const getElectionStatus = (election) => {
-    const now = Math.floor(Date.now() / 1000);
     const start = election.start_time || election.startTime;
     const end = election.end_time || election.endTime;
     if (election.is_active && now >= start && now <= end) return 'active';
@@ -675,7 +679,7 @@ export const AdminPanel = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <OnboardingTour role={userRole} userId={user?.id} />
+      <OnboardingTour role={userRole} />
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -954,7 +958,7 @@ export const AdminPanel = () => {
                       ) : (
                         <div className="space-y-3">
                           {dashboardData.recentVotes.map((vote, i) => {
-                            const diff = Math.floor((Date.now() - new Date(vote.generated_at).getTime()) / 1000);
+                            const diff = Math.max(0, now - Math.floor(new Date(vote.generated_at).getTime() / 1000));
                             const timeAgo = diff < 60 ? `hace ${diff}s` : diff < 3600 ? `hace ${Math.floor(diff / 60)}m` : `hace ${Math.floor(diff / 3600)}h`;
                             return (
                               <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-700/50 last:border-0">
@@ -1767,12 +1771,12 @@ export const AdminPanel = () => {
                             <p className="text-sm text-slate-600 dark:text-slate-400">
                               <span className="font-semibold text-emerald-600 dark:text-emerald-400">{stat.total_voters}</span> votos emitidos
                             </p>
-                            {stat.total_voters_assigned != null && (
+                            {stat.total_voters_assigned !== null && stat.total_voters_assigned !== undefined && (
                               <p className="text-sm text-slate-600 dark:text-slate-400">
                                 de <span className="font-semibold">{stat.total_voters_assigned}</span> asignados
                               </p>
                             )}
-                            {stat.participation_rate != null && (
+                            {stat.participation_rate !== null && stat.participation_rate !== undefined && (
                               <p className="text-sm text-slate-600 dark:text-slate-400">
                                 <span className="font-semibold text-brand-600 dark:text-brand-300">{stat.participation_rate}%</span> de participación
                               </p>

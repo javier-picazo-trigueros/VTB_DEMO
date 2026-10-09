@@ -67,3 +67,17 @@ describe('textos del tutorial en español', () => {
     expect(i18n).not.toMatch(/auditoria publica blockchain|panel de administracion de VTB|Aqui aparecen/);
   });
 });
+
+describe('los botones del tutorial se leen', () => {
+  // joyride pinta el texto del botón primario con backgroundColor (el de la
+  // tarjeta, #1e293b): azul marino sobre azul. "Volver" salía azul sobre oscuro.
+  it('el botón primario lleva texto blanco y el de volver un gris claro', () => {
+    expect(tour).toMatch(/buttonPrimary:\s*\{[^}]*color:\s*'#ffffff'/);
+    expect(tour).toMatch(/buttonBack:\s*\{[^}]*color:\s*'#cbd5e1'/);
+  });
+
+  it('el color primario es el de la marca (brand-500), no el azul genérico', () => {
+    expect(tour).toMatch(/primaryColor: '#2572A0'/);
+    expect(tour).not.toMatch(/#2563eb/);
+  });
+});

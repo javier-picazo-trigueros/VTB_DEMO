@@ -69,7 +69,7 @@ const AppContent = () => {
     try {
       await fetch(`${API_URL}/health`)
       window.location.reload()
-    } catch {}
+    } catch { /* el backend sigue sin responder: no se recarga */ }
   }
 
   return (

@@ -25,6 +25,7 @@ export const AuthProvider = ({ children }) => {
           name:        data.user.name,
           role:        data.user.role,
           adminDomain: data.user.adminDomain || '',
+          tourCompleted: !!data.user.tourCompleted,
         });
       })
       .catch(err => {
@@ -48,6 +49,7 @@ export const AuthProvider = ({ children }) => {
         role:        data.user.role,
         adminDomain: data.user.adminDomain || '',
         mustChangePassword: !!data.user.mustChangePassword,
+        tourCompleted: !!data.user.tourCompleted,
       };
       setUser(userData);
       return { success: true, user: userData };
@@ -69,6 +71,13 @@ export const AuthProvider = ({ children }) => {
   // Never touches localStorage.
   const setAuthUser = (userData) => setUser(userData);
 
+  // La marca del tutorial vive en el servidor (users.tour_completed_at). Se
+  // actualiza también el usuario en memoria para que otra pantalla no lo repita.
+  const markTourCompleted = async (completed) => {
+    const { data } = await api.patch('/auth/me/tour', { completed });
+    setUser(previous => (previous ? { ...previous, tourCompleted: data.tourCompleted } : previous));
+  };
+
   const hasRole = (role) => user && (user.role === role || user.role === 'superadmin');
 
   const value = {
@@ -78,6 +87,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     setAuthUser,
+    markTourCompleted,
     hasRole,
     isAuthenticated: !!user,
   };

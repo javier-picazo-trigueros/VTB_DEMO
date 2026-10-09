@@ -13,20 +13,25 @@ import { createFixtureUser } from './helpers/fixtures.js';
  * Y P1-7, más abajo: los tokens de los enlaces no pueden quedar en email_log.
  */
 
-// El cliente de Resend se sustituye por un doble que cuenta envíos.
+// El proveedor de correo se sustituye por un doble que cuenta envíos.
 const sent: { to: string; idempotencyKey?: string; text: string; html: string }[] = [];
 let failNext = 0;
+const providerState: { delivers: boolean; configError: string | null } = { delivers: true, configError: null };
 
 vi.mock('../services/email/client.js', () => ({
-  resendClient: { emails: {} },           // truthy: la cola cree que hay API key
-  RESEND_FROM: 'test <test@test.vtb>',
-  sendRaw: vi.fn(async (payload: any, idempotencyKey?: string) => {
-    if (failNext > 0) {
-      failNext -= 1;
-      throw new Error('simulated resend failure');
-    }
-    sent.push({ to: payload.to, idempotencyKey, text: payload.text, html: payload.html });
-    return `resend-${sent.length}`;
+  getEmailProvider: () => ({
+    name: 'resend',
+    delivers: providerState.delivers,
+    from: 'test <test@test.vtb>',
+    configError: () => providerState.configError,
+    send: async (payload: any, options?: { idempotencyKey?: string }) => {
+      if (failNext > 0) {
+        failNext -= 1;
+        throw new Error('simulated resend failure');
+      }
+      sent.push({ to: payload.to, idempotencyKey: options?.idempotencyKey, text: payload.text, html: payload.html });
+      return `resend-${sent.length}`;
+    },
   }),
 }));
 
@@ -379,5 +384,84 @@ describe('P1-7 — los tokens de los enlaces no quedan en email_log', () => {
       expect(r.html_body, key).toBeNull();
       expect(r.text_body, key).toBeNull();
     }
+  });
+});
+
+describe('proveedor sin configurar o que no entrega', () => {
+  beforeEach(async () => {
+    sent.length = 0;
+    failNext = 0;
+    providerState.delivers = true;
+    providerState.configError = null;
+    await clearLog();
+  });
+
+  afterEach(async () => {
+    providerState.delivers = true;
+    providerState.configError = null;
+    await clearLog();
+  });
+
+  it('sin la clave del proveedor el correo no sale y la fila guarda el error claro', async () => {
+    providerState.configError = 'BREVO_API_KEY no está definida: no se puede enviar con el proveedor brevo';
+    const { enqueue, processEmailQueue } = await import('../services/email/queue.js');
+
+    enqueue({ to: 'sinclave@test.vtb', subject: 's', html: '<p>h</p>', text: 't', template: 'x' });
+    await processEmailQueue();
+
+    const [row] = await rows("recipient = 'sinclave@test.vtb'");
+    expect(sent).toHaveLength(0);
+    // Fallido pero recuperable: al definir la clave, el siguiente ciclo lo envía.
+    expect(row.status).toBe('queued');
+    expect(row.attempts).toBe(1);
+    expect(row.last_error).toContain('BREVO_API_KEY');
+  });
+
+  it('agotados los intentos sin clave, termina en "dead" con el mismo error', async () => {
+    providerState.configError = 'BREVO_API_KEY no está definida: no se puede enviar con el proveedor brevo';
+    const { processEmailQueue } = await import('../services/email/queue.js');
+    await getDatabase().exec(
+      `INSERT INTO email_log
+         (recipient, template_name, subject, html_body, text_body,
+          status, attempts, next_retry_at, idempotency_key, created_at)
+       VALUES (?, 'x', 's', '<p>h</p>', 't', 'queued', 4, ?, 'key-sinclave', CURRENT_TIMESTAMP)`,
+      ['muerto-sinclave@test.vtb', past()],
+    );
+
+    await processEmailQueue();
+
+    const [row] = await rows("recipient = 'muerto-sinclave@test.vtb'");
+    expect(row.status).toBe('dead');
+    expect(row.last_error).toContain('BREVO_API_KEY');
+    expect(row.html_body).toBeNull();
+  });
+
+  it('un correo con enlace no emite token si no se puede enviar', async () => {
+    providerState.configError = 'BREVO_API_KEY no está definida: no se puede enviar con el proveedor brevo';
+    const user = await createFixtureUser();
+    const { sendPasswordReset } = await import('../services/email/index.js');
+    const { processEmailQueue } = await import('../services/email/queue.js');
+
+    sendPasswordReset({ to: user.email, userId: user.id, name: 'Persona' });
+    await processEmailQueue();
+
+    const tokens = await getDatabase().run<{ id: number }>(
+      'SELECT id FROM password_reset_tokens WHERE user_id = ?', [user.id],
+    );
+    expect(tokens).toHaveLength(0);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('un proveedor que no entrega (console) deja la fila en "skipped" sin cuerpo', async () => {
+    providerState.delivers = false;
+    const { enqueue, processEmailQueue } = await import('../services/email/queue.js');
+
+    enqueue({ to: 'consola@test.vtb', subject: 's', html: '<p>h</p>', text: 't', template: 'x' });
+    await processEmailQueue();
+
+    const [row] = await rows("recipient = 'consola@test.vtb'");
+    expect(sent).toHaveLength(0);
+    expect(row.status).toBe('skipped');
+    expect(row.html_body).toBeNull();
   });
 });

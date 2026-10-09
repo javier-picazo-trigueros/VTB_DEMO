@@ -9,7 +9,7 @@ import { PASSWORD_MIN_LENGTH } from '../utils/passwordPolicy';
 
 export function UserProfile() {
   const navigate = useNavigate();
-  const { setAuthUser } = useAuth();
+  const { setAuthUser, markTourCompleted } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [profile, setProfile] = useState(null);
   const [schoolsData, setSchoolsData] = useState([]);
@@ -29,10 +29,6 @@ export function UserProfile() {
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
-
-  useEffect(() => {
-    loadProfile();
-  }, []);
 
   const handleDeleteAccount = async () => {
     setDeleteLoading(true);
@@ -115,6 +111,13 @@ export function UserProfile() {
       setLoading(false);
     }
   };
+
+  // Después de loadProfile, que tiene que estar declarada antes de usarse; la llama en el
+  // siguiente turno para que el efecto no encadene renders síncronos.
+  useEffect(() => {
+    const timer = setTimeout(loadProfile, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -361,19 +364,13 @@ export function UserProfile() {
                   Guía de bienvenida
                 </label>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     try {
-                      const stored = localStorage.getItem('vtb-user');
-                      const user = stored ? JSON.parse(stored) : null;
-                      const ids = [
-                        user?.id,
-                        user?.email,
-                        localStorage.getItem('vtb-user-id'),
-                        localStorage.getItem('vtb-email'),
-                      ].filter(Boolean);
-                      ids.forEach((id) => localStorage.removeItem(`vtb-tour-done-${id}`));
-                    } catch { /* ignore */ }
-                    navigate('/dashboard');
+                      await markTourCompleted(false);
+                      navigate('/dashboard');
+                    } catch {
+                      toast.error('No se pudo reiniciar la guía de bienvenida');
+                    }
                   }}
                   className="text-sm text-brand-600 hover:underline"
                 >

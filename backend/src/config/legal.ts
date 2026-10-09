@@ -7,4 +7,4 @@
  * registration_requests.terms_version), y es lo único que permite responder,
  * más adelante, "qué versión aceptó esta persona".
  */
-export const CURRENT_TERMS_VERSION = '2026-09-24';
+export const CURRENT_TERMS_VERSION = '2026-10-09';
