@@ -44,7 +44,34 @@ Referencia completa y qué hace cada una: [`SETUP.md`](../SETUP.md), "Variables 
 | `CORS_ORIGINS` | Solo el origen del frontend desplegado. En producción los orígenes de `localhost` no se admiten |
 | `RPC_URL`, `CONTRACT_ADDRESS`, `DEPLOY_BLOCK`, `EXPLORER_URL` | Nodo y contrato (ver sección 4) |
 | `PRIVATE_KEY` | Clave del **relayer**, caliente. La del *owner* nunca va aquí |
-| `RESEND_API_KEY`, `RESEND_FROM`, `FRONTEND_URL` | Correo y enlaces de los correos |
+| `EMAIL_PROVIDER`, `EMAIL_FROM`, `RESEND_API_KEY` o `BREVO_API_KEY`, `FRONTEND_URL` | Correo (ver abajo) y enlaces de los correos |
+
+### Correo: elegir y cambiar de proveedor
+
+Render gratis **bloquea el SMTP saliente**: solo valen proveedores con API HTTP. El
+envío está detrás de una interfaz (`backend/src/services/email/providers.ts`); la cola
+de `email_log`, los reintentos y la idempotencia no cambian con el proveedor.
+
+| `EMAIL_PROVIDER` | Variables | Notas |
+|---|---|---|
+| `resend` | `RESEND_API_KEY`, `EMAIL_FROM` | El actual. Con `onboarding@resend.dev` solo entrega a la dirección de tu cuenta de Resend; para el resto hace falta dominio propio verificado |
+| `brevo` | `BREVO_API_KEY`, `EMAIL_FROM` | API HTTP v3. El remitente de `EMAIL_FROM` debe estar verificado en Brevo (*Senders, Domains & Dedicated IPs*) |
+| `console` | — | No envía: en el log solo salen el destinatario enmascarado (`a***@dominio.es`) y el asunto. Para desarrollo y tests; las filas quedan `skipped` |
+
+Para cambiar de proveedor: en el panel de Render, *Environment*, define
+`EMAIL_PROVIDER`, `EMAIL_FROM` y la clave del nuevo, y redespliega. No hace falta
+tocar la base de datos. Los correos que estuvieran `queued` se envían con el proveedor
+nuevo en el siguiente ciclo.
+
+Si falta la clave del proveedor elegido, el backend **arranca** (avisa en el log), pero
+cada correo queda como fallido en `email_log` con el error claro (`last_error`),
+se reintenta con espera creciente y, agotados los 5 intentos, pasa a `dead`. Al definir
+la clave, lo que siga en `queued` sale solo.
+
+**Con un remitente `@gmail.com`** los correos pueden ir a spam o ser rechazados: Gmail
+y Yahoo exigen que SPF/DKIM/DMARC estén alineados con el dominio del remitente, y un
+proveedor no puede firmar en nombre de `gmail.com`. Es aceptable para pruebas;
+para el piloto hace falta un dominio propio verificado en el proveedor.
 
 **No se definen en producción:** `DEMO_LOGIN_ENABLED` (sin ella `/auth/demo-login`
 responde 404), `ALLOW_SEED_RESET` y `SEED_REMOTE_DB_OK`.

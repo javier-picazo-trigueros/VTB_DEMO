@@ -228,8 +228,10 @@ marcadas con 🔒 son secretas y no se comparten ni se suben a git.
 | `DEPLOY_BLOCK` | No para cuentas demo | Bloque de despliegue de ese contrato. Desde ahí se leen los eventos (`queryFilter`); sin ella se pregunta al contrato con `deploymentBlock()` |
 | `PRIVATE_KEY` 🔒 | No para cuentas demo | Clave del wallet *relayer* que firma los votos reales. Necesita Sepolia ETH |
 | `EXPLORER_URL` | No | Base de los enlaces al explorador de bloques |
-| `RESEND_API_KEY` 🔒 | No | Clave de Resend. Sin ella los correos quedan en `email_log` como `skipped` y no se envían |
-| `RESEND_FROM` | Solo con `RESEND_API_KEY` | Remitente; su dominio debe estar verificado en Resend |
+| `EMAIL_PROVIDER` | No | `resend`, `brevo` o `console`. Sin ella: `resend` si hay `RESEND_API_KEY` o si `NODE_ENV=production`, `console` si no. Un valor desconocido impide arrancar. Ver [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md), "Correo" |
+| `EMAIL_FROM` | Con `resend` en producción y **siempre** con `brevo` | Remitente, `Nombre <correo@dominio>`. Debe estar verificado en el proveedor. `RESEND_FROM` se sigue aceptando si falta |
+| `RESEND_API_KEY` 🔒 | Con `EMAIL_PROVIDER=resend` | Clave de Resend |
+| `BREVO_API_KEY` 🔒 | Con `EMAIL_PROVIDER=brevo` | Clave de la API v3 de Brevo. Sin la clave del proveedor elegido el backend arranca, pero cada correo queda fallido en `email_log` con el error `<VARIABLE> no está definida` |
 | `RATE_LIMIT_MAX` | No | Intentos de login por ventana de 15 min. Solo se aplica en producción (en local: 100) |
 | `HEALTH_DB_TIMEOUT_MS` | No (por defecto `3000`) | Tiempo máximo de la consulta de `/health` |
 | `EMAIL_SEND_INTERVAL_MS` | No (por defecto `250`) | Pausa entre envíos de la cola de correo |
