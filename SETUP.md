@@ -88,7 +88,7 @@ git checkout main && git pull origin main
 
 ### 2. Instalar dependencias
 
-Requisito: Node.js 24 (el `package.json` del frontend lo exige en `engines`; el CI prueba el backend con 20 y 22).
+Requisito: Node.js 24 (los `package.json` de backend y frontend lo exigen en `engines`, y la CI prueba con 24).
 
 ```bash
 cd backend

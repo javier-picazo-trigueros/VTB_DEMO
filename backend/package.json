@@ -4,6 +4,9 @@
     "type": "module",
     "description": "VTB Backend - Express + SQLite + Web3 Relayer",
     "main": "src/index.ts",
+    "engines": {
+        "node": "24.x"
+    },
     "scripts": {
         "start": "tsx src/index.ts",
         "dev": "nodemon --exec tsx src/index.ts",
