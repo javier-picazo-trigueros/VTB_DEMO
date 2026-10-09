@@ -430,13 +430,12 @@ Ver **SETUP.md** para el detalle completo.
    y el corte de las elecciones que siguen en el contrato anterior.
 3. **Salir de Sepolia.** Es una red de pruebas sin garantías. La opción
    natural es Alastria.
-4. **Documentación legal.** Política de privacidad, registro de
-   tratamientos, contratos de encargado del tratamiento con los
-   proveedores, declaración de accesibilidad. Las páginas existen en
-   `frontend/src/pages/legal/` pero tienen unos 29 `[RELLENAR]`, y faltan
-   el registro de tratamientos y los contratos de encargado. Es lo que
-   va a parar un piloto en el servicio jurídico de una universidad, no
-   el código.
+4. **Documentación legal.** Las cinco páginas (`frontend/src/pages/legal/`),
+   `REGISTRO_TRATAMIENTOS.md` y `EIPD.md` están redactadas como borrador
+   (09-10-2026), con la normativa citada, pero quedan unos 55 `[RELLENAR]`
+   (datos que solo sabéis vosotros) y faltan los contratos de encargado con
+   las instituciones y la revisión de un abogado. Es lo que va a parar un
+   piloto en el servicio jurídico de una universidad, no el código.
 
 ---
 
@@ -452,6 +451,11 @@ Raíz:
 - **RECUENTO_INDEPENDIENTE.md** — cómo recuenta una elección alguien
   de fuera, sin credenciales nuestras. Es el entregable que sostiene
   la tesis del proyecto.
+- **REGISTRO_TRATAMIENTOS.md** — registro de actividades (art. 30 RGPD),
+  como responsable y como encargado. Borrador.
+- **EIPD.md** — evaluación de impacto (art. 35 RGPD). Borrador. Los dos
+  salen del código y de la Política de Privacidad; si cambia un plazo, un
+  proveedor o una tabla, se actualizan con ella.
 
 `docs/`:
 
@@ -501,9 +505,39 @@ Lo que ya está en las reglas de arriba no se repite aquí.
   `VITE_API_URL` esté definida (solo se respeta en desarrollo). Lo
   vigila `frontend-api-base.test.ts`.
 
+### Trabajo del 09-10-2026 (rama JavierPicazo, sin fusionar)
+
+- **Cabina:** lo de #44 (nombre del candidato, "votantes registrados" del
+  censo, texto de la cadena, tilde y contraste) ya estaba en main y se
+  verificó. Se añadió: `imageUrl` en `/results` y la imagen de la elección
+  en lista, cabina y resultados (antes ninguna pantalla la pintaba); botones
+  del tutorial legibles; contador de elecciones del dashboard en es/en.
+  "Flujo Directo de Votos" no usa API: lee `VoteCast` de la cadena por RPC
+  desde el navegador y solo muestra nullifier y "hace N s".
+- **Correo:** interfaz `EmailProvider` (`services/email/providers.ts`) con
+  `resend`, `brevo` y `console`; `EMAIL_PROVIDER` y `EMAIL_FROM`. Sin la
+  clave del proveedor elegido el correo queda fallido con error claro. La
+  cola y los reintentos no cambian.
+- **Legal:** páginas, registro y EIPD en borrador. `legal-pages.test.ts`
+  compara las páginas con el código (cookies, localStorage, plazos,
+  proveedores, frase de SEGURIDAD.md). `CURRENT_TERMS_VERSION` pasó a
+  `2026-10-09`.
+- **Node 24** en todo el repo (`node-version.test.ts`).
+- **SSL de la base:** `DATABASE_CA_CERT` (`db/ssl.ts`, `scripts/migrate.ts`).
+  La URL con `sslmode=no-verify` anulaba el `rejectUnauthorized` del código:
+  hasta que se defina la variable en Render, la conexión sigue sin verificar.
+
 ### Decisiones abiertas, para revisar juntos
 
 - Plazos de `vote_attempts`: 24 h los fallidos, 72 h los colgados.
+- Tipografías: `index.css` carga Google Fonts (la IP del visitante llega a
+  Google). Alojarlas en el propio dominio o aceptarlo en la Política.
+- El banner de cookies (`CookieBanner.jsx`) no está montado en ningún
+  sitio: todo lo guardado está exento (art. 22.2 LSSI). Borrarlo o dejarlo.
+- Vercel gratuito no tiene DPA y pasa por él toda la API (proxy de
+  `/backend`): pasar a Pro o cambiar el proxy.
+- Recuento parcial: el candidato va en claro en la cadena, así que se lee
+  durante la votación aunque la interfaz lo oculte (SCRUM-16 solo cubre la API).
 - El comprobante (hash de la transacción) solo se ve una vez, al votar.
 - El panel de participación no muestra fecha ni hora.
 
@@ -522,8 +556,12 @@ Lo que ya está en las reglas de arriba no se repite aquí.
 
 ### Pendiente, con dueño
 
-- Resend y dominio: Javier.
-- `[RELLENAR]` de la Política de Privacidad: los dos.
+- Resend/Brevo y dominio: Javier. Hasta tener dominio propio, los correos
+  con remitente `@gmail.com` pueden ir a spam.
+- `[RELLENAR]` de las páginas legales, del registro y de la EIPD: los dos.
+- `DATABASE_CA_CERT` en Render y Node 24 (`NODE_VERSION` del panel, si
+  está definida, manda sobre `.node-version`): Javier. Pasos en
+  docs/DESPLIEGUE.md.
 - Health check path en Render (`/health`, que ya devuelve 503 si la base
   no responde): Javier.
 - Borrar la copia de seguridad previa a la 016 a los 30 días: Javier.
