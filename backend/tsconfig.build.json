@@ -1,0 +1,7 @@
+{
+  // Build de producción: igual que tsconfig.json pero sin los tests, que importan
+  // ficheros de ../frontend (fuera del contexto del Dockerfile) y no deben
+  // desplegarse. `npm run typecheck` sigue usando tsconfig.json y los comprueba.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/__tests__"]
+}

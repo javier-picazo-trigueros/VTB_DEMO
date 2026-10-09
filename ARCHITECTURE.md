@@ -10,12 +10,13 @@ Browser (React 19 / Vite)
        │ Same-origin proxy (/backend/* via Vite in dev, Vercel rewrite in prod)
        │ Cookies: httpOnly, SameSite=Lax (access_token, refresh_token) + CSRF header
        ▼
-Express 5 backend (TypeScript / Node.js 20)
+Express 5 backend (TypeScript / Node.js)
        │                                     │
-       │ PostgreSQL (Supabase) via pg Pool    │ ethers.js (Relayer Queue + Sequential Nonces)
-       │ (SQLite fallback for unit tests)    ▼
-       ▼                             ElectionRegistryV2.sol
-  Postgres DB                        (Ethereum Sepolia)
+       │ PostgreSQL (Supabase, production)    │ ethers.js (Relayer Queue + Sequential Nonces)
+       │ SQLite or local Postgres in dev      ▼
+       │ and SQLite in-memory in tests   ElectionRegistryV2.sol
+       ▼                                 (Ethereum Sepolia)
+  Database
 ```
 
 ## Frontend
@@ -65,15 +66,19 @@ Express 5 backend (TypeScript / Node.js 20)
 |-----------------------------|------------------------------------------------------|
 | `index.ts`                  | Express 5 server entry point, port binding           |
 | `app.ts`                    | Middleware setup, route mounting, error handler      |
-| `config/database.ts`        | Database wrapper: PostgreSQL (`pg.Pool`) in prod, SQLite in test |
+| `db/index.ts`, `db/client.ts` | Picks the engine from `DB_CLIENT`: `PgClient` (PostgreSQL, production) or `SqliteAdapter` (default, local and tests) behind one interface |
+| `db/voteRecord.ts`          | `recordConfirmedVote`: the only writer of participation and vote, in one transaction |
+| `config/database.ts`        | SQLite schema (mirrors the PostgreSQL migrations)    |
 | `routes/auth.ts`            | Login, logout, refresh, password reset, profile CRUD |
-| `routes/elections.ts`       | Election listing, eligibility, register-vote, audit  |
-| `routes/admin.ts`           | Full admin CRUD, dashboard KPIs, CSV import          |
+| `routes/elections.ts`       | Election listing, eligibility, register-vote, results, audit |
+| `routes/admin/`             | Admin API split by area: `elections`, `election-census`, `users`, `org`, `action-log`; `shared.ts` holds the domain-scope helpers |
 | `routes/registration.ts`    | Registration request flow                            |
 | `routes/organizations.ts`   | Domain branding lookup                               |
-| `utils/auth.ts`             | JWT generation, cookie setters, bcrypt helpers       |
-| `utils/relayerQueue.ts`     | Relayer queue with sequential nonces and speedup     |
-| `scripts/seedDatabase.ts`   | Idempotent seed — ensures critical demo accounts     |
+| `middleware/`               | `auth` (JWT + `deleted_at` check, admin roles), `rateLimit`, `adminActionLog` |
+| `services/voteChain.ts`     | Chain port: relayer queue with sequential nonces and speedup, `getTally`, `findVote`, windowed `queryFilter` |
+| `services/candidatesRoot.ts`, `electionSalt.ts`, `retention.ts` | Candidate-list commitment, ephemeral nullifier salt, data-retention jobs |
+| `utils/auth.ts`             | JWT generation, cookie setters, bcrypt helpers, nullifier |
+| `scripts/seedDatabase.ts`   | Demo seed; refuses to run in production, without `ALLOW_SEED_RESET`, or against a non-local PostgreSQL |
 | `__tests__/`                | Vitest test suite (auth, nullifier, roles, chain)    |
 
 **Key dependencies:**
@@ -83,7 +88,7 @@ Express 5 backend (TypeScript / Node.js 20)
 | Express 5   | HTTP server                                      |
 | TypeScript  | Type safety                                      |
 | pg          | PostgreSQL client with connection pooling (`Pool`) |
-| sqlite3     | SQLite driver for fast, isolated unit test execution |
+| sqlite3     | SQLite driver: default engine in local development and the only one the tests use |
 | bcrypt      | Password hashing                                 |
 | jsonwebtoken| JWT sign + verify                                |
 | cookie-parser | Parse incoming cookie headers                  |
@@ -109,10 +114,11 @@ Express 5 backend (TypeScript / Node.js 20)
 
 **`ElectionRegistryV2` features:**
 - Stores election metadata (`name`, `startTime`, `endTime`, `candidateCount`, `candidatesRoot`, `censusRoot`, `halted`, `totalVotes`).
-- Mapping `hasVoted[electionId][nullifier] → bool` (on-chain double-vote prevention).
-- Mapping `votesPerCandidate[electionId][candidateId] → uint256` (on-chain tally per candidate).
-- Emits `VoteCast(uint256 indexed electionId, bytes32 indexed nullifier, uint256 indexed candidateId, uint256 timestamp)`.
-- Method: `castVote(uint256 electionId, bytes32 nullifier, uint256 candidateId)` restricted to `RELAYER_ROLE`.
+- Mapping `hasVoted[electionId][nullifier] → bool` (on-chain double-vote prevention; the nullifier is a `uint256`).
+- Mapping `votesFor[electionId][candidateId] → uint256` (on-chain tally per candidate), readable in one call with `getTally(electionId)`.
+- Emits `VoteCast(uint256 indexed electionId, uint256 indexed nullifier, uint256 indexed candidateId, uint256 timestamp)`.
+- Method: `castVote(uint256 electionId, uint256 nullifier, uint256 candidateId)` restricted to authorized relayers (`onlyRelayer`, backed by `mapping(address => bool) isRelayer`). `candidateId` is the candidate's **position** (0..n-1), not the database id.
+- Two keys: the **owner** (cold, outside the server) authorizes or revokes relayers, halts elections and transfers ownership; the **relayer** (hot, on the server) signs every vote. The owner can also authorize itself as a relayer, so its custody matters.
 
 ## Relayer Queue & Sequential Nonces
 
@@ -138,25 +144,25 @@ To prevent transaction collisions, nonce gaps, and stuck transactions when multi
 10. Frontend displays VoteSuccessModal with verified Etherscan link or pending status
 ```
 
-## All Accounts Follow the Same Flow
+## Demo Accounts
 
-There is **no demo bypass** or local synthetic vote mode:
-- All accounts (including `@vtb.demo`) submit real transactions to the Ethereum Sepolia smart contract.
-- If an election is pending synchronization or the blockchain is unreachable, the system fails closed with HTTP 503 for all users.
+- If an election is not synchronized (`chain_status !== 'synced'`), the system fails closed with HTTP 503 `ELECTION_NOT_ON_CHAIN` for **all** users, demo accounts included.
+- Real accounts always submit real transactions to the Ethereum Sepolia smart contract.
+- `@vtb.demo` accounts have a shortcut that exists **only** where demo accounts are enabled (`DEMO_LOGIN_ENABLED=true`, or the test suite): the vote is stored with `vote_source = 'demo'` and a NULL `tx_hash`, never a made-up hash, and it is not verifiable from outside. In production that flag is off, `/auth/demo-login` returns 404, and these accounts vote through the normal path.
 
 ## Data Model (PostgreSQL / Supabase)
 
 | Table              | Contents                                          |
 |--------------------|---------------------------------------------------|
-| `users`            | email, name, student_id, role, admin_domain, status, is_active, password_hash, token_version |
-| `elections`        | id, blockchain_id, chain_status, name, start/end_time, domains |
+| `users`            | email, name, student_id, role, admin_domain, is_approved, is_eligible, must_change_password, deleted_at, password_hash |
+| `elections`        | id, election_id_blockchain (from the `ElectionCreated` event), chain_status, chain_contract_address, name, start/end_time, is_active, ephemeral_salt |
 | `candidates`       | id, election_id, name, description, position      |
 | `election_voters`  | election_id, user_id (census)                     |
-| `vote_locks`       | user_id, election_id, nullifier, status (in_flight / confirmed / failed) |
+| `election_access`  | election_id, email_domain (which domains may vote; also the admin's scope) |
 | `election_participations` | election_id, user_id (quién ha votado; sin hora, sin id, sin nullifier) |
 | `nullifier_audit`  | id (UUID aleatorio), election_id, nullifier_hash, tx_hash, block_number, candidate_id, generated_at (al minuto), vote_source. Sin user_id (migración 016) |
 | `vote_attempts`    | user_id, election_id, nullifier_hash, tx_hash, status, error_detail. Se borra al confirmar el voto; caduca a las 24 h (fallidos) y 72 h (colgados) |
-| `refresh_tokens`   | id, user_id, token_hash, expires_at, revoked_at   |
+| `refresh_tokens`   | id, user_id, token_hash, expires_at, revoked      |
 | `registration_requests` | email, full_name, student_id, status, reviewed_at |
 | `org_units`        | domain, unit_name                                 |
 

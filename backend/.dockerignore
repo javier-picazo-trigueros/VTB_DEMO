@@ -17,3 +17,7 @@ coverage
 .idea
 instance
 database.sqlite
+
+# Ficheros de entorno: pueden llevar claves y no deben acabar dentro de la imagen
+.env.*
+!.env.example

@@ -10,7 +10,7 @@ import { getDbClient, isUniqueViolation, withTransaction, type DbClient } from "
 import { requireAdmin } from "../../middleware/auth.js";
 import { formatError } from "../../utils/errors.js";
 import { syncElectionsToBlockchain, isChainConfigured } from "../../scripts/syncElections.js";
-import { upload, isSuperAdmin, getAdminDomain, denyIfElectionOutOfScope } from "./shared.js";
+import { upload, isSuperAdmin, getAdminDomain, isSubDomain, denyIfElectionOutOfScope } from "./shared.js";
 
 const router = express.Router();
 const db = getDbClient();
@@ -82,6 +82,8 @@ router.get("/elections", requireAdmin, async (req: Request, res: Response) => {
 
     const electionList = elections || [];
     for (const election of electionList) {
+      // La sal efímera es la mitad del secreto del nullifier: no sale del servidor.
+      delete election.ephemeral_salt;
       const domains = await db.run<any>(
         "SELECT email_domain FROM election_access WHERE election_id = ?",
         [election.id]
@@ -321,6 +323,16 @@ router.put("/elections/:id", requireAdmin, async (req: Request, res: Response) =
 
     const { is_active, banner_color, target_type, target_description } = req.body;
 
+    const textoCorto = (v: unknown, max: number) => typeof v === 'string' && v.length <= max;
+    if (
+      (banner_color !== undefined && !(textoCorto(banner_color, 32) && /^[#\w(),.%\s-]*$/.test(banner_color))) ||
+      (target_type !== undefined && !textoCorto(target_type, 50)) ||
+      (target_description !== undefined && !textoCorto(target_description, 500))
+    ) {
+      res.status(400).json({ error: "Datos de la elección no válidos" });
+      return;
+    }
+
     const sets: string[] = ["updated_at = CURRENT_TIMESTAMP"];
     const params: any[] = [];
 
@@ -409,8 +421,14 @@ router.post("/elections/:id/image", requireAdmin, upload.single('file'), async (
       return;
     }
 
-    const base64 = req.file.buffer.toString('base64');
+    // El tipo lo declara el cliente y acaba dentro de un data: URL. Solo imágenes
+    // raster; sin SVG ni text/html.
     const mimeType = req.file.mimetype;
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mimeType)) {
+      res.status(400).json({ error: "Formato no admitido. Usa PNG, JPEG, WebP o GIF" });
+      return;
+    }
+    const base64 = req.file.buffer.toString('base64');
     const imageUrl = `data:${mimeType};base64,${base64}`;
 
     await db.exec("UPDATE elections SET image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [imageUrl, id]);
@@ -437,9 +455,33 @@ router.post("/elections/:id/domains", requireAdmin, async (req: Request, res: Re
       return;
     }
 
-    const election = await db.get("SELECT id FROM elections WHERE id = ?", [id]);
+    const election = await db.get<{ id: number; start_time: number }>(
+      "SELECT id, start_time FROM elections WHERE id = ?", [id],
+    );
     if (!election) {
       res.status(404).json({ error: "Elección no encontrada" });
+      return;
+    }
+
+    // Un admin de dominio solo puede abrir su elección a su propio dominio. Sin
+    // esto, con '*' o con el dominio de otra institución metía en el censo a
+    // gente que no es suya.
+    if (!isSuperAdmin(req)) {
+      const adminDomain = getAdminDomain(req);
+      const nuevo = String(domain).trim().toLowerCase();
+      if (!adminDomain || nuevo === '*' || !isSubDomain(nuevo, adminDomain)) {
+        res.status(403).json({ error: "Solo puedes añadir dominios dentro de tu propio dominio" });
+        return;
+      }
+    }
+
+    // El censo se congela al empezar la votación, como en /voters e /import-voters.
+    if (Math.floor(Date.now() / 1000) >= Number(election.start_time)) {
+      res.status(409).json({
+        error: "El censo de la elección está congelado porque la votación ya ha comenzado",
+        details: "No se pueden añadir dominios una vez abierta la votación.",
+        code: "CENSUS_FROZEN",
+      });
       return;
     }
 
@@ -499,7 +541,18 @@ router.post("/elections/:id/voters", requireAdmin, async (req: Request, res: Res
       return;
     }
 
-    const user = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email.trim()]);
+    // Mismo alcance que /import-voters: un admin de dominio solo censa a gente de
+    // su dominio. Se responde 404 y no 403 para no confirmar que la cuenta existe.
+    if (!isSuperAdmin(req)) {
+      const adminDomain = getAdminDomain(req);
+      const dominioVotante = email.trim().toLowerCase().split('@')[1] ?? '';
+      if (!adminDomain || !isSubDomain(dominioVotante, adminDomain)) {
+        res.status(404).json({ error: "Usuario no encontrado" });
+        return;
+      }
+    }
+
+    const user = await db.get<{ id: number }>("SELECT id FROM users WHERE email = ? AND deleted_at IS NULL", [email.trim()]);
     if (!user) {
       res.status(404).json({ error: "Usuario no encontrado" });
       return;

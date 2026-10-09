@@ -45,6 +45,22 @@ export const requireAuth = async (
     res.status(401).json({ error: 'Token inválido o expirado' });
     return;
   }
+  // El JWT dura 15 min y no sabe de bajas: sin esta consulta, una cuenta dada de
+  // baja (o borrada por su titular, art. 17 RGPD) seguiría entrando en toda ruta
+  // que no mire deleted_at por su cuenta. requireAdmin ya hacía lo mismo.
+  try {
+    const row = await getDbClient().get<{ id: number }>(
+      'SELECT id FROM users WHERE id = ? AND deleted_at IS NULL',
+      [decoded.userId],
+    );
+    if (!row) {
+      res.status(401).json({ error: 'Token inválido o expirado' });
+      return;
+    }
+  } catch {
+    res.status(500).json({ error: 'Error de autenticación' });
+    return;
+  }
   req.user = {
     userId: decoded.userId,
     email: decoded.email,

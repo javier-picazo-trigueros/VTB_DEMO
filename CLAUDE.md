@@ -20,6 +20,121 @@ Proyecto de Javier Picazo y Jaime Ordovás, Ingeniería Informática (UFV).
 
 ---
 
+## Cómo programar aquí
+
+### Primero el test, después el código (TDD)
+
+Para todo cambio de comportamiento —función nueva, arreglo, regla de
+negocio— el orden es este, y no se salta:
+
+1. **Escribe el test** que describe lo que debe pasar, en
+   `backend/src/__tests__/` (con los helpers de `helpers/fixtures.ts`).
+2. **Ejecútalo y comprueba que falla**, y que falla *por la razón
+   correcta*. Un test que nunca ha fallado no demuestra nada.
+3. **Escribe lo mínimo** para que pase. Nada más.
+4. **Vuelve a ejecutar** ese test y después la suite entera, más
+   `npx tsc --noEmit`.
+5. **Refactoriza** solo con los tests en verde.
+
+Reglas de los tests:
+
+- Un arreglo de bug empieza por un test que reproduce el bug.
+- Se prueban **los dos lados**: lo que se deniega y lo que sigue
+  pudiendo hacer quien debe. Un guard que deniega a todos deja verde un
+  test que solo mira el rechazo.
+- Aserciones exactas (`toBe(409)`), no `not.toBe(404)`: un `not` pasa
+  también cuando la ruta falla por otro motivo.
+- Datos de test con valores propios (dominio, email, elección con
+  fechas futuras o pasadas según el caso). Que un test pase porque la
+  elección "ya empezó" y la ruta cortó antes de llegar a lo que querías
+  probar es un test que no prueba nada.
+- Ningún test depende del orden de otros ni de datos que dejó otro.
+- Nunca contra Supabase (ver más abajo).
+
+Excepción razonable: texto de interfaz, estilos y documentación no
+llevan test previo. Se comprueban con `npm run build` y mirándolo.
+
+### Simplicidad
+
+- **La solución más simple que cumpla el requisito.** Si dudas entre dos,
+  la que tiene menos piezas.
+- **No construyas para un futuro que nadie ha pedido**: nada de
+  parámetros, opciones, capas o abstracciones "por si acaso".
+- **No abstraigas hasta la tercera repetición.** Dos copias son
+  tolerables; una abstracción prematura cuesta más que duplicar.
+- **Reutiliza antes de escribir**: busca en el repo (`shared.ts`,
+  `utils/`, `db/`, `helpers/`) si ya existe. No inventes dependencias.
+- **Funciones cortas, un solo cometido.** Si necesitas "y" para
+  describirla, son dos funciones.
+- **Borra el código muerto** que encuentres en lo que tocas; no lo
+  comentes ni lo dejes "por si acaso" (para eso está git).
+- **Un cambio, un motivo.** No mezcles arreglo, refactor y estilo en el
+  mismo commit.
+
+### Errores tontos que ya nos han pasado
+
+- **SQL siempre parametrizado** (`?`). Nunca se interpolan datos del
+  usuario; solo nombres de columna fijos escritos en el código.
+- **Toda entrada se valida** (zod en el backend): tipo, longitud y
+  formato. No guardes `req.body` tal cual.
+- **Autorización en el servidor, siempre.** Que el frontend oculte un
+  botón no protege nada. Cada ruta con `:id` comprueba que ese recurso
+  es del que pregunta; si no lo es, 404 (un 403 confirma que existe).
+- **Cualquier guard con `if (x && …)` falla abierto.** Si falta `x`,
+  se deniega, no se salta la comprobación.
+- **Los errores de ethers y de BD no se vuelcan enteros** a un log ni a
+  la respuesta: `formatError`. Contienen transacciones firmadas,
+  hosts y ids.
+- **Nada de secretos, claves ni URLs con credenciales** en código,
+  tests, logs, documentación ni mensajes de commit. Si hace falta uno,
+  se pide al usuario y se para.
+- **`SELECT *` no se devuelve al cliente.** Se eligen las columnas; si
+  no, mañana alguien añade una columna secreta y sale por la API.
+- **Lo que termina en una consulta, un fichero o un `data:` URL se
+  trata como hostil**: whitelist de tipos MIME, de dominios, de valores.
+- **Comprueba la hora en segundos o milisegundos**: la BD guarda
+  segundos Unix, `Date.now()` da milisegundos.
+- **Si cambias un estado o una regla, busca todos los sitios que la
+  repiten** (`grep`) antes de darlo por hecho. Casi todos los fallos de
+  este proyecto fueron un sitio que se quedó atrás.
+- **Un test que pasa tras tu cambio no prueba que lo cubra**: rompe el
+  arreglo a propósito y comprueba que el test falla.
+
+### Estilo y coherencia
+
+Escribe como el código que ya hay alrededor; ante la duda, abre un
+fichero vecino.
+
+- **Idioma:** comentarios, mensajes de error al usuario y mensajes de
+  commit en **español**. Identificadores de código en inglés o como ya
+  estén en el fichero (`election_participations`, `recordConfirmedVote`).
+- **Comentarios: el porqué, no el qué.** Si el código se explica solo,
+  no lleva comentario. Si hay una decisión no obvia (un `404` en vez de
+  `403`, un orden de operaciones), se explica en una o dos líneas.
+- **TypeScript:** sin `any` nuevo salvo que no haya alternativa
+  razonable; `const` por defecto; `async/await`, no cadenas de `.then`;
+  imports con extensión `.js` en el backend, como el resto.
+- **Backend:** rutas finas, lógica en `services/` y `db/`; una única
+  instancia `getDbClient()`; respuestas de error con `{ error: "…" }` y,
+  cuando el frontend deba distinguirlas, un `code` estable
+  (`CENSUS_FROZEN`).
+- **Frontend:** todo texto visible va por i18n en **es y en**; llamadas
+  solo por `apiClient`; sin emojis ni glifos decorativos (iconos de
+  `Icons.jsx`); colores y estilos con los del resto de la app.
+- **Nombres:** descriptivos y completos (`electionId`, no `eid`); un
+  booleano se lee como pregunta (`isActive`, `hasVoted`).
+- **Formato:** el que ya tiene el fichero (sangría, comillas, punto y
+  coma). No reformatees líneas que no tocas: ensucia el diff.
+- **Commits:** un tema por commit, en español y en imperativo o
+  descriptivo, con prefijo `fix(…)`, `feat(…)`, `test(…)`, `docs(…)`,
+  `chore(…)`, como en el historial. Sin referencias a Claude (ver
+  arriba).
+- **Antes de dar algo por terminado:** `npm test` y `npx tsc --noEmit`
+  en el backend; `npm run build` y `npm run lint` en el frontend; y
+  `git diff` para comprobar que solo cambió lo que querías.
+
+---
+
 ## Cosas que NO hay que romper
 
 Esto es lo más importante del documento. Todo lo de esta sección se
@@ -67,14 +182,39 @@ seguridad aparte de mirar si la base está vacía: una base recién
 migrada en producción tiene 0 usuarios, y solo con la comprobación
 antigua eso bastaba para sembrarla igual.
 
-### Desarrollo es SQLite local, no un segundo Supabase
+### Desarrollo no toca la base de producción
 
-El único proyecto de Supabase que existe es producción. Para
-desarrollar se usa SQLite (`DB_CLIENT=sqlite`, el valor por defecto).
-Si alguna vez hace falta PostgreSQL en local es un proyecto propio y
-aparte, con sus propios secretos (`JWT_SECRET`, `NULLIFIER_SECRET`,
-contraseñas del seed) — nunca los de producción. El `.env` local no
-apunta a la `DATABASE_URL` de producción bajo ningún concepto.
+Hay **un único proyecto de Supabase para VTB** (`VTB`, Frankfurt, ref
+`pxqejrptikoqoaokoqaq`) y es **producción**: Render lo usa y tiene datos
+y votos reales. No existe un Supabase de desarrollo.
+
+Para desarrollar se usa una base **local**:
+
+- **SQLite** (`DB_CLIENT=sqlite`, el valor por defecto si no defines la
+  variable), o
+- **PostgreSQL en Docker** si hace falta el mismo motor que producción
+  (comandos en SETUP.md, "Si usas PostgreSQL"; requiere Docker Desktop
+  arrancado y `?sslmode=disable` en la URL).
+
+El `.env` local no apunta a la `DATABASE_URL` de producción, ni un
+momento para probar algo. Si algún día se crea un proyecto de desarrollo,
+tendrá sus propios `JWT_SECRET`, `NULLIFIER_SECRET` y contraseñas del
+seed.
+
+Salvaguarda en código: con `DB_CLIENT=postgres`, `seed` y `seed:reset` se
+niegan a ejecutarse salvo que `DATABASE_URL` apunte a `localhost`,
+`127.0.0.1` o `::1`. `SEED_REMOTE_DB_OK=true` lo salta para un proyecto
+remoto **de desarrollo**; nunca se define contra producción. Lo vigila
+`seed-env-guard.test.ts`.
+
+**Pendiente, con dueño (Javier):** a 07-10-2026 su `backend/.env` seguía
+apuntando al proyecto de producción (comprobado comparando el
+identificador, sin leer credenciales). Hay que cambiarlo a SQLite o a un
+PostgreSQL en Docker. Hasta entonces, un `npm run dev` con ese fichero
+trabaja sobre la base real: no se emiten votos con cuentas reales, no se
+aplican migraciones sin copia previa (la 016 es irreversible) y
+`ALLOW_SEED_RESET` no se define. `DEMO_LOGIN_ENABLED=true` solo en local:
+en Render va desactivado y `/auth/demo-login` responde 404 (comprobado).
 
 ### No meter datos personales en la cadena
 
@@ -175,9 +315,11 @@ Son dos claves distintas y se custodian por separado (BC-05):
   detiene elecciones y traspasa la propiedad.
 
 `scripts/deploy.ts` aborta en una red real si el owner y el relayer son
-la misma dirección. El owner no puede tocar el recuento ni añadir o
-borrar votos; si el servidor se ve comprometido, revoca su relayer sin
-redesplegar el contrato y sin perder el histórico.
+la misma dirección. El owner no puede borrar ni reescribir votos ya
+emitidos, pero **sí podría autorizarse a sí mismo como relayer y emitir
+votos nuevos** (`setRelayer`), así que su custodia fría importa. Si el
+servidor se ve comprometido, revoca su relayer sin redesplegar el
+contrato y sin perder el histórico.
 
 ---
 
@@ -212,11 +354,15 @@ npm run dev
 Abre `http://localhost:3000`. El backend está en `:3001`.
 
 En el log del backend deben salir "Usando PostgreSQL como motor de BD"
-y "VTB Backend iniciado".
+(o "Usando SQLite" si `DB_CLIENT` no es `postgres`) y "VTB Backend
+iniciado". Sin `DB_CLIENT` arranca en SQLite, que es lo normal en local.
+**Si tu `.env` tiene la `DATABASE_URL` de Supabase, estás sobre la base de
+producción**: lee "Desarrollo no toca la base de producción" arriba.
 
-Variables imprescindibles en `backend/.env`: `DATABASE_URL`,
-`DB_CLIENT=postgres`, `FRONTEND_URL=http://localhost:3000`,
-`JWT_SECRET`, `NULLIFIER_SECRET`, y los `SEED_*`.
+Variables imprescindibles en `backend/.env`: `FRONTEND_URL=http://localhost:3000`,
+`JWT_SECRET`, `NULLIFIER_SECRET`, `CORS_ORIGINS` (con `http://localhost:3000`)
+y los `SEED_*` obligatorios si vas a sembrar. `DB_CLIENT=postgres` y
+`DATABASE_URL` solo con un PostgreSQL **local**.
 
 `NODE_ENV` debe ser `development` en local, o las cookies llevan
 `Secure` y el navegador las rechaza sobre HTTP.
@@ -247,6 +393,20 @@ Ver **SETUP.md** para el detalle completo.
   envío: nunca se guardan en claro en `email_log`
 - Ningún `catch` debe volcar el objeto de error completo de ethers:
   contiene la transacción firmada
+- `requireAuth` consulta `deleted_at` en cada petición: una cuenta de
+  baja pierde la sesión al instante (401), no a los 15 minutos del JWT
+- JWT fijado a HS256 al firmar y al verificar
+- CORS: los orígenes de `localhost` solo se admiten fuera de producción
+- El atajo de voto `@vtb.demo` (fuera de cadena) solo existe con
+  `DEMO_LOGIN_ENABLED=true` o en tests; en producción esas cuentas votan
+  por el camino normal
+- Un admin de dominio solo gestiona lo de su dominio (solicitudes,
+  dominios de una elección, votantes). Sin `admin_domain`, no alcanza
+  nada; solo el superadmin ve todo
+- `ephemeral_salt` no sale del servidor, y no se destruye por ocultar una
+  elección (`is_active`), solo al vencer `end_time`
+- Lecturas públicas que consultan la cadena (`GET /api/elections/:id` y
+  `/:id/results`) llevan límite por IP
 
 ---
 
@@ -258,33 +418,65 @@ Ver **SETUP.md** para el detalle completo.
    `ElectionRegistryV2`: `castVote` lleva el candidato y `getTally()`
    permite recontar desde fuera. El procedimiento para un tercero está
    en `RECUENTO_INDEPENDIENTE.md`.
-   Pendiente: dejar el despliegue operativo — el relayer del servidor
-   sigue sin autorizar en el contrato — y el corte de las elecciones
-   que siguen en el contrato anterior.
+   Estado en Sepolia, leído de la cadena el 07-10-2026: el contrato v2
+   (`0x124759Cc…F607`, bloque 11724119, registrado en
+   `blockchain/deployments/sepolia.json`) tiene el relayer
+   `0x5D73…D572` **autorizado** (`isRelayer` = true), el owner es otra
+   dirección (`0x8780…9d6b`) y `getElectionCount()` es 0: todavía no se
+   ha creado ninguna elección en el v2.
+   Pendiente: comprobar que Render usa `CONTRACT_ADDRESS` y
+   `DEPLOY_BLOCK` del v2 (el `.env` local sigue en el v1 `0x9211…`), crear
+   la primera elección en el v2 y recontarla con `RECUENTO_INDEPENDIENTE.md`,
+   y el corte de las elecciones que siguen en el contrato anterior.
 3. **Salir de Sepolia.** Es una red de pruebas sin garantías. La opción
    natural es Alastria.
 4. **Documentación legal.** Política de privacidad, registro de
    tratamientos, contratos de encargado del tratamiento con los
-   proveedores, declaración de accesibilidad. No existe nada, y es lo
-   que va a parar un piloto en el servicio jurídico de una universidad,
-   no el código.
+   proveedores, declaración de accesibilidad. Las páginas existen en
+   `frontend/src/pages/legal/` pero tienen unos 29 `[RELLENAR]`, y faltan
+   el registro de tratamientos y los contratos de encargado. Es lo que
+   va a parar un piloto en el servicio jurídico de una universidad, no
+   el código.
 
 ---
 
-## Contexto adicional
+## Documentación
 
-- **CAMBIOS_VERANO_2026.md** — el paso al contrato v2 y lo que
-  arrastra: base de datos, camino del voto y resultados.
+Raíz:
+
+- **SETUP.md** — puesta en marcha en local y variables de entorno.
+- **SEGURIDAD.md** — qué garantiza el sistema y qué no, escrito para
+  un comité electoral. Lo lee `seguridad-claims.test.ts`.
+- **ARCHITECTURE.md** — arquitectura, modelo de datos y flujo del voto.
+  Lo lee `architecture-claims.test.ts`.
 - **RECUENTO_INDEPENDIENTE.md** — cómo recuenta una elección alguien
   de fuera, sin credenciales nuestras. Es el entregable que sostiene
   la tesis del proyecto.
-- **SEGURIDAD.md** — qué garantiza el sistema y qué no, escrito para
-  un comité electoral.
-- **SETUP.md** — puesta en marcha, verificada en clon limpio.
-- **ARCHITECTURE.md** — arquitectura del sistema.
 
-Cada desarrollador usa su propia base de Supabase para desarrollar. No
-uses la del otro: un `seed:reset` borra sus datos.
+`docs/`:
+
+- **DESARROLLO.md** — flujo de ramas, todos los scripts, cadena local de
+  Hardhat y problemas frecuentes.
+- **DESPLIEGUE.md** — Render, Vercel, Supabase, contrato y cómo verificar
+  un despliegue.
+- **API.md** — referencia de endpoints.
+- **CAMBIOS_VERANO_2026.md** — el paso al contrato v2 y lo que
+  arrastra: base de datos, camino del voto y resultados.
+- **PROGRESO_PLAN.md** — estado frente al plan de trabajo de julio.
+- **historico/** — auditorías pasadas, solo para trazar sus hallazgos
+  (el código las cita por id: P1-xx, BC-xx, C-1, M-1…). No describen el
+  estado actual.
+
+Regla: **un hecho se documenta en un solo sitio** y los demás documentos
+enlazan a él. Los informes "foto de una fecha" (estado, inventarios,
+cierres de sprint) no se guardan en el repositorio: caducan a la semana
+y acaban contradiciendo al código. Si cambias una ruta, un script o una
+variable, busca con `grep` el documento que la menciona y corrígelo en
+el mismo commit.
+
+No hay una base de Supabase por desarrollador: la única es producción
+(ver "Desarrollo no toca la base de producción"). Cada uno desarrolla en
+su SQLite o en su PostgreSQL local.
 
 ---
 
@@ -336,9 +528,9 @@ Lo que ya está en las reglas de arriba no se repite aquí.
   no responde): Javier.
 - Borrar la copia de seguridad previa a la 016 a los 30 días: Javier.
 - Plazo de conservación de `nullifier_audit`: decidir juntos.
-- `docker-compose.yml` y `frontend/nginx.conf` están rotos (`nginx.conf` es
-  un script de PowerShell y no hay proxy a `/backend`). Decidir si se
-  arreglan o se borran: los dos.
+- `docker-compose.yml` y `frontend/nginx.conf` arreglados (07-10-2026): stack local con
+  nginx que hace de proxy de `/backend`, comprobado de punta a punta con las imágenes
+  construidas. No probado: el perfil `dev` (Hardhat en Docker). Ver docs/DESARROLLO.md.
 
 ### Cómo comprobar en local que todo va
 

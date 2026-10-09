@@ -121,6 +121,24 @@ describe('Parte 4: Sal efímera — destrucción al cerrar (destroyElectionSaltI
     expect(election?.ephemeral_salt).toBe(salt);
   });
 
+  it('no destruye la sal de una elección ocultada (is_active=0) que aún no ha vencido', async () => {
+    // Ocultar una elección y volver a mostrarla no debe cambiar los nullifiers.
+    const futureTime = Math.floor(Date.now() / 1000) + 3600;
+    const salt = crypto.randomBytes(32).toString('hex');
+    const res = await db.exec(
+      `INSERT INTO elections (election_id_blockchain, name, description, start_time, end_time, is_active, ephemeral_salt)
+       VALUES (?, 'Elección Oculta', 'Test', 1000, ?, 0, ?)`,
+      [900302, futureTime, salt],
+    );
+    const electionId = res.lastID;
+
+    expect(await destroyElectionSaltIfComplete(electionId, db)).toBe(false);
+    const election = await db.get<{ ephemeral_salt: string | null }>(
+      'SELECT ephemeral_salt FROM elections WHERE id = ?', [electionId],
+    );
+    expect(election?.ephemeral_salt).toBe(salt);
+  });
+
   it('no destruye la sal mientras haya un voto pendiente real (acquireVoteLock) en esa elección', async () => {
     setVotePortForTesting({
       castVote: vi.fn(async () => ({ txHash: '0x' + 'aa'.repeat(32), blockNumber: null, status: 'pending_confirmation' as const })),

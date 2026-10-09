@@ -81,9 +81,9 @@ export const Landing = () => {
   ];
 
   const blockchainCards = [
-    { accent: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300", title: t("landing.zeroTrustTitle"), text: t("landing.zeroTrustText") },
-    { accent: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300", title: t("landing.privateTitle"), text: t("landing.privateText") },
-    { accent: "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300", title: t("landing.auditableTitle"), text: t("landing.auditableText") },
+    { accent: "bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-100", title: t("landing.zeroTrustTitle"), text: t("landing.zeroTrustText") },
+    { accent: "bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-100", title: t("landing.privateTitle"), text: t("landing.privateText") },
+    { accent: "bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-100", title: t("landing.auditableTitle"), text: t("landing.auditableText") },
   ];
 
   const institutions = [
@@ -181,7 +181,7 @@ export const Landing = () => {
               {isAuthenticated && (hasRole("admin") || hasRole("superadmin")) && (
                 <button
                   onClick={() => navigate("/admin")}
-                  className="rounded bg-emerald-700 px-8 py-4 text-base font-semibold text-white transition-colors hover:bg-emerald-800"
+                  className="rounded bg-brand-600 px-8 py-4 text-base font-semibold text-white transition-colors hover:bg-brand-700"
                 >
                   {t("landing.adminPanel")}
                 </button>
@@ -270,7 +270,7 @@ export const Landing = () => {
                 viewport={{ once: true }}
                 className="relative rounded-2xl border border-slate-200 bg-white p-8 transition hover:shadow-lg dark:border-slate-700 dark:bg-slate-800"
               >
-                <div className="mb-2 text-5xl font-black leading-none text-blue-600/20 dark:text-blue-500/20">{step.number}</div>
+                <div className="mb-2 text-5xl font-black leading-none text-brand-600/20 dark:text-blue-500/20">{step.number}</div>
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 font-black text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                   {step.icon}
                 </div>
@@ -336,13 +336,13 @@ export const Landing = () => {
                 +
               </div>
               <h3 className="mb-3 font-bold text-slate-900 dark:text-white">{t("landing.yourInstitution")}</h3>
-              <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{t("landing.contactUs")}</span>
+              <span className="text-sm font-bold text-brand-600 dark:text-brand-300">{t("landing.contactUs")}</span>
             </button>
           </div>
         </div>
       </section>
 
-      <section className="bg-blue-600 py-8 dark:bg-blue-700">
+      <section className="bg-brand-600 py-8 dark:bg-brand-700">
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-4 text-center sm:px-6 md:grid-cols-4 lg:px-8">
           {[
             { value: stats?.totalElections, label: t("landing.statsElections") },
@@ -370,13 +370,13 @@ export const Landing = () => {
               <p className="text-sm text-slate-500 dark:text-slate-500">{t("appTagline")}</p>
             </div>
             <div className="flex justify-center gap-5 text-sm">
-              <button onClick={() => navigate("/landing")} className="text-slate-600 transition hover:text-blue-600 dark:text-slate-400 dark:hover:text-white">
+              <button onClick={() => navigate("/landing")} className="text-slate-600 transition hover:text-brand-600 dark:text-slate-400 dark:hover:text-white">
                 {t("landing.home")}
               </button>
-              <button onClick={() => navigate("/transparency")} className="text-slate-600 transition hover:text-blue-600 dark:text-slate-400 dark:hover:text-white">
+              <button onClick={() => navigate("/transparency")} className="text-slate-600 transition hover:text-brand-600 dark:text-slate-400 dark:hover:text-white">
                 {t("landing.transparency")}
               </button>
-              <button onClick={() => navigate("/register-request")} className="text-slate-600 transition hover:text-blue-600 dark:text-slate-400 dark:hover:text-white">
+              <button onClick={() => navigate("/register-request")} className="text-slate-600 transition hover:text-brand-600 dark:text-slate-400 dark:hover:text-white">
                 {t("landing.requestAccess")}
               </button>
             </div>

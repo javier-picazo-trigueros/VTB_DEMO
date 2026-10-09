@@ -13,7 +13,7 @@ version: 2
 #                        mirando el CI.
 #   <area>-major       → TODOS los mayores de la semana en UN solo PR.
 #
-# El motivo es concreto y está documentado en CIERRE_SPRINT_1.md: en septiembre
+# El motivo es concreto: en septiembre
 # de 2026 entraron 19 PRs de Dependabot de uno en uno y, entre ellos, Express
 # 4→5 y React 18→19 se fusionaron sin que nadie evaluara la migración. El build
 # de producción quedó roto un rato, y el backend dejó de compilar sin que nadie

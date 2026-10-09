@@ -12,6 +12,10 @@ import QRCode from 'react-qr-code';
 import { api } from "../utils/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { ActionLogTab } from "../components/ActionLogTab";
+import {
+  ChartBarIcon, InboxIcon, UsersIcon, CheckCircleIcon, TrendUpIcon, LockIcon, ClipboardListIcon,
+  GlobeIcon, BuildingIcon, BoltIcon, LinkIcon, WarningIcon,
+} from "../components/Icons";
 
 /**
  * Clases completas y literales para los KPI de estadísticas.
@@ -27,7 +31,7 @@ const KPI_TONES = {
   blue: {
     box:   'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800',
     value: 'text-blue-700 dark:text-blue-300',
-    label: 'text-blue-600 dark:text-blue-400',
+    label: 'text-brand-600 dark:text-brand-300',
   },
   emerald: {
     box:   'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800',
@@ -46,17 +50,21 @@ const KPI_TONES = {
  * dentro, React lo trataba como un componente nuevo en cada render (y eslint
  * lo marcaba en cada uso, react-hooks/static-components).
  */
-function TabButton({ id, label, icon, badge, active, onSelect }) {
+function TabButton({ id, label, icon: Icon, badge, active, onSelect }) {
   return (
     <button
-      data-tour={id === "inbox" ? "requests-tab" : id === "stats" ? "stats-tab" : undefined}
+      // Los tres objetivos del tutorial son botones de pestaña: están siempre en
+      // pantalla. "create-election" estaba en el formulario de crear usuarios
+      // (pestaña "users"), que no existe al abrir /admin: el paso 2 no encontraba
+      // su objetivo y el tutorial se cerraba.
+      data-tour={id === "inbox" ? "requests-tab" : id === "stats" ? "stats-tab" : id === "elections" ? "create-election" : undefined}
       onClick={() => onSelect(id)}
       className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${active
-          ? "bg-emerald-500 text-white"
-          : "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+          ? "bg-brand-600 text-white"
+          : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
         }`}
     >
-      {icon} {label}
+      {Icon && <Icon className="w-4 h-4" />} {label}
       {badge != null && (
         <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
           {badge}
@@ -737,13 +745,13 @@ export const AdminPanel = () => {
 
         {/* Tabs */}
         <div className="mt-8 flex flex-wrap gap-3 mb-8">
-          <TabButton id="dashboard" active={activeTab === "dashboard"} onSelect={setActiveTab} label={t("admin.dashboard")} icon="📊" />
-          <TabButton id="inbox" active={activeTab === "inbox"} onSelect={setActiveTab} label={t("admin.requests")} icon="📬" badge={pendingBadge > 0 ? pendingBadge : null} />
-          <TabButton id="users" active={activeTab === "users"} onSelect={setActiveTab} label={t("admin.users")} icon="👥" />
-          <TabButton id="elections" active={activeTab === "elections"} onSelect={setActiveTab} label={t("admin.elections")} icon="🗳️" />
-          <TabButton id="stats" active={activeTab === "stats"} onSelect={setActiveTab} label={t("admin.statistics")} icon="📈" />
-          <TabButton id="audit" active={activeTab === "audit"} onSelect={setActiveTab} label={t("admin.audit")} icon="🔐" />
-          <TabButton id="actions" active={activeTab === "actions"} onSelect={setActiveTab} label={t("admin.actionLogTab")} icon="📝" />
+          <TabButton id="dashboard" active={activeTab === "dashboard"} onSelect={setActiveTab} label={t("admin.dashboard")} icon={ChartBarIcon} />
+          <TabButton id="inbox" active={activeTab === "inbox"} onSelect={setActiveTab} label={t("admin.requests")} icon={InboxIcon} badge={pendingBadge > 0 ? pendingBadge : null} />
+          <TabButton id="users" active={activeTab === "users"} onSelect={setActiveTab} label={t("admin.users")} icon={UsersIcon} />
+          <TabButton id="elections" active={activeTab === "elections"} onSelect={setActiveTab} label={t("admin.elections")} icon={CheckCircleIcon} />
+          <TabButton id="stats" active={activeTab === "stats"} onSelect={setActiveTab} label={t("admin.statistics")} icon={TrendUpIcon} />
+          <TabButton id="audit" active={activeTab === "audit"} onSelect={setActiveTab} label={t("admin.audit")} icon={LockIcon} />
+          <TabButton id="actions" active={activeTab === "actions"} onSelect={setActiveTab} label={t("admin.actionLogTab")} icon={ClipboardListIcon} />
         </div>
 
         {/* Content */}
@@ -804,16 +812,16 @@ export const AdminPanel = () => {
                   <div className="flex flex-wrap gap-2">
                     {isSuperAdmin ? (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm font-medium">
-                        🌐 Super admin — todas las instituciones
+                        <GlobeIcon className="w-4 h-4" /> Super admin — todas las instituciones
                       </span>
                     ) : adminDomain && (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium">
-                        🏛️ Gestionando: @{adminDomain}
+                        <BuildingIcon className="w-4 h-4" /> Gestionando: @{adminDomain}
                       </span>
                     )}
                     {!isSuperAdmin && stats.pendingRequests > 0 && (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-sm font-medium">
-                        📬 {stats.pendingRequests} solicitudes pendientes
+                        <InboxIcon className="w-4 h-4" /> {stats.pendingRequests} solicitudes pendientes
                       </span>
                     )}
                   </div>
@@ -821,12 +829,12 @@ export const AdminPanel = () => {
                   {/* KPI Cards */}
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     {[
-                      { key: "totalUsers", icon: "👥", value: stats.totalUsers, badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", subKey: "registeredAccounts" },
-                      { key: "pendingRequests", icon: "📬", value: stats.pendingRequests, badgeClass: stats.pendingRequests > 0 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", subKey: "awaitingApproval" },
-                      { key: "totalElections", icon: "🗳️", value: stats.totalElections, badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300", subKey: "allElections" },
-                      { key: "activeElections", icon: "⚡", value: stats.activeElections, badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300", subKey: "currentlyRunning" },
-                      { key: "totalVotes", icon: "🔐", value: stats.totalVotes, badgeClass: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300", subKey: "nullifiersIssued" },
-                    ].map(({ key, icon, value, badgeClass, subKey }) => (
+                      { key: "totalUsers", icon: UsersIcon, value: stats.totalUsers, badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", subKey: "registeredAccounts" },
+                      { key: "pendingRequests", icon: InboxIcon, value: stats.pendingRequests, badgeClass: stats.pendingRequests > 0 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", subKey: "awaitingApproval" },
+                      { key: "totalElections", icon: CheckCircleIcon, value: stats.totalElections, badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300", subKey: "allElections" },
+                      { key: "activeElections", icon: BoltIcon, value: stats.activeElections, badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300", subKey: "currentlyRunning" },
+                      { key: "totalVotes", icon: LockIcon, value: stats.totalVotes, badgeClass: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300", subKey: "nullifiersIssued" },
+                    ].map(({ key, icon: Icon, value, badgeClass, subKey }) => (
                       <motion.div
                         key={key}
                         whileHover={{ scale: 1.02 }}
@@ -841,7 +849,7 @@ export const AdminPanel = () => {
                         className="cursor-pointer bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-150 hover:-translate-y-0.5"
                       >
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-2xl">{icon}</span>
+                          <Icon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
                           <span className={`text-xs font-medium px-2 py-1 rounded-full ${badgeClass}`}>
                             {t(`admin.${key}`)}
                           </span>
@@ -859,7 +867,9 @@ export const AdminPanel = () => {
                         ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
                         : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
                     }`}>
-                      <span className="text-2xl">{blockchainStatus.connected ? '⛓️' : '⚠️'}</span>
+                      {blockchainStatus.connected
+                        ? <LinkIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                        : <WarningIcon className="w-6 h-6 text-amber-600 dark:text-amber-400" />}
                       <div className="flex-1 min-w-0">
                         <p className={`font-semibold ${blockchainStatus.connected ? 'text-emerald-800 dark:text-emerald-200' : 'text-amber-800 dark:text-amber-200'}`}>
                           {blockchainStatus.connected ? 'Blockchain conectada' : 'Blockchain no disponible'}
@@ -880,7 +890,7 @@ export const AdminPanel = () => {
                       <button
                         onClick={handleSyncBlockchain}
                         disabled={syncing}
-                        className="shrink-0 text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition font-medium"
+                        className="shrink-0 text-xs px-3 py-1.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg transition font-medium"
                       >
                         {syncing ? 'Sincronizando…' : 'Sincronizar elecciones'}
                       </button>
@@ -922,10 +932,10 @@ export const AdminPanel = () => {
                                   <td className="py-2 text-slate-800 dark:text-slate-200 font-medium truncate max-w-[140px]">{ep.name}</td>
                                   <td className="py-2 text-right text-slate-600 dark:text-slate-400">{ep.total_voters}</td>
                                   <td className="py-2 text-right text-slate-600 dark:text-slate-400">{ep.votes_cast}</td>
-                                  <td className="py-2 text-right font-semibold text-blue-600 dark:text-blue-400">{ep.rate ?? 0}%</td>
+                                  <td className="py-2 text-right font-semibold text-brand-600 dark:text-brand-300">{ep.rate ?? 0}%</td>
                                   <td className="py-2 pl-3 w-24">
                                     <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2">
-                                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(ep.rate ?? 0, 100)}%` }} />
+                                      <div className="bg-brand-500 h-2 rounded-full" style={{ width: `${Math.min(ep.rate ?? 0, 100)}%` }} />
                                     </div>
                                   </td>
                                 </tr>
@@ -1026,7 +1036,6 @@ export const AdminPanel = () => {
                   )}
                   {/* Form */}
                   <motion.div
-                    data-tour="create-election"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"
@@ -1091,7 +1100,7 @@ export const AdminPanel = () => {
                         whileTap={{ scale: 0.95 }}
                         type="submit"
                         disabled={loading}
-                        className="md:col-span-2 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50"
+                        className="md:col-span-2 py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg transition disabled:opacity-50"
                       >
                         {loading ? t("admin.creatingUser") : t("admin.createNewUser")}
                       </motion.button>
@@ -1125,7 +1134,7 @@ export const AdminPanel = () => {
                       />
                       <label
                         htmlFor="csv-users-import"
-                        className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
+                        className="cursor-pointer px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 transition"
                       >
                         Importar CSV de usuarios
                       </label>
@@ -1267,7 +1276,7 @@ export const AdminPanel = () => {
                           className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                         />
                         <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
-                          <span aria-hidden="true">⚠️</span>
+                          <WarningIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
                           <span>Este nombre se publica para siempre en una cadena de bloques pública (Ethereum) y no se puede borrar ni corregir después. No pongas nombres, apellidos ni ningún otro dato personal.</span>
                         </p>
                       </div>
@@ -1326,7 +1335,7 @@ export const AdminPanel = () => {
                               onClick={() => setNewElection(p => ({ ...p, voter_role: value }))}
                               className={`p-3 rounded-lg border text-left transition ${
                                 newElection.voter_role === value
-                                  ? 'bg-blue-600 border-blue-600 text-white'
+                                  ? 'bg-brand-600 border-blue-600 text-white'
                                   : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-blue-400'
                               }`}
                             >
@@ -1353,10 +1362,10 @@ export const AdminPanel = () => {
                         {/* Target type buttons */}
                         <div className="flex gap-2 mb-3 flex-wrap">
                           {[
-                            { value: 'all', label: '🌐 Todos en mi dominio' },
-                            { value: 'school', label: '🏫 Por facultad / escuela' },
-                            { value: 'org_unit', label: '🏛️ Unidad organizativa concreta' },
-                            { value: 'domain', label: '📧 Dominio de email' },
+                            { value: 'all', label: 'Todos en mi dominio' },
+                            { value: 'school', label: 'Por facultad / escuela' },
+                            { value: 'org_unit', label: 'Unidad organizativa concreta' },
+                            { value: 'domain', label: 'Dominio de email' },
                           ].map(({ value, label }) => (
                             <button
                               key={value}
@@ -1364,7 +1373,7 @@ export const AdminPanel = () => {
                               onClick={() => setNewElection(p => ({ ...p, target_type: value, target_values: [], target_schools: [] }))}
                               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                                 newElection.target_type === value
-                                  ? 'bg-blue-600 text-white'
+                                  ? 'bg-brand-600 text-white'
                                   : 'bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300'
                               }`}
                             >
@@ -1415,7 +1424,7 @@ export const AdminPanel = () => {
                               </div>
                             )}
                             {(newElection.target_schools || []).length > 0 && (
-                              <p className="text-xs text-blue-600 mt-2">
+                              <p className="text-xs text-brand-600 mt-2">
                                 {newElection.target_schools.length} facultad(es) seleccionada(s)
                               </p>
                             )}
@@ -1462,7 +1471,7 @@ export const AdminPanel = () => {
                               </div>
                             )}
                             {(newElection.target_values || []).length > 0 && (
-                              <p className="text-xs text-blue-600 mt-2">
+                              <p className="text-xs text-brand-600 mt-2">
                                 {newElection.target_values.length} unidad(es) seleccionada(s)
                               </p>
                             )}
@@ -1517,7 +1526,7 @@ export const AdminPanel = () => {
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Candidatos</label>
                         <div className="border border-slate-300 dark:border-slate-600 p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                           <div className="flex justify-end mb-3">
-                            <button type="button" onClick={handleAddCandidateField} className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
+                            <button type="button" onClick={handleAddCandidateField} className="text-sm bg-brand-500 text-white px-3 py-1 rounded hover:bg-brand-600 transition">
                               + Añadir candidato
                             </button>
                           </div>
@@ -1553,7 +1562,7 @@ export const AdminPanel = () => {
                         whileTap={{ scale: 0.98 }}
                         type="submit"
                         disabled={loading}
-                        className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition disabled:opacity-50"
+                        className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
                       >
                         {loading ? "Creando…" : "Crear elección"}
                       </motion.button>
@@ -1602,10 +1611,10 @@ export const AdminPanel = () => {
                                   {(() => {
                                     const chainStatus = election.chain_status || 'pending';
                                     const badge = {
-                                      synced:  { cls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200', label: `⛓️ En blockchain #${election.election_id_blockchain}` },
-                                      syncing: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: '⏳ Registrando en blockchain…' },
-                                      pending: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: '⏳ Pendiente de blockchain' },
-                                      failed:  { cls: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200', label: '⚠️ Error al registrar en blockchain' },
+                                      synced:  { cls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200', label: `En blockchain #${election.election_id_blockchain}` },
+                                      syncing: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: 'Registrando en blockchain…' },
+                                      pending: { cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200', label: 'Pendiente de blockchain' },
+                                      failed:  { cls: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200', label: 'Error al registrar en blockchain' },
                                     }[chainStatus] || { cls: 'bg-slate-100 text-slate-700', label: chainStatus };
                                     const title = chainStatus === 'failed' ? (election.chain_error || '') : (election.chain_tx_hash || '');
                                     return (
@@ -1616,12 +1625,12 @@ export const AdminPanel = () => {
                                   })()}
                                   {election.voter_role === 'admin' && (
                                     <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium">
-                                      ⚙️ Solo admins
+                                      Solo admins
                                     </span>
                                   )}
                                   {election.voter_role === 'both' && (
                                     <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium">
-                                      👥 Todos
+                                      Todos
                                     </span>
                                   )}
                                   {election.targets && election.targets.length > 0
@@ -1651,21 +1660,21 @@ export const AdminPanel = () => {
                                 </button>
                                 <button
                                   onClick={() => handleEditElection(election)}
-                                  className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded-lg transition font-medium text-sm w-36"
+                                  className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition font-medium text-sm w-36"
                                 >
-                                  ✏️ Editar
+                                  Editar
                                 </button>
                                 <button
                                   onClick={() => setExpandedElection(expandedElection === election.id ? null : election.id)}
-                                  className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition font-medium text-sm w-36"
+                                  className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition font-medium text-sm w-36"
                                 >
                                   Gestionar censo
                                 </button>
                                 <button
                                   onClick={() => setQrElection(election)}
-                                  className="px-4 py-2 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-300 rounded-lg transition font-medium text-sm w-36"
+                                  className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition font-medium text-sm w-36"
                                 >
-                                  📱 Código QR
+                                  Código QR
                                 </button>
                               </div>
                             </div>
@@ -1683,7 +1692,7 @@ export const AdminPanel = () => {
                                       value={manageCensus.email}
                                       onChange={e => setManageCensus({ ...manageCensus, email: e.target.value })}
                                     />
-                                    <button onClick={() => handleAddVoter(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Añadir votante</button>
+                                    <button onClick={() => handleAddVoter(election.id)} className="px-3 py-2 bg-brand-600 text-white rounded text-sm hover:bg-brand-700 transition">Añadir votante</button>
                                   </div>
                                   <div className="flex gap-2">
                                     <input
@@ -1693,7 +1702,7 @@ export const AdminPanel = () => {
                                       value={manageCensus.domain}
                                       onChange={e => setManageCensus({ ...manageCensus, domain: e.target.value })}
                                     />
-                                    <button onClick={() => handleAddDomain(election.id)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">Añadir dominio</button>
+                                    <button onClick={() => handleAddDomain(election.id)} className="px-3 py-2 bg-brand-600 text-white rounded text-sm hover:bg-brand-700 transition">Añadir dominio</button>
                                   </div>
                                 </div>
                                 {/* CSV Import */}
@@ -1714,7 +1723,7 @@ export const AdminPanel = () => {
                                   />
                                   <label
                                     htmlFor={`csv-import-${election.id}`}
-                                    className="cursor-pointer px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
+                                    className="cursor-pointer px-3 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 transition"
                                   >
                                     Importar CSV
                                   </label>
@@ -1765,7 +1774,7 @@ export const AdminPanel = () => {
                             )}
                             {stat.participation_rate != null && (
                               <p className="text-sm text-slate-600 dark:text-slate-400">
-                                <span className="font-semibold text-blue-600 dark:text-blue-400">{stat.participation_rate}%</span> de participación
+                                <span className="font-semibold text-brand-600 dark:text-brand-300">{stat.participation_rate}%</span> de participación
                               </p>
                             )}
                           </div>
@@ -1891,7 +1900,7 @@ export const AdminPanel = () => {
                         <button
                           key={s}
                           onClick={() => setInboxStatusFilter(s)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${inboxStatusFilter === s ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${inboxStatusFilter === s ? 'bg-brand-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
                         >
                           {{ pending: 'Pendientes', approved: 'Aprobadas', rejected: 'Rechazadas', all: 'Todas' }[s]} {s !== 'all' && `(${registrationRequests.filter(r => r.status === s).length})`}
                         </button>
@@ -1963,7 +1972,7 @@ export const AdminPanel = () => {
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => handleApproveRequest(request.id, request.email)}
                                 disabled={loading}
-                                className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
+                                className="flex-1 py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg transition disabled:opacity-50 text-sm"
                               >
                                 ✓ Aprobar
                               </motion.button>
@@ -2065,12 +2074,12 @@ export const AdminPanel = () => {
                   {/* KPI Row */}
                   <div className="grid grid-cols-3 gap-4">
                     {[
-                      { label: 'Censo', value: selectedElectionStats.stats.totalVoters, icon: '👥', tone: KPI_TONES.blue },
-                      { label: 'Votos emitidos', value: selectedElectionStats.stats.totalVotes, icon: '🗳️', tone: KPI_TONES.emerald },
-                      { label: 'Participación', value: `${selectedElectionStats.stats.participationRate}%`, icon: '📊', tone: KPI_TONES.purple },
-                    ].map(({ label, value, icon, tone }) => (
+                      { label: 'Censo', value: selectedElectionStats.stats.totalVoters, icon: UsersIcon, tone: KPI_TONES.blue },
+                      { label: 'Votos emitidos', value: selectedElectionStats.stats.totalVotes, icon: CheckCircleIcon, tone: KPI_TONES.emerald },
+                      { label: 'Participación', value: `${selectedElectionStats.stats.participationRate}%`, icon: ChartBarIcon, tone: KPI_TONES.purple },
+                    ].map(({ label, value, icon: Icon, tone }) => (
                       <div key={label} className={`${tone.box} rounded-xl p-4 text-center`}>
-                        <p className="text-2xl mb-1">{icon}</p>
+                        <Icon className="w-6 h-6 mx-auto mb-1 opacity-70" />
                         <p className={`text-2xl font-bold ${tone.value}`}>{value}</p>
                         <p className={`text-xs ${tone.label} mt-0.5`}>{label}</p>
                       </div>
@@ -2117,7 +2126,7 @@ export const AdminPanel = () => {
                               <tr key={c.id} className="border-t border-slate-100 dark:border-slate-700">
                                 <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-xs">#{i + 1}</td>
                                 <td className="py-3 px-4 text-slate-900 dark:text-white font-medium">
-                                  {isWinner && <span className="mr-1.5">👑</span>}
+                                  {isWinner && <span className="mr-2 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">Ganador</span>}
                                   {c.name}
                                   {c.description && <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{c.description}</span>}
                                 </td>
@@ -2125,9 +2134,9 @@ export const AdminPanel = () => {
                                 <td className="py-3 px-4 text-right">
                                   <div className="flex items-center justify-end gap-2">
                                     <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${c.percentage}%` }} />
+                                      <div className="h-full bg-brand-500 rounded-full" style={{ width: `${c.percentage}%` }} />
                                     </div>
-                                    <span className="text-blue-600 dark:text-blue-400 font-medium text-xs w-10 text-right">{c.percentage}%</span>
+                                    <span className="text-brand-600 dark:text-brand-300 font-medium text-xs w-10 text-right">{c.percentage}%</span>
                                   </div>
                                 </td>
                               </tr>
@@ -2183,7 +2192,7 @@ export const AdminPanel = () => {
                   <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
                     <button
                       onClick={() => { setSelectedElectionStats(null); navigate(`/results/${selectedElectionStats.election.id}`); }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
+                      className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium transition"
                     >
                       Ver resultados públicos
                     </button>
@@ -2246,7 +2255,7 @@ export const AdminPanel = () => {
             className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-sm"
           >
             <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">📱 Código QR</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Código QR</h2>
               <button
                 onClick={() => setQrElection(null)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded"
@@ -2270,7 +2279,7 @@ export const AdminPanel = () => {
                   navigator.clipboard.writeText(`${window.location.origin}/voting/${qrElection.id}`);
                   toast.success('Enlace copiado al portapapeles');
                 }}
-                className="w-full py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition text-sm"
+                className="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition text-sm"
               >
                 Copiar enlace
               </button>
@@ -2303,10 +2312,10 @@ export const AdminPanel = () => {
                   type="text"
                   value={editingElection.name}
                   onChange={e => setEditingElection(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none"
                 />
                 <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
-                  <span aria-hidden="true">⚠️</span>
+                  <WarningIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>El nombre original ya puede estar publicado para siempre en una cadena de bloques pública. Cambiarlo aquí no lo corrige allí, y no debe contener datos personales.</span>
                 </p>
               </div>
@@ -2316,7 +2325,7 @@ export const AdminPanel = () => {
                   rows={3}
                   value={editingElection.description}
                   onChange={e => setEditingElection(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none resize-none"
                 />
               </div>
               <div>
@@ -2325,7 +2334,7 @@ export const AdminPanel = () => {
                   type="datetime-local"
                   value={editingElection.end_time}
                   onChange={e => setEditingElection(prev => ({ ...prev, end_time: e.target.value }))}
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none"
                 />
               </div>
               <div className="flex gap-3 pt-2">
@@ -2337,7 +2346,7 @@ export const AdminPanel = () => {
                 </button>
                 <button
                   onClick={handleSaveEditElection}
-                  className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition"
+                  className="flex-1 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold transition"
                 >
                   Guardar cambios
                 </button>

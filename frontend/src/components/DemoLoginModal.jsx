@@ -140,7 +140,7 @@ export function DemoLoginModal({ isOpen, onClose }) {
                       className={`w-full py-2.5 rounded font-semibold text-sm transition-colors flex items-center justify-center gap-2 ${
                         type === 'student'
                           ? 'bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-60'
-                          : 'bg-emerald-700 hover:bg-emerald-800 text-white disabled:opacity-60'
+                          : 'bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-60'
                       }`}
                     >
                       {loading === type ? (

@@ -31,6 +31,8 @@ interface Ruta {
   path: (id: number) => string;
   /** Perezoso: el cuerpo puede depender de datos creados en beforeAll. */
   body: () => Record<string, unknown> | null;
+  /** Estado exacto que debe dar el dueño legítimo. Sin él, solo se exige "no 404". */
+  ok?: number;
 }
 
 const OWNER_DOMAIN = `owner-${Date.now()}.test`;
@@ -57,8 +59,8 @@ const PIXEL = Buffer.from(
 const RUTAS: Ruta[] = [
   { nombre: 'PUT elections/:id',             metodo: 'put',   path: id => `/admin/elections/${id}`,               body: () => ({ is_active: 1 }) },
   { nombre: 'PATCH elections/:id',           metodo: 'patch', path: id => `/admin/elections/${id}`,               body: () => ({ description: 'marca del intruso' }) },
-  { nombre: 'POST elections/:id/domains',    metodo: 'post',  path: id => `/admin/elections/${id}/domains`,       body: () => ({ domain: `anadido-${Date.now()}.test` }) },
-  { nombre: 'POST elections/:id/voters',     metodo: 'post',  path: id => `/admin/elections/${id}/voters`,        body: () => ({ email: votanteEmail }) },
+  { nombre: 'POST elections/:id/domains',    metodo: 'post',  path: id => `/admin/elections/${id}/domains`,       body: () => ({ domain: `anadido-${Date.now()}.${OWNER_DOMAIN}` }), ok: 200 },
+  { nombre: 'POST elections/:id/voters',     metodo: 'post',  path: id => `/admin/elections/${id}/voters`,        body: () => ({ email: votanteEmail }), ok: 200 },
   { nombre: 'POST elections/:id/candidates', metodo: 'post',  path: id => `/admin/elections/${id}/candidates`,    body: () => ({ name: `Candidata ${Date.now()}` }) },
   { nombre: 'GET elections/:id/stats',       metodo: 'get',   path: id => `/admin/elections/${id}/stats`,         body: () => null },
   { nombre: 'POST elections/:id/notify-open',  metodo: 'post', path: id => `/admin/elections/${id}/notify-open`,  body: () => ({}) },
@@ -73,7 +75,15 @@ async function lanzar(actor: Actor, ruta: Ruta) {
 }
 
 beforeAll(async () => {
-  electionId = await createFixtureElection({ name: `Alcance por dominio ${Date.now()}` });
+  // Futura a propósito: con la votación empezada, /domains y /voters cortan con
+  // 409 (censo congelado) antes de llegar a la comprobación de dominio, y el test
+  // del dueño legítimo no estaría probando nada.
+  const manana = Math.floor(Date.now() / 1000) + 86_400;
+  electionId = await createFixtureElection({
+    name: `Alcance por dominio ${Date.now()}`,
+    startTime: manana,
+    endTime: manana + 3600,
+  });
 
   // Lo que decide el alcance es election_access, y createFixtureElection no crea
   // ninguna fila: hay que declarar de quién es la elección.
@@ -86,7 +96,8 @@ beforeAll(async () => {
   // devolvería 404 ("Usuario no encontrado") también al dueño legítimo, y ese
   // 404 se confundiría con el del guard — el bloque de abajo dejaría de probar
   // nada.
-  const votante = await createFixtureUser({});
+  // Del dominio del dueño: un admin de dominio solo censa a gente de su dominio.
+  const votante = await createFixtureUser({ email: `votante-${Date.now()}@${OWNER_DOMAIN}` });
   votanteEmail = votante.email;
 
   owner      = await createAndLogin({ role: 'admin',      adminDomain: OWNER_DOMAIN });
@@ -143,12 +154,15 @@ describe('H-1 — un admin de otra institución no alcanza la elección', () => 
 
 describe('H-1 — el dueño legítimo sigue pasando', () => {
   for (const ruta of RUTAS) {
-    it(`${ruta.nombre} no devuelve 404 en su propio dominio`, async () => {
+    it(`${ruta.nombre} ${ruta.ok ? `→ ${ruta.ok}` : 'no devuelve 404'} en su propio dominio`, async () => {
       const res = await lanzar(owner, ruta);
-      // No se exige 200: cada ruta tiene su semántica de éxito (409 si el
-      // dominio ya estaba, por ejemplo). Lo que se vigila es que el guard de
-      // alcance no esté cortando al administrador legítimo.
-      expect(res.status).not.toBe(404);
+      // Donde la ruta tiene un éxito inequívoco se exige exactamente ese estado;
+      // un `not 404` también lo cumple una ruta que corta antes por otro motivo
+      // (censo congelado, dominio ajeno) sin llegar a lo que se quería probar.
+      // En el resto, cada ruta tiene su semántica de éxito y solo se vigila que
+      // el guard de alcance no esté cortando al administrador legítimo.
+      if (ruta.ok) expect(res.status).toBe(ruta.ok);
+      else expect(res.status).not.toBe(404);
     });
   }
 });

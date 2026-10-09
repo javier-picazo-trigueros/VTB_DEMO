@@ -1,0 +1,109 @@
+/**
+ * Cabina de votación: regresiones de interfaz que ya se vieron en producción.
+ *
+ * No hay tests de componentes en el frontend, así que estos leen el código de
+ * VotingBooth.jsx y de las traducciones, igual que frontend-api-base.test.ts.
+ * Cada caso nombra el fallo que impide que vuelva.
+ */
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+const src = path.resolve(__dirname, '../../../frontend/src');
+const booth = readFileSync(path.join(src, 'pages/VotingBooth.jsx'), 'utf-8');
+const i18n = readFileSync(path.join(src, 'i18n/config.ts'), 'utf-8');
+
+/** El bloque JSX de la lista de candidatos. */
+const inicio = booth.indexOf('candidates.map((candidate)');
+const lista = booth.slice(inicio, booth.indexOf('setShowConfirm(true)', inicio));
+
+describe('el nombre del candidato se ve en modo oscuro', () => {
+  // La tarjeta es dark:bg-slate-800 y el nombre era text-slate-800, sin variante
+  // oscura: texto rgb(30,41,59) sobre fondo rgb(30,41,59), invisible.
+  it('el nombre tiene color en claro y variante dark: en seleccionado y sin seleccionar', () => {
+    const nombre = lista.slice(lista.indexOf('{candidate.name}') - 400, lista.indexOf('{candidate.name}'));
+    expect(nombre).toMatch(/text-slate-900 dark:text-white/);
+    expect(nombre).toMatch(/text-brand-700 dark:text-brand-100/);
+    expect(nombre).not.toMatch(/text-slate-800/);
+  });
+
+  it('la descripción y el radio también tienen variante dark:', () => {
+    expect(lista).toMatch(/text-slate-500 dark:text-slate-400[^"]*truncate/);
+    expect(lista).toMatch(/border-slate-300 dark:border-slate-500/);
+  });
+
+  it('la fila seleccionada y el hover tienen fondo propio en oscuro', () => {
+    expect(lista).toMatch(/dark:bg-brand-600\/25/);
+    expect(lista).toMatch(/dark:hover:bg-slate-700\/50/);
+  });
+});
+
+describe('"votantes registrados" sale del censo', () => {
+  // Era un useState(0) que solo subía con eventos VoteCast recibidos en vivo: 0
+  // al abrir la página, mientras "0 de 3 votantes" (del censo) salía bien.
+  it('no hay un contador local de eventos: se lee participation.totalVoters', () => {
+    expect(booth).not.toMatch(/voteCount|setVoteCount/);
+    const i = booth.indexOf('votingBooth.votersRegistered');
+    const tarjeta = booth.slice(i - 900, i);
+    expect(tarjeta).toMatch(/participation \? participation\.totalVoters/);
+  });
+
+  it('el número de la tarjeta y el "N de M" salen del mismo campo de /results', () => {
+    expect(booth).toMatch(/totalVoters: Number\(data\.election\?\.totalVoters\)/);
+    expect(booth).toMatch(/total: participation\.totalVoters/);
+  });
+});
+
+describe('detalles de la lista de candidatos y del botón', () => {
+  it('"Participación" lleva tilde', () => {
+    expect(i18n).toMatch(/currentParticipation: "Participación actual"/);
+    expect(i18n).not.toMatch(/Participacion actual/);
+  });
+
+  it('la selección no usa border-l junto a divide-y (dejaba un trozo blanco en la segunda tarjeta)', () => {
+    expect(lista).not.toMatch(/border-l-/);
+    expect(booth).toMatch(/divide-slate-100 dark:divide-slate-700/);
+    expect(lista).toMatch(/absolute inset-y-0 left-0 w-\[3px\] bg-brand-600/);
+  });
+
+  it('el botón desactivado ya no es slate-400 sobre slate-100 y tiene variante dark:', () => {
+    const boton = booth;
+    expect(boton).not.toMatch(/bg-slate-100 text-slate-400 cursor-not-allowed/);
+    expect(boton).toMatch(/bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300/);
+  });
+});
+
+describe('el temporizador de "Confirmando transacción" se cancela siempre', () => {
+  // Con un fallo rápido (503 elección sin registrar, 409) el error se pintaba y
+  // 300 ms después el temporizador lo pisaba: "Confirmando transacción…" para siempre.
+  const inicio = booth.indexOf('const handleVote = async');
+  const fin = booth.indexOf('\n  };', booth.indexOf('finally', inicio) > 0 ? booth.indexOf('finally', inicio) : inicio);
+  const handleVote = booth.slice(inicio, fin === -1 ? inicio + 6000 : fin);
+
+  it('se declara fuera del try y se cancela en un finally', () => {
+    expect(handleVote).toMatch(/let confirmTimer;/);
+    expect(handleVote).toMatch(/finally \{\s*clearTimeout\(confirmTimer\);/);
+  });
+
+  it('no se cancela solo en el camino feliz', () => {
+    expect((handleVote.match(/clearTimeout\(confirmTimer\)/g) ?? []).length).toBe(1);
+  });
+});
+
+describe('pantalla de confirmación de un voto de demostración', () => {
+  // Salía "¡Voto registrado en blockchain!" con una caja de hash vacía, un botón
+  // de copiar y "Guarda este hash ahora", todo sobre un voto que no tiene transacción.
+  const modal = booth.slice(booth.indexOf('const VoteSuccessModal'), booth.indexOf('const VoteSuccessModal') + 4500);
+
+  it('el título y el subtítulo de un voto demo no hablan de blockchain ni de hash', () => {
+    expect(modal).toMatch(/txData\.isDemo\s*\?\s*t\("votingBooth\.voteRegisteredDemo"\)/);
+    expect(modal).toMatch(/txData\.isDemo\s*\?\s*t\("votingBooth\.voteRegisteredDemoSub"\)/);
+    expect(i18n).toMatch(/voteRegisteredDemo: "¡Voto de demostración registrado!"/);
+    expect(i18n).toMatch(/voteRegisteredDemo: "Demo vote registered!"/);
+  });
+
+  it('el aviso de guardar el hash, la caja del hash y "Copiar" solo se pintan si hay transacción', () => {
+    expect(modal).toMatch(/\{!txData\.isDemo && txData\.txHash && \(\s*<>\s*<p[^>]*>\s*\{t\("votingBooth\.receiptSaveWarning"\)\}/);
+    expect(modal).toMatch(/votingBooth\.copyTxHash[\s\S]{0,120}<\/>\s*\)\}/);
+  });
+});

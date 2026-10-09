@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { Navbar } from '../components/Navbar'
+import { CheckCircleIcon } from '../components/Icons'
 import { api } from '../utils/apiClient'
 import { PASSWORD_MIN_LENGTH } from '../utils/passwordPolicy'
 
@@ -44,7 +45,7 @@ export function ChangePassword() {
     }
   }
 
-  const inputCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:opacity-50"
+  const inputCls = "w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none disabled:opacity-50"
   const labelCls = "block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
 
   return (
@@ -59,7 +60,7 @@ export function ChangePassword() {
         >
           {success ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-              <div className="text-5xl mb-4">✅</div>
+              <CheckCircleIcon className="w-14 h-14 mx-auto mb-4 text-green-600 dark:text-green-400" />
               <h2 className="text-xl font-bold text-green-600 dark:text-green-400 mb-2">{t('changePassword.success')}</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm">{t('changePassword.successDesc')}</p>
             </motion.div>
@@ -104,7 +105,7 @@ export function ChangePassword() {
                   <button
                     type="submit"
                     disabled={loading || !form.current || !form.next || !form.confirm}
-                    className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {loading ? (
                       <><div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> {t('changePassword.saving')}</>

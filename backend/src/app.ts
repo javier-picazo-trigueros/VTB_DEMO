@@ -15,6 +15,7 @@ import {
   resetPasswordLimiter,
   voteUserLimiter,
   voteIpLimiter,
+  chainReadLimiter,
 } from "./middleware/rateLimit.js";
 import authRoutes from "./routes/auth.js";
 import electionRoutes from "./routes/elections.js";
@@ -99,7 +100,12 @@ app.use(cors({
       .map(o => o.trim())
       .filter(Boolean);
 
-    const allowed = [...configured, ...DEV_ORIGINS];
+    // Los orígenes de localhost solo fuera de producción: con credentials:true,
+    // dejarlos en producción permite que una página en el localhost de la víctima
+    // haga peticiones autenticadas contra la API.
+    const allowed = process.env.NODE_ENV === 'production'
+      ? configured
+      : [...configured, ...DEV_ORIGINS];
 
     if (allowed.some(a => a !== '*' && origin === a)) {
       return callback(null, true);
@@ -403,6 +409,7 @@ app.use("/auth", authRoutes);
 
 // requireAuth runs first so req.user is available to voteUserLimiter's keyGenerator.
 app.post("/api/elections/register-vote", requireAuth, voteIpLimiter, voteUserLimiter);
+app.get(["/api/elections/:id", "/api/elections/:id/results"], chainReadLimiter);
 app.use("/api/elections", electionRoutes);
 
 app.use("/api/organizations", organizationRoutes);

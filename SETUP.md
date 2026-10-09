@@ -1,56 +1,57 @@
-# SETUP — levantar VTB después del pull
+# SETUP — levantar VTB en local
 
-Para quien ya tiene el repo clonado y trae los cambios de septiembre de 2026
-(PostgreSQL, seed que no borra, correos sin tokens en la base). Si clonas desde
-cero, sigue los mismos pasos saltándote el 1 y usando `git clone`.
+Para clonar el repositorio (o ponerlo al día) y tener la aplicación funcionando en
+tu máquina. Tiempo estimado: 10–15 minutos. No hace falta blockchain, Supabase ni
+Resend para tener la app funcionando con las cuentas de demo.
 
-Tiempo estimado: 10–15 minutos. No hace falta blockchain, Supabase ni Resend
-para tener la app funcionando con las cuentas de demo.
+Otros documentos: [`README.md`](README.md) (visión general),
+[`docs/DESARROLLO.md`](docs/DESARROLLO.md) (flujo de trabajo y comandos),
+[`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) (producción) y
+[`CLAUDE.md`](CLAUDE.md) (reglas del proyecto).
 
 ---
 
-## Qué cambia para ti
+## Lo que conviene saber antes de empezar
 
 - El backend funciona con **SQLite** (por defecto) o **PostgreSQL**
-  (`DB_CLIENT=postgres`). En local no tienes que cambiar nada: sigue siendo SQLite.
-- **`npm run seed` ya no borra datos.** Si la base tiene algún usuario, aborta con
+  (`DB_CLIENT=postgres`). En local no tienes que cambiar nada: es SQLite.
+- **`npm run seed` no borra datos.** Si la base tiene algún usuario, aborta con
   código 1 sin tocar nada. Para borrar y volver a sembrar: `npm run seed:reset`.
-- El botón **«Demo»** ya no lleva contraseñas en el frontend: entra por
-  `POST /auth/demo-login`, que usa las contraseñas del seed de tu `backend/.env`.
-- Ese endpoint **está deshabilitado salvo que pongas `DEMO_LOGIN_ENABLED=true`**
-  en `backend/.env`. Concede una sesión sin que el cliente aporte credencial
-  alguna, así que en cualquier despliegue público va apagado. En local lo
-  quieres encendido.
-- Hay páginas nuevas de **recuperación de contraseña** y **activación de cuenta**
-  (`/forgot-password`, `/auth/reset-password`, `/auth/set-password`).
-- Los correos de invitación y recuperación **ya no guardan el enlace** en
-  `email_log`: el token se genera al enviar (P1-7).
-- **`frontend/.env.production` ya no está en git.** Al hacer el merge desaparece de
-  tu carpeta. En local no se usa; en Vercel, las `VITE_*` tienen que estar en el
-  panel del proyecto (ver [Antes de mergear a `main`](#antes-de-mergear-a-main)).
-- Hay **8 migraciones** de PostgreSQL. Solo te afectan si usas PostgreSQL.
-- **Crear una elección ya no espera a la blockchain.** Se guarda con sus candidatos
-  y se registra en el contrato en segundo plano. Sin blockchain configurada (lo
-  normal en local), el panel la muestra como «⏳ Pendiente de blockchain»: es lo
-  esperado, y las cuentas `@vtb.demo` votan igual.
+- El botón **«Demo»** entra por `POST /auth/demo-login`, que usa las contraseñas del
+  seed de tu `backend/.env`. Ese endpoint **está deshabilitado salvo que pongas
+  `DEMO_LOGIN_ENABLED=true`** en `backend/.env`: concede una sesión sin que el
+  cliente aporte credencial alguna, así que en cualquier despliegue público va
+  apagado. En local lo quieres encendido.
+- Los correos de invitación y recuperación **no guardan el enlace** en `email_log`:
+  el token se genera al enviar.
+- `frontend/.env.production` no está en git. En local no se usa; en Vercel, las
+  `VITE_*` están en el panel del proyecto.
+- Hay **16 migraciones** de PostgreSQL. Solo te afectan si usas PostgreSQL.
+- **Crear una elección no espera a la blockchain.** Se guarda con sus candidatos y se
+  registra en el contrato en segundo plano. Sin blockchain configurada (lo normal en
+  local), el panel la muestra como «Pendiente de blockchain»: es lo esperado. Mientras
+  esté así, **votar devuelve `503 ELECTION_NOT_ON_CHAIN` a todo el mundo, cuentas demo
+  incluidas**: sin una cadena (Hardhat local o Sepolia) se puede entrar y navegar, pero
+  no votar. Ver [`docs/DESARROLLO.md`](docs/DESARROLLO.md), sección 4.
 
 ---
 
-## ¿Base de Supabase compartida o propia?
+## Qué base de datos usar
 
-**Para desarrollar, ninguna de las dos: SQLite local.** Es lo que hacen estos pasos.
+**Para desarrollar, ninguna de las dos: una base local.** SQLite por defecto, o un PostgreSQL en Docker si necesitas el mismo motor que producción.
 
 | Opción | Cuándo usarla | Por qué |
 |---|---|---|
 | **SQLite local** (`backend/vtb.db`) | Siempre, para el día a día | Cero configuración. La base es solo tuya: puedes hacer `seed:reset`, importar CSVs y votar sin afectar a nadie |
+| **PostgreSQL local en Docker** | Si necesitas probar algo específico de PostgreSQL, o las migraciones | Mismo motor que producción, gratis y sin cuenta. Ver [Si usas PostgreSQL](#si-usas-postgresql) |
 | **Supabase del proyecto** (`pxqejrptikoqoaokoqaq`) | **Nunca para desarrollar. Es PRODUCCIÓN.** | Es la base real del despliegue, con datos y votos reales. Ni se consulta "para verificar algo" sin avisar antes en el equipo |
-| **Tu propio PostgreSQL** (un proyecto gratuito de Supabase o Docker) | Si necesitas probar algo específico de PostgreSQL | Mismo motor que producción, sin riesgo para datos compartidos ni para producción. Ver [Si usas PostgreSQL](#si-usas-postgresql) |
 
-**Desarrollo es SQLite local — no hay un segundo proyecto de Supabase "de desarrollo".** El único Supabase del proyecto es producción. Si alguna vez hace falta PostgreSQL en local, es un proyecto propio y aparte (ver [Si usas PostgreSQL](#si-usas-postgresql)), nunca el de producción, y con secretos propios (`JWT_SECRET`, `NULLIFIER_SECRET`, contraseñas del seed) — nunca los de producción. El `.env` local no apunta a la `DATABASE_URL` de producción bajo ningún concepto, ni siquiera un momento para probar algo.
+**No hay un segundo proyecto de Supabase "de desarrollo".** El único Supabase del proyecto es producción, y el `.env` local no apunta a su `DATABASE_URL` bajo ningún concepto, ni siquiera un momento para probar algo. Si algún día se crea un proyecto de desarrollo, tendrá sus propios secretos (`JWT_SECRET`, `NULLIFIER_SECRET`, contraseñas del seed) — nunca los de producción.
 
-Como red de seguridad adicional (no como sustituto de lo anterior), `npm run seed` y `npm run seed:reset` se niegan a ejecutarse salvo que **las dos** condiciones se cumplan a la vez:
+Como red de seguridad adicional (no como sustituto de lo anterior), `npm run seed` y `npm run seed:reset` se niegan a ejecutarse salvo que se cumplan **las tres** condiciones a la vez:
 - `NODE_ENV` no sea `production`.
 - `ALLOW_SEED_RESET=true` esté puesto explícitamente en el `.env` de ese entorno. No tiene valor por defecto: sin ella, el seed no se ejecuta en ningún caso, tenga o no datos la base.
+- Con `DB_CLIENT=postgres`, que `DATABASE_URL` apunte a `localhost`, `127.0.0.1` o `::1`. Una base remota solo se siembra con `SEED_REMOTE_DB_OK=true`, pensada para un proyecto remoto de desarrollo; **nunca la pongas contra el Supabase de producción**.
 
 Reglas si alguna vez hace falta tocar la base de producción directamente (no vía seed):
 
@@ -62,28 +63,32 @@ Reglas si alguna vez hace falta tocar la base de producción directamente (no v�
 
 ---
 
-## Pasos, desde el pull hasta la app corriendo
+## Pasos
 
 Los comandos valen para PowerShell y bash salvo donde se indica. Si PowerShell
 bloquea `npm`, usa `npm.cmd` o ejecuta
 `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned`.
 
-### 1. Traer los cambios
+### 1. Traer el código
+
+Si no lo tienes:
+
+```bash
+git clone https://github.com/javier-picazo-trigueros/VTB_DEMO.git
+cd VTB_DEMO
+```
+
+Si ya lo tienes, ponte al día con `main` y crea o actualiza tu rama de trabajo (ver
+[`docs/DESARROLLO.md`](docs/DESARROLLO.md), sección 1):
 
 ```bash
 git fetch origin
-git checkout JaimeOrdovas
-git merge origin/JavierPicazo
+git checkout main && git pull origin main
 ```
-
-Tu rama estaba en `5b31b46f`, que ya forma parte de `JavierPicazo`, así que el
-merge es un *fast-forward* si no tienes commits propios sin subir. Si prefieres
-esperar a que llegue a `main` por pull request, cambia la última línea por
-`git merge origin/main` cuando esté mergeado.
 
 ### 2. Instalar dependencias
 
-Requisito: Node.js 20 LTS (también funciona con 22).
+Requisito: Node.js 24 (el `package.json` del frontend lo exige en `engines`; el CI prueba el backend con 20 y 22).
 
 ```bash
 cd backend
@@ -186,7 +191,9 @@ Abre **http://localhost:3000** (Vite está fijado a ese puerto en `frontend/vite
    npm test
    ```
 
-   Resultado esperado: 18 ficheros, 142 tests en verde.
+   Resultado esperado: todos los ficheros en verde (74 ficheros y 524 tests el
+   07-10-2026, uno de ellos saltado a propósito). El número crece con cada
+   módulo: lo que importa es que no haya ninguno en rojo.
 
 ---
 
@@ -214,9 +221,11 @@ marcadas con 🔒 son secretas y no se comparten ni se suben a git.
 | `SEED_DEMO_SUPERADMIN_PASSWORD` 🔒 | **Sí** | Contraseña de `superadmin@vtb.demo` |
 | `SEED_DEMO_STUDENT_PASSWORD` 🔒 | **Sí** para el botón «Entrar como Votante» | Contraseña de `student@vtb.demo` y `student2@vtb.demo`. El seed aún siembra `demo123` si la dejas vacía, pero `demo-login` ya no tiene ese valor por defecto |
 | `ALLOW_SEED_RESET` | **Sí**, para poder sembrar: `true` | Sin ella (o con `NODE_ENV=production`), `npm run seed` y `npm run seed:reset` se niegan a tocar nada, tenga o no datos la base. Nunca la pongas en el `.env` de producción |
+| `SEED_REMOTE_DB_OK` | No | Solo si siembras una base PostgreSQL **remota de desarrollo**. Sin ella, el seed se niega contra cualquier host que no sea local. Nunca contra el Supabase de producción |
 | `DEMO_LOGIN_ENABLED` | Solo en local: `true` | Habilita `POST /auth/demo-login`. **Sin ella la ruta devuelve 404.** Concede sesión sin credenciales del cliente: nunca la definas en un despliegue público |
 | `RPC_URL` | No para cuentas demo | Nodo Ethereum (Sepolia vía Alchemy/Infura, o Hardhat local) |
-| `CONTRACT_ADDRESS` | No para cuentas demo | Dirección del contrato `ElectionRegistry` |
+| `CONTRACT_ADDRESS` | No para cuentas demo | Dirección del contrato `ElectionRegistryV2` (la actual está en `blockchain/deployments/sepolia.json`) |
+| `DEPLOY_BLOCK` | No para cuentas demo | Bloque de despliegue de ese contrato. Desde ahí se leen los eventos (`queryFilter`); sin ella se pregunta al contrato con `deploymentBlock()` |
 | `PRIVATE_KEY` 🔒 | No para cuentas demo | Clave del wallet *relayer* que firma los votos reales. Necesita Sepolia ETH |
 | `EXPLORER_URL` | No | Base de los enlaces al explorador de bloques |
 | `RESEND_API_KEY` 🔒 | No | Clave de Resend. Sin ella los correos quedan en `email_log` como `skipped` y no se envían |
@@ -225,9 +234,13 @@ marcadas con 🔒 son secretas y no se comparten ni se suben a git.
 | `HEALTH_DB_TIMEOUT_MS` | No (por defecto `3000`) | Tiempo máximo de la consulta de `/health` |
 | `EMAIL_SEND_INTERVAL_MS` | No (por defecto `250`) | Pausa entre envíos de la cola de correo |
 
-Las cuentas `@vtb.demo` votan con un hash sintético y no tocan la blockchain, así
-que `RPC_URL`, `CONTRACT_ADDRESS` y `PRIVATE_KEY` solo hacen falta para votos reales
-en Sepolia (ver *Start The App → Mode A* en el README).
+`RPC_URL`, `CONTRACT_ADDRESS` y `PRIVATE_KEY` hacen falta para poder **votar**: sin
+ellos las elecciones quedan pendientes de blockchain y votar devuelve `503` a todo el
+mundo. Si la elección sí está registrada, una cuenta `@vtb.demo` guarda un voto de
+demostración sin hash de transacción (`vote_source = 'demo'`, `tx_hash` a NULL) y no
+toca la cadena; ese atajo solo existe con `DEMO_LOGIN_ENABLED=true`, y en producción
+esas cuentas votan por el camino normal. Cómo montar una cadena local:
+[`docs/DESARROLLO.md`](docs/DESARROLLO.md), sección 4.
 
 **Variables que puedes ver en algún `.env` pero el backend no lee:** `HMAC_SECRET`,
 `SEPOLIA_RPC_URL` y `ALCHEMY_API_KEY` (estas dos las usa `blockchain/.env` para
@@ -251,17 +264,20 @@ navegador. **Nunca pongas un secreto en `frontend/.env`.**
 
 ## Si usas PostgreSQL
 
-Con tu propio proyecto de Supabase o un contenedor de Docker. No con la base del
-proyecto (ver arriba).
+Con un contenedor de Docker (lo recomendado) o con tu propio proyecto de Supabase.
+No con la base del proyecto (ver arriba).
 
 1. **Consigue la cadena de conexión.**
-   - Supabase: *Connect → Session pooler* (puerto **5432**). No uses el host directo
-     `db.<ref>.supabase.co`, que solo resuelve por IPv6 y falla en muchas redes.
-   - Docker:
+   - Docker (requiere Docker Desktop arrancado):
      ```bash
      docker run --name vtb-pg -e POSTGRES_USER=vtb -e POSTGRES_PASSWORD=vtb -e POSTGRES_DB=vtb -p 5432:5432 -d postgres:17
      ```
-     Cadena: `postgresql://vtb:vtb@localhost:5432/vtb`
+     Cadena: `postgresql://vtb:vtb@localhost:5432/vtb?sslmode=disable`. El
+     `?sslmode=disable` hace falta: `npm run migrate` obliga a usar SSL y, sin él,
+     falla con «The server does not support SSL connections».
+   - Supabase propio (un proyecto que no sea el de producción): *Connect → Session
+     pooler* (puerto **5432**). No uses el host directo `db.<ref>.supabase.co`, que
+     solo resuelve por IPv6 y falla en muchas redes.
 2. En `backend/.env`:
    ```env
    DB_CLIENT=postgres
@@ -278,8 +294,9 @@ proyecto (ver arriba).
    ```sql
    SELECT id, name FROM pgmigrations ORDER BY id;
    ```
-   Deben salir 8 filas, la última `20260916000008_election_chain_sync`.
-4. Siembra (solo sobre la base recién migrada, vacía): `npm run seed`.
+   Deben salir 16 filas, la última `20260929000016_separate_participation_from_votes`.
+4. Siembra (solo sobre la base recién migrada, vacía): `npm run seed`. Con una base
+   remota, el seed se niega salvo `SEED_REMOTE_DB_OK=true` (ver arriba).
 5. `npm run dev` debe mostrar `✅ Usando PostgreSQL como motor de BD`.
 
 ---
@@ -307,19 +324,16 @@ Barrido completo del historial de Git el 2026-09-15 (`git log --all -S` sobre
 
 | Credencial | Estado | Nota |
 |---|---|---|
-| Clave de Alchemy (`SqiqmYnoP6S…`) en `frontend/.env.production` | 🔴 **Pendiente de rotar** | Real, filtrada desde `dfc78c5a`. Untrackeada del repo en `1d0d041b`, pero sigue viva en el historial público y hay que darla por comprometida |
+| Clave de Alchemy en `frontend/.env.production` | 🟢 **Rotada** (confirmado por Javier el 07-10-2026) | Estuvo filtrada desde `dfc78c5a` y untrackeada en `1d0d041b`. Sigue en el historial público, pero la clave antigua ya no vale |
 | `PRIVATE_KEY=0xac0974be…` en varios commits | 🟢 Sin acción | Es la clave pública de test #0 de Hardhat (misma que sigue en el README, sección *Local Hardhat chain*). No es un secreto: es conocida por cualquiera que use Hardhat |
 | `JWT_SECRET`, `NULLIFIER_SECRET`, `HMAC_SECRET` en `.env.example` / commits antiguos | 🟢 Sin acción | Todos son placeholders (`cambia_esto_en_produccion...`, `super-secret-...-change-in-production`), nunca valores reales |
 | `RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxx` | 🟢 Sin acción | Placeholder literal, no una clave real |
-| `DATABASE_URL` / hosts de Supabase en `SETUP.md`, `MIGRACION_POSTGRES.md` | 🟢 Sin acción | Solo aparecen `<ref>`, `USUARIO:CONTRASEÑA` o el usuario `vtb:vtb` de Docker local |
+| `DATABASE_URL` / hosts de Supabase en `SETUP.md` y `docs/` | 🟢 Sin acción | Solo aparecen `<ref>`, `USUARIO:CONTRASEÑA` o el usuario `vtb:vtb` de Docker local |
 
-**Pendiente — requiere acceso a los paneles, no se puede hacer desde el repo:**
-
-1. Alchemy → Dashboard → Apps → regenerar la API key del proyecto VTB.
-2. Vercel → Settings → Environment Variables → actualizar `VITE_RPC_URL` con la
-   clave nueva.
-3. Render → Environment → actualizar `RPC_URL` con la clave nueva.
-4. Volver a esta tabla y marcar la fila de Alchemy como rotada, con fecha.
+**Hecho (ya no hay pasos pendientes):** la key de Alchemy está regenerada y
+`VITE_RPC_URL` (Vercel) y `RPC_URL` (Render) llevan la nueva. Si alguna vez hay
+que repetirlo, el orden es: Alchemy → regenerar la key, Vercel → `VITE_RPC_URL`,
+Render → `RPC_URL`, y anotarlo en la tabla de arriba con fecha.
 
 **Job de vigilancia:** [`.github/workflows/secret-scan-history.yml`](.github/workflows/secret-scan-history.yml)
 escanea el historial completo cada lunes (y bajo demanda, `workflow_dispatch`),
@@ -328,14 +342,8 @@ así fue como esta clave pasó desapercibida varios commits.
 
 ---
 
-## Antes de mergear a `main`
+## Antes de fusionar a `main`
 
-`main` despliega solo (Vercel y Render). Antes del pull request:
-
-1. **Vercel:** comprueba que `VITE_API_URL`, `VITE_EXPLORER_URL` y
-   `VITE_CONTRACT_ADDRESS` están en *Settings → Environment Variables*. Hasta ahora
-   podían venir de `frontend/.env.production`, que ya no está en el repo; si Vercel
-   dependía de ese fichero, el frontend desplegado perdería la URL del backend.
-2. **Render:** el despliegue con PostgreSQL está descrito en `DESPLIEGUE_RENDER.md`.
-   La migración 007 ya está aplicada en Supabase.
-3. Ejecuta `npm run build` y `npm test` en `backend/` y `npm run build` en `frontend/`.
+`main` despliega solo (Vercel y Render). La lista de comprobaciones previas
+(tests, migraciones con copia de seguridad, variables nuevas) está en
+[`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md), sección 5.

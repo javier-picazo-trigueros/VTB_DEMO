@@ -57,6 +57,57 @@ describe('runSeed() — cerrojo de entorno, independiente de si hay datos', () =
     expect(await countUsers()).toBe(antes);
   });
 
+  describe('base remota', () => {
+    const ORIGINAL = {
+      client: process.env.DB_CLIENT,
+      url: process.env.DATABASE_URL,
+      remoto: process.env.SEED_REMOTE_DB_OK,
+    };
+    afterEach(() => {
+      for (const [clave, valor] of [
+        ['DB_CLIENT', ORIGINAL.client], ['DATABASE_URL', ORIGINAL.url], ['SEED_REMOTE_DB_OK', ORIGINAL.remoto],
+      ] as const) {
+        if (valor === undefined) delete process.env[clave];
+        else process.env[clave] = valor;
+      }
+    });
+
+    function entornoPermisivo(url: string) {
+      process.env.NODE_ENV = 'development';
+      process.env.ALLOW_SEED_RESET = 'true';
+      process.env.DB_CLIENT = 'postgres';
+      process.env.DATABASE_URL = url;
+      delete process.env.SEED_REMOTE_DB_OK;
+    }
+
+    // El incidente que motiva esto: un seed contra el Supabase compartido. Con
+    // NODE_ENV=development y ALLOW_SEED_RESET=true en el .env, las otras dos
+    // condiciones se cumplen sin darse cuenta.
+    it('bloquea contra PostgreSQL en un host que no es local', async () => {
+      entornoPermisivo('postgresql://u:p@aws-1-eu-central-1.pooler.supabase.com:5432/postgres');
+
+      const antes = await countUsers();
+      expect(await runSeed({ reset: true })).toBe('aborted');
+      expect(await countUsers()).toBe(antes);
+    });
+
+    it('bloquea también un host que solo parece local', async () => {
+      entornoPermisivo('postgresql://u:p@localhost.evil.example.com:5432/postgres');
+      expect(await runSeed({ reset: true })).toBe('aborted');
+    });
+
+    it('con SEED_REMOTE_DB_OK=true deja pasar a una base remota de desarrollo', async () => {
+      entornoPermisivo('postgresql://u:p@db.proyecto-de-desarrollo.supabase.co:5432/postgres');
+      process.env.SEED_REMOTE_DB_OK = 'true';
+      expect(await runSeed({ reset: true })).toBe('reset-and-seeded');
+    });
+
+    it('no bloquea contra un PostgreSQL en localhost', async () => {
+      entornoPermisivo('postgresql://postgres:local@localhost:55432/vtb');
+      expect(await runSeed({ reset: true })).toBe('reset-and-seeded');
+    });
+  });
+
   it('con las dos condiciones cumplidas, no bloquea por el cerrojo de entorno', async () => {
     process.env.NODE_ENV = 'development';
     process.env.ALLOW_SEED_RESET = 'true';

@@ -187,6 +187,21 @@ export const resetPasswordLimiter = rateLimit({
   message: { error: 'Demasiados intentos. Espera 15 minutos.' },
 });
 
+// ── Lecturas públicas que consultan la cadena ────────────────────────────────
+//
+// GET /api/elections/:id y /:id/results hacen una llamada RPC (getElection,
+// getTally) por petición y no exigen sesión. Sin freno, unas pocas peticiones por
+// segundo agotan la cuota del proveedor de nodo. Es un freno grueso y alto: tras
+// el proxy de Vercel muchos usuarios comparten IP, así que no puede ser estricto.
+
+export const chainReadLimiter = rateLimit({
+  ...COMMON,
+  windowMs: 60 * 1000,
+  max: IS_TEST ? NO_LIMIT : envLimit('RATE_LIMIT_CHAIN_READ_MAX', 1200),
+  keyGenerator: (req) => `chain-read:ip:${ipOf(req)}`,
+  message: { error: 'Demasiadas consultas. Espera un minuto.' },
+});
+
 // ── Voto ─────────────────────────────────────────────────────────────────────
 
 /** Por usuario autenticado. requireAuth debe haber puesto req.user antes. */

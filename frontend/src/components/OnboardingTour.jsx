@@ -1,4 +1,4 @@
-import { Joyride, STATUS } from 'react-joyride';
+import { Joyride, STATUS, EVENTS, ACTIONS } from 'react-joyride';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { optionalStorageDeclined } from './CookieBanner';
@@ -50,25 +50,27 @@ export function OnboardingTour({ role = 'student', userId }) {
     setRun(false);
   };
 
-  const handleCallback = ({ status, action }) => {
-    const finished = status === STATUS.FINISHED || status === STATUS.SKIPPED;
+  // react-joyride 3.x: el manejador es `onEvent` (en la 2.x era `callback`, que la
+  // 3.x ignora en silencio) y recibe un objeto con `type`, `status` y `action`.
+  const handleEvent = ({ type, status, action }) => {
+    const finished = type === EVENTS.TOUR_END || status === STATUS.FINISHED || status === STATUS.SKIPPED;
     // Also catch close-button click, escape key, overlay click
-    const dismissed = action === 'close' || action === 'skip' || action === 'reset';
+    const dismissed = action === ACTIONS.CLOSE || action === ACTIONS.SKIP || action === ACTIONS.RESET;
     if (finished || dismissed) markDone();
   };
 
   const voterSteps = [
-    { target: 'body', content: t('onboarding.voterWelcome'), placement: 'center', disableBeacon: true },
-    { target: '[data-tour="elections-list"]', content: t('onboarding.electionsList'), disableBeacon: true },
-    { target: '[data-tour="filter-bar"]', content: t('onboarding.filterBar'), disableBeacon: true },
-    { target: '[data-tour="transparency-link"]', content: t('onboarding.transparencyLink'), disableBeacon: true },
+    { target: 'body', content: t('onboarding.voterWelcome'), placement: 'center' },
+    { target: '[data-tour="elections-list"]', content: t('onboarding.electionsList') },
+    { target: '[data-tour="filter-bar"]', content: t('onboarding.filterBar') },
+    { target: '[data-tour="transparency-link"]', content: t('onboarding.transparencyLink') },
   ];
 
   const adminSteps = [
-    { target: 'body', content: t('onboarding.adminWelcome'), placement: 'center', disableBeacon: true },
-    { target: '[data-tour="create-election"]', content: t('onboarding.createElection'), disableBeacon: true },
-    { target: '[data-tour="requests-tab"]', content: t('onboarding.requestsTab'), disableBeacon: true },
-    { target: '[data-tour="stats-tab"]', content: t('onboarding.statsTab'), disableBeacon: true },
+    { target: 'body', content: t('onboarding.adminWelcome'), placement: 'center' },
+    { target: '[data-tour="create-election"]', content: t('onboarding.createElection') },
+    { target: '[data-tour="requests-tab"]', content: t('onboarding.requestsTab') },
+    { target: '[data-tour="stats-tab"]', content: t('onboarding.statsTab') },
   ];
 
   const steps = ['admin', 'superadmin'].includes(role) ? adminSteps : voterSteps;
@@ -78,26 +80,28 @@ export function OnboardingTour({ role = 'student', userId }) {
       steps={steps}
       run={run}
       continuous
-      showProgress
-      showSkipButton
-      disableScrolling={false}
-      callback={handleCallback}
+      onEvent={handleEvent}
+      // En la 3.x estas opciones viven en `options` (antes eran props sueltas y
+      // `styles.options`: showProgress, showSkipButton, disableBeacon...).
+      options={{
+        primaryColor: '#2563eb',
+        zIndex: 10000,
+        backgroundColor: '#1e293b',
+        textColor: '#f1f5f9',
+        arrowColor: '#1e293b',
+        showProgress: true,
+        skipBeacon: true,
+        buttons: ['back', 'skip', 'primary'],
+      }}
       styles={{
-        options: {
-          primaryColor: '#2563eb',
-          zIndex: 10000,
-          backgroundColor: '#1e293b',
-          textColor: '#f1f5f9',
-          arrowColor: '#1e293b',
-        },
         tooltip: { borderRadius: '12px' },
-        buttonNext: { backgroundColor: '#2563eb', borderRadius: '8px' },
       }}
       locale={{
         back: t('onboarding.back'),
         close: t('onboarding.close'),
         last: t('onboarding.finish'),
         next: t('onboarding.next'),
+        nextWithProgress: t('onboarding.nextWithProgress'),
         skip: t('onboarding.skip'),
       }}
     />

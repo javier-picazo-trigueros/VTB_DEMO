@@ -73,12 +73,10 @@ describe('DELETE /auth/me', () => {
     expect(fila?.anonymized_at).toBeFalsy();
   });
 
-  it('con deleted_at ya puesto por otra vía (p. ej. un admin) mientras el JWT sigue vivo, responde 404', async () => {
-    // El JWT de acceso es autocontenido y no consulta la base en cada
-    // petición (requireAuth solo lo descodifica); la propia ruta es la que
-    // comprueba deleted_at antes de tramitar la baja. Se simula el hueco de
-    // hasta 15 minutos en el que la cuenta ya está de baja mientras el access
-    // token todavía es válido.
+  it('con deleted_at ya puesto por otra vía (p. ej. un admin) mientras el JWT sigue vivo, responde 401', async () => {
+    // El JWT de acceso dura 15 min, pero requireAuth consulta deleted_at en cada
+    // petición: la sesión de una cuenta de baja deja de valer al instante, sin
+    // esperar a que caduque el token.
     const user = await createAndLogin();
     await db.exec('UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
 
@@ -87,6 +85,6 @@ describe('DELETE /auth/me', () => {
       .set('X-CSRF-Token', user.csrf)
       .send({ password: user.password });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
   });
 });

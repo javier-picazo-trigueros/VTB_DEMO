@@ -7,7 +7,7 @@ export function TermsOfService() {
       <H2>1. Aceptación</H2>
       <P>
         El registro en VTB implica la aceptación de estos términos y de la{' '}
-        <Link to="/legal/privacidad" className="text-blue-600 dark:text-blue-400 hover:underline">Política de
+        <Link to="/legal/privacidad" className="text-brand-600 dark:text-brand-300 hover:underline">Política de
         Privacidad</Link>, mediante una casilla independiente de cualquier otro consentimiento, no marcada por
         defecto.
       </P>
@@ -16,7 +16,7 @@ export function TermsOfService() {
       <P>
         VTB ofrece: registro inmutable del voto, recuento verificable por terceros de forma independiente, y
         prevención criptográfica del doble voto. <b>VTB no ofrece hoy voto anónimo ni voto secreto frente a quien
-        opera el sistema</b> — ver la sección 4 de la <Link to="/legal/privacidad" className="text-blue-600 dark:text-blue-400 hover:underline">Política de Privacidad</Link>. Cualquier institución que convoque una elección a
+        opera el sistema</b> — ver la sección 4 de la <Link to="/legal/privacidad" className="text-brand-600 dark:text-brand-300 hover:underline">Política de Privacidad</Link>. Cualquier institución que convoque una elección a
         través de VTB debe comprobar que este nivel de garantía es compatible con su propio reglamento electoral
         antes de convocar.
       </P>

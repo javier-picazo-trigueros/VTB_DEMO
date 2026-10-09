@@ -17,39 +17,35 @@ dotenv.config({ quiet: true });
  * ARQUITECTURA CRÍTICA - GENERACIÓN DE NULLIFIER:
  * ============================================
  *
- * El nullifier es la PIEZA CLAVE que conecta Web2 (usuario) con Web3 (voto anónimo):
+ * El nullifier es el testigo único por usuario y elección que impide el doble voto:
  *
  * 1. QUÉ ES UN NULLIFIER:
  *    - Un identificador único por usuario + elección
- *    - Generado determinísticamente pero no reversible
- *    - Permite al blockchain verificar "no doble voto" sin revelar identidad
+ *    - Generado determinísticamente, no reversible sin NULLIFIER_SECRET
+ *    - Permite al contrato rechazar un segundo voto con el mismo identificador
  *
  * 2. FÓRMULA:
  *    nullifier = HMAC-SHA256(
- *      key = PRIVATE_SECRET_KEY (servidor),
- *      message = user_id + election_id + constant_salt
+ *      key = NULLIFIER_SECRET (servidor),
+ *      message = user_id + election_id [+ sal efímera de la elección]
  *    )
  *
- * 3. FLUJO SEGURO:
- *    a) Usuario autentica: username + password
- *    b) Backend valida contra SQLite
- *    c) Backend genera: nullifier = HMAC(secret_key, user_id + election_id)
- *    d) Backend incluye en JWT: {userId, nullifier, exp}
- *    e) Frontend recibe JWT (contiene nullifier)
- *    f) Frontend envía: (nullifier, voteHash) al Smart Contract
- *    g) Backend NUNCA entra en blockchain (relayer agnostic)
+ * 3. FLUJO:
+ *    a) Usuario autentica con su sesión (cookie httpOnly).
+ *    b) Al votar, el servidor calcula el nullifier en ese momento; no va en el JWT.
+ *    c) El servidor, como relayer, envía castVote(electionId, nullifier, posición
+ *       del candidato) al contrato. El navegador no firma ni envía nada a la cadena.
  *
  * 4. SEGURIDAD:
- *    - No es posible invertir HMAC para obtener user_id
- *    - Mismo user_id + mismo election_id = siempre el mismo nullifier (determínístico)
- *    - User_id ≠ user_id => nullifier ≠ nullifier (único por usuario)
- *    - Si usuario intenta votar 2 veces, genera el MISMO nullifier
- *    - Smart Contract rechaza segunda transacción (double vote)
+ *    - No es posible invertir el HMAC sin la clave del servidor.
+ *    - Mismo user_id + misma elección = siempre el mismo nullifier.
+ *    - Si el usuario intenta votar dos veces, genera el MISMO nullifier y el
+ *      contrato rechaza la segunda transacción.
  *
- * 5. PRIVACIDAD:
- *    - El blockchain ve: nullifier (hash) + voteHash (cifrado)
- *    - El blockchain NO ve: identificación personal (email, nombre, ID estudiante)
- *    - Auditoría: Blockchain prueba "X persona votó" sin revelar quién es X
+ * 5. PRIVACIDAD (el voto NO es anónimo, es seudónimo; ver SEGURIDAD.md §2.1):
+ *    - La cadena ve el nullifier y el candidato, no el email, el nombre ni el id.
+ *    - El servidor sí puede calcular el nullifier de cualquier usuario mientras
+ *      procesa el voto: quien opera el sistema puede relacionar votante y voto.
  */
 
 // CONSTANTE CRÍTICA: Secret key para HMAC (debe estar en .env en producción)
@@ -170,7 +166,7 @@ export function generateToken(
 ): string {
   const payload: JwtPayload = { userId, email, role };
   if (adminDomain) payload.adminDomain = adminDomain;
-  return jwt.sign(payload, REQUIRED_JWT_SECRET, { expiresIn: '15m' });
+  return jwt.sign(payload, REQUIRED_JWT_SECRET, { expiresIn: '15m', algorithm: 'HS256' });
 }
 
 /**
@@ -187,7 +183,7 @@ export function verifyToken(
   adminDomain?: string | null;
 } | null {
   try {
-    const decoded = jwt.verify(token, REQUIRED_JWT_SECRET) as JwtPayload;
+    const decoded = jwt.verify(token, REQUIRED_JWT_SECRET, { algorithms: ['HS256'] }) as JwtPayload;
     return {
       userId: decoded.userId,
       email: decoded.email,

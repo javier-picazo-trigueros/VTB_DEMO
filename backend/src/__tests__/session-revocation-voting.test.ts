@@ -61,9 +61,12 @@ describe('BLOQUE 1.2 — Usuarios borrados o desaprobados que siguen votando, y 
         [user.id],
       );
 
+      // requireAuth consulta deleted_at: la sesión de una cuenta dada de baja deja
+      // de valer (401) antes de llegar a la ruta, en lugar de esperar a que caduque
+      // el JWT de 15 min.
       // 1. Comprobación de elegibilidad
       const eligRes = await agent.get(`/api/elections/${electionId}/eligibility`);
-      expect(eligRes.body.eligible).toBe(false);
+      expect(eligRes.status).toBe(401);
 
       // 2. Intento de voto con sesión activa
       const voteRes = await agent
@@ -75,8 +78,7 @@ describe('BLOQUE 1.2 — Usuarios borrados o desaprobados que siguen votando, y 
           voteHash: `0x${'a'.repeat(64)}`,
         });
 
-      expect(voteRes.status).toBe(403);
-      expect(voteRes.body.error).toMatch(/habilitada|activo|encontrado/i);
+      expect(voteRes.status).toBe(401);
     });
 
     it('un usuario desaprobado (is_approved=false) no puede votar ni es elegible aunque conserve JWT activo (403)', async () => {
