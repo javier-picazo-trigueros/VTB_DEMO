@@ -84,7 +84,7 @@ export function OnboardingTour({ role = 'student', userId }) {
       // En la 3.x estas opciones viven en `options` (antes eran props sueltas y
       // `styles.options`: showProgress, showSkipButton, disableBeacon...).
       options={{
-        primaryColor: '#2563eb',
+        primaryColor: '#2572A0',
         zIndex: 10000,
         backgroundColor: '#1e293b',
         textColor: '#f1f5f9',
@@ -95,6 +95,8 @@ export function OnboardingTour({ role = 'student', userId }) {
       }}
       styles={{
         tooltip: { borderRadius: '12px' },
+        buttonPrimary: { color: '#ffffff' },
+        buttonBack: { color: '#cbd5e1' },
       }}
       locale={{
         back: t('onboarding.back'),
