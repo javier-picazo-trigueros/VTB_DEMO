@@ -65,7 +65,7 @@ function TabButton({ id, label, icon: Icon, badge, active, onSelect }) {
         }`}
     >
       {Icon && <Icon className="w-4 h-4" />} {label}
-      {badge != null && (
+      {badge !== null && badge !== undefined && (
         <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
           {badge}
         </span>
@@ -1768,12 +1768,12 @@ export const AdminPanel = () => {
                             <p className="text-sm text-slate-600 dark:text-slate-400">
                               <span className="font-semibold text-emerald-600 dark:text-emerald-400">{stat.total_voters}</span> votos emitidos
                             </p>
-                            {stat.total_voters_assigned != null && (
+                            {stat.total_voters_assigned !== null && stat.total_voters_assigned !== undefined && (
                               <p className="text-sm text-slate-600 dark:text-slate-400">
                                 de <span className="font-semibold">{stat.total_voters_assigned}</span> asignados
                               </p>
                             )}
-                            {stat.participation_rate != null && (
+                            {stat.participation_rate !== null && stat.participation_rate !== undefined && (
                               <p className="text-sm text-slate-600 dark:text-slate-400">
                                 <span className="font-semibold text-brand-600 dark:text-brand-300">{stat.participation_rate}%</span> de participación
                               </p>
