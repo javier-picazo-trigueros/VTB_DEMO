@@ -389,7 +389,7 @@ export const Dashboard = () => {
               </select>
 
               <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">
-                {sortedElections.length} of {elections.length} election{elections.length !== 1 ? 's' : ''}
+                {t('dashboard.electionCount', { count: elections.length, shown: sortedElections.length, total: elections.length })}
               </span>
             </motion.div>
           )}
